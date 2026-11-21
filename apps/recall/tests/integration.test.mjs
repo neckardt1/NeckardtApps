@@ -5,7 +5,7 @@ import {readFile} from "node:fs/promises";
 import * as fsrsLib from "ts-fsrs";
 import {PGlite} from "@electric-sql/pglite";
 import {gradeHandler,schedulerFor} from "../supabase/functions/recall-grade/grade.mjs";
-import {makeOutbox,makeReviewSession} from "../src/review-session.js";
+import {makeOutbox,makeReviewSession} from "../src/review-session.ts";
 
 test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
  const db=new PGlite();

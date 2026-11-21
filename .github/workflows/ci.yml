@@ -1,0 +1,27 @@
+name: Pull request checks
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Typecheck, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install Recall dependencies
+        run: npm ci --prefix apps/recall
+      - name: Typecheck, test, and build
+        run: |
+          npm --prefix apps/recall run typecheck
+          npm --prefix apps/recall test
+          node --test tests/pages.test.mjs
+          node scripts/build-pages.mjs
