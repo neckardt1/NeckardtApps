@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f1f4ef">
+  <meta name="description" content="A home for small personal web apps.">
+  <title>Neckardt Apps</title>
+  <style>
+    :root {color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f1f4ef;color:#12291d}
+    * {box-sizing:border-box} body {margin:0;line-height:1.5}
+    main {width:min(100% - 2rem,37rem);padding:clamp(2rem,8vw,5rem) 0;margin:0 auto}
+    .eyebrow {color:#245c3c;font-size:.875rem;letter-spacing:.09em;text-transform:uppercase;font-weight:740;margin:0}
+    h1 {font-size:clamp(2.25rem,8vw,3.6rem);letter-spacing:-.06em;line-height:1.06;margin:.4rem 0}
+    .intro {color:#43584b;margin:0 0 1.55rem}
+    .app {display:flex;gap:1rem;align-items:center;background:white;border:1px solid #c7d4ca;border-radius:1rem;text-decoration:none;color:inherit;padding:1rem;min-height:5.5rem}
+    .app:hover {border-color:#53765e;background:#f8fcf9}
+    .app:focus-visible {outline:3px solid #245c3c;outline-offset:3px}
+    .icon {background:#245c3c;color:white;min-width:2.5rem;height:2.5rem;border-radius:.6rem;display:grid;place-items:center}
+    .icon svg {width:1.45rem;height:1.45rem}
+    .title {display:block;font-size:1.15rem;font-weight:730}
+    .detail {display:block;color:#43584b;font-size:.95rem}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">App launcher</p>
+    <h1>Neckardt Apps</h1>
+    <p class="intro">Small tools for everyday use.</p>
+    <a class="app" href="./recall/">
+      <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="4" width="13" height="16" rx="2.4"/><path d="M3 7v12a4 4 0 0 0 4 4h9M9.5 9h6M9.5 13h4"/></svg></span>
+      <span><span class="title">Recall</span><span class="detail">Review flashcards with spaced repetition. Sign-in required.</span></span>
+    </a>
+  </main>
+</body>
+</html>

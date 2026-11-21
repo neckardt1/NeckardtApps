@@ -1,0 +1,13 @@
+node_modules/
+_site/
+dist/
+coverage/
+.env
+.env.*
+*.dump
+*.sql.bak
+*.pem
+*.key
+.auth/
+supabase/.temp/
+supabase/.branches/
