@@ -1,0 +1,48 @@
+:root {color-scheme:light; --paper:#f1f4ef; --ink:#12291d; --muted:#43584b; --line:#c7d4ca; --green:#245c3c; --light:#e3efe5; --card:#fff; --warn:#742b1d; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+* {box-sizing:border-box} body {margin:0;background:var(--paper);color:var(--ink);font-size:1rem;line-height:1.5}
+button {font:inherit;cursor:pointer;touch-action:manipulation} button:focus-visible,summary:focus-visible {outline:3px solid #276744;outline-offset:3px}
+[hidden] {display:none!important}
+.shell {width:min(100% - 2rem,36rem);margin:0 auto;padding:clamp(1.15rem,4.4vw,3.5rem) 0 max(1.3rem,env(safe-area-inset-bottom))}
+header {display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:clamp(.85rem,3vw,1.7rem)}
+.brand {display:flex;align-items:center;gap:.65rem;font-weight:710;font-size:1.25rem;letter-spacing:-.035em}
+.brand svg {width:1.9rem;height:1.9rem;padding:.28rem;background:#245c3c;color:white;border-radius:.44rem}
+.badge {border:1px solid var(--line);border-radius:2rem;font-size:.875rem;font-weight:640;padding:.2rem .65rem;color:#304c39;white-space:nowrap}
+.progressline {display:flex;justify-content:space-between;align-items:center;gap:.75rem;font-size:.875rem;color:var(--muted);font-weight:640}
+.progress {display:grid;gap:.25rem;margin:.43rem 0 1rem;min-height:.23rem}
+.progress span {background:#d5e0d7;border-radius:1rem}
+.progress .current {background:#7ba387}.progress .done {background:var(--green)}
+.eyebrow {color:var(--green);font-size:.875rem;font-weight:740;margin:0}
+.review-card {display:flex;flex-direction:column;justify-content:center;min-height:clamp(9rem,26vw,13rem);background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:clamp(1rem,5vw,1.75rem);box-shadow:0 5px 18px #182d2110}
+h1 {font-size:clamp(1.48rem,5.4vw,2.05rem);font-weight:680;line-height:1.2;letter-spacing:-.035em;margin:.32rem 0 .2rem;overflow-wrap:anywhere} h1:focus {outline:none}
+.review-action {margin-top:.65rem}
+.answer-side {border-top:1px solid var(--line);margin-top:1.08rem;padding-top:.75rem}
+.answer-side p:last-child {font-size:clamp(1.02rem,4.25vw,1.2rem);line-height:1.45;margin:.25rem 0 0;overflow-wrap:anywhere}
+.answer-side p:focus {outline:none}
+.primary {width:100%; min-height:3rem; border:1px solid var(--green);border-radius:.6rem;background:var(--green);color:#fff;font-weight:690}
+.primary:hover {background:#1b4d30}.primary:active {background:#173f28}
+.ratings {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(.24rem,1.6vw,.5rem)}
+.ratings button {min-height:3rem;background:var(--card);border:1px solid #aebdb2;border-radius:.6rem;font-size:clamp(.81rem,3.3vw,1rem);padding:.35rem .12rem;color:var(--ink);font-weight:680}
+.ratings button:hover {background:#e3efe5}.ratings button:active {background:#cbe4d2}
+.ratings button:first-child {border-color:#d9c7c1;color:var(--warn)}
+.ratings button:last-child {border-color:#527d61;color:var(--green)}
+.secondary {min-height:2.65rem;border:1px solid #aebdb2;border-radius:.5rem;background:var(--card);color:var(--ink);padding:.3rem .65rem;font-size:.9rem;font-weight:670}
+.secondary:disabled {cursor:not-allowed;opacity:.52}
+.complete {margin-top:.75rem;text-align:left}
+.complete p {margin:.35rem 0 .8rem;color:var(--muted)}
+.footer {margin-top:1rem;border-top:1px solid var(--line);padding-top:.52rem}
+.saver {display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:2.75rem}
+.status {font-size:.875rem;color:var(--muted);margin:0}
+.status.error {color:var(--warn);font-weight:670}
+details {font-size:.875rem;color:var(--muted);margin-top:.3rem}
+summary {min-height:2.5rem;display:list-item;align-content:center;cursor:pointer}
+details p {margin:.1rem 0 .45rem}
+.simulator {display:flex;min-height:2.75rem;align-items:center;gap:.55rem}
+.simulator input {width:1.2rem;height:1.2rem;accent-color:var(--green)}
+@media(max-width:335px) {.shell {width:calc(100% - 1.25rem)} header {gap:.35rem} .badge {font-size:.8rem} }
+
+.login { background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:1rem }
+.login label {display:block;margin:.6rem 0}
+.login input {width:100%;font:inherit;min-height:2.6rem;border:1px solid var(--line);border-radius:.35rem;padding:.3rem .5rem;color:var(--ink)}
+.login p {color:var(--muted)}
+.row {display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.error {color:var(--warn)}

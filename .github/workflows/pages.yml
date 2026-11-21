@@ -31,6 +31,7 @@ jobs:
         run: npm ci --prefix apps/recall
       - name: Test app and Pages routes
         run: |
+          npm --prefix apps/recall run typecheck
           npm --prefix apps/recall test
           node --test tests/pages.test.mjs
       - name: Build public site
@@ -43,7 +44,7 @@ jobs:
           path: _site
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     permissions:
