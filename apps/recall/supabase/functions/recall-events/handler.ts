@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { challengeCallback, rejectedHost, secretBytes, send, signedPost, validateUrl, type Transport } from "./callback.ts";
+import { challengeCallback, rejectedHost, secretBytes, send, signedPost, validateUrl, type CallbackRejection, type Transport } from "./callback.ts";
 
 const eventName = "recall.canary.completed";
 const batch = "mcp-canary";
@@ -31,10 +31,25 @@ const json = (value: unknown, status = 200) => Response.json(value, {status, hea
 class ProtocolError extends Error {
   code: number;
   data?: Dict;
+  callbackRejection?: CallbackRejection;
   constructor(code: number, message: string, data?: Dict) { super(message); this.code = code; this.data = data; }
 }
 const invalid = () => new ProtocolError(-32602, "Invalid parameters");
 const unauthorized = () => json({error:"Unauthorized"}, 401);
+
+const diagnosticMethods = new Set(["initialize", "server/discover", "ping", "events/list", "tools/list",
+  "events/subscribe", "events/unsubscribe", "tools/call", "notifications/initialized"]);
+type Outcome = "ok" | "notification" | "parse_error" | "invalid_request" | "origin_rejected" |
+  "missing_auth" | "auth_rejected" | "forbidden" | "auth_unavailable" | "invalid_params" |
+  "method_not_found" | "disallowed_endpoint" | "challenge_failed" | "internal_error";
+
+function errorOutcome(error: ProtocolError): Outcome {
+  if (error.code === -32602) return "invalid_params";
+  if (error.code === -32601) return "method_not_found";
+  if (error.code === -32015 && error.data?.reason === "disallowed_endpoint") return "disallowed_endpoint";
+  if (error.code === -32015 && error.data?.reason === "challenge_failed") return "challenge_failed";
+  return "internal_error";
+}
 
 async function readBody(req: Request) {
   const reader = req.body?.getReader();
@@ -58,14 +73,31 @@ export type OAuthPolicy = {
   authorize: (req: Request, id: string | number, method: string) => Promise<Response | undefined>;
 };
 export function createHandler(db: Database, hosts: ReadonlySet<string>, transport: Transport = send, oauth?: OAuthPolicy) {
+  // Only the fixed vocabulary crosses the log boundary. Payloads, error details and IDs stay out.
+  function diagnostic(method: unknown, outcome: Outcome, response: Response, failure?: CallbackRejection): Response {
+    if (!oauth) return response;
+    const safeMethod = typeof method === "string" && diagnosticMethods.has(method) ? method : "unknown";
+    try {
+      console.info(JSON.stringify({time:new Date().toISOString(), method:safeMethod, outcome,
+        callback_rule:failure?.rule, callback_host:failure?.rule === "host" ? failure.knownHost : undefined}));
+    }
+    catch { /* A logging failure must not prevent the protocol response. */ }
+    return response;
+  }
+
   async function subscription(p: Dict, remove: boolean) {
     if (p.name !== eventName || !isObject(p.arguments) || p.arguments.batch_id !== batch ||
         !onlyKeys(p.arguments, ["batch_id"]) || !isObject(p.delivery) ||
         p.delivery.mode !== "webhook" || p.cursor != null ||
         !onlyKeys(p.delivery, remove ? ["mode","url"] : ["mode","url","secret"])) throw invalid();
     let url: URL;
-    try { url = validateUrl(p.delivery.url, hosts); }
-    catch { throw new ProtocolError(-32015, "CallbackEndpointError", {reason:"disallowed_endpoint", ...rejectedHost(p.delivery.url)}); }
+    let failure: CallbackRejection | undefined;
+    try { url = validateUrl(p.delivery.url, hosts, rejected => { failure = rejected; }); }
+    catch {
+      const error = new ProtocolError(-32015, "CallbackEndpointError", {reason:"disallowed_endpoint", ...rejectedHost(p.delivery.url)});
+      if (!remove) error.callbackRejection = failure;
+      throw error;
+    }
     const id = "sub_" + hash(JSON.stringify(["synthetic-owner",url.href,eventName,batch])).slice(0,40);
     if (remove) return await db("unsubscribe", {id});
     const ttl = p.ttlMs ?? 3600000;
@@ -108,24 +140,30 @@ export function createHandler(db: Database, hosts: ReadonlySet<string>, transpor
     const route = new URL(req.url).pathname.replace(/\/$/, "").split("/").at(-1);
     if (route !== "mcp" && route !== "deliver" && route !== "recall-events") return json({error:"Unknown route"},404);
     // This endpoint is used server-to-server and does not accept browser-origin calls.
-    if (req.headers.has("origin")) return json({error:"Browser-origin requests disabled"},403);
+    if (req.headers.has("origin")) {
+      const rejected = json({error:"Browser-origin requests disabled"},403);
+      return route === "deliver" ? rejected : diagnostic(undefined,"origin_rejected",rejected);
+    }
     const match = req.headers.get("authorization")?.match(/^Bearer ([^\s]{16,512})$/i);
     const tokenHash = match ? hash(match[1]) : "";
     if (route === "deliver" && !tokenHash) return unauthorized();
     let input;
     try { input = await readBody(req); } catch (e) {
-      return json({jsonrpc:"2.0",id:null,error:{code:e instanceof ProtocolError ? e.code : -32700,message:"Invalid request body"}}, 400);
+      const code = e instanceof ProtocolError ? e.code : -32700;
+      const rejected = json({jsonrpc:"2.0",id:null,error:{code,message:"Invalid request body"}}, 400);
+      return route === "deliver" ? rejected : diagnostic(undefined,code === -32600 ? "invalid_request" : "parse_error",rejected);
     }
     if (route === "deliver") {
       try { return await deliver(input, tokenHash); }
       catch { return json({error:"Delivery unavailable"},503); }
     }
+    const methodName = isObject(input) ? input.method : undefined;
     if (!isObject(input) || input.jsonrpc !== "2.0" || typeof input.method !== "string" ||
         (input.params !== undefined && !isObject(input.params)) ||
         (input.id !== undefined && typeof input.id !== "string" && typeof input.id !== "number"))
-      return json({jsonrpc:"2.0",id:null,error:{code:-32600,message:"Invalid Request"}},400);
+      return diagnostic(methodName,"invalid_request",json({jsonrpc:"2.0",id:null,error:{code:-32600,message:"Invalid Request"}},400));
     const {id, method} = input;
-    if (id === undefined) return new Response(null,{status:202});
+    if (id === undefined) return diagnostic(method,"notification",new Response(null,{status:202}));
     const p = (input.params ?? {}) as Dict;
     try {
       let result: unknown;
@@ -143,8 +181,15 @@ export function createHandler(db: Database, hosts: ReadonlySet<string>, transpor
         case "tools/call": {
           if (oauth) {
             const denied = await oauth.authorize(req, id as string | number, method);
-            if (denied) return denied;
-          } else if (!tokenHash || await db("auth",{token_hash:tokenHash}) !== true) return unauthorized();
+            if (denied) {
+              let outcome: Outcome = req.headers.has("authorization") ? "auth_rejected" : "missing_auth";
+              if (denied.status === 403) outcome = "forbidden";
+              if (denied.status === 503) outcome = "auth_unavailable";
+              return diagnostic(method,outcome,denied);
+            }
+          } else if (!tokenHash || await db("auth",{token_hash:tokenHash}) !== true) {
+            return diagnostic(method,req.headers.has("authorization") ? "auth_rejected" : "missing_auth",unauthorized());
+          }
           if (method === "tools/call") {
             if (p.name !== readTool.name || !isObject(p.arguments) || !onlyKeys(p.arguments, ["session_id"]) ||
                 !validId(p.arguments.session_id)) throw invalid();
@@ -157,10 +202,11 @@ export function createHandler(db: Database, hosts: ReadonlySet<string>, transpor
         }
         default: throw new ProtocolError(-32601, "Method not found");
       }
-      return json({jsonrpc:"2.0",id,result});
+      return diagnostic(method,"ok",json({jsonrpc:"2.0",id,result}));
     } catch (e) {
       const error = e instanceof ProtocolError ? e : new ProtocolError(-32603, "Internal error");
-      return json({jsonrpc:"2.0",id,error:{code:error.code,message:error.message,data:error.data}});
+      return diagnostic(method,errorOutcome(error),
+        json({jsonrpc:"2.0",id,error:{code:error.code,message:error.message,data:error.data}}),error.callbackRejection);
     }
   };
 }
