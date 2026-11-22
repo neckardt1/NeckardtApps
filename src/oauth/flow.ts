@@ -5,7 +5,15 @@ type Auth = Pick<SupabaseClient['auth'], 'signInWithPassword' | 'oauth'>;
 type OAuth = Auth['oauth'];
 type Action = 'approve' | 'deny';
 
-export const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+// Supabase Auth generates the public request ID from 20 bytes using lowercase, unpadded base32.
+const authorizationId = /^[a-z2-7]{32}$/;
+
+export function readAuthorizationId(search: string) {
+  const ids = new URLSearchParams(search).getAll('authorization_id');
+  return ids.length === 1 && authorizationId.test(ids[0]) ? ids[0] : null;
+}
 
 export function configured(limits: ConsentLimits) {
   if (!uuid.test(limits.userId) || !uuid.test(limits.clientId)) return false;
@@ -17,7 +25,7 @@ export function configured(limits: ConsentLimits) {
 }
 
 export async function openRequest(auth: Auth, id: string, limits: ConsentLimits, email: string, password: string) {
-  if (!uuid.test(id) || !configured(limits)) throw new Error('Start a new connection from ChatGPT.');
+  if (!authorizationId.test(id) || !configured(limits)) throw new Error('Start a new connection from ChatGPT.');
   const login = await auth.signInWithPassword({ email, password });
   if (login.error || login.data.user?.id !== limits.userId)
     throw new Error('Sign in with the dedicated canary account.');

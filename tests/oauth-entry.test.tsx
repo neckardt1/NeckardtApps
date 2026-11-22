@@ -42,7 +42,7 @@ test('the actual canary entry signs in and approves without changing Account ide
   const account = { id: '44444444-4444-4444-8444-444444444444', email: 'owner@example.invalid' };
   const canary = { id: '11111111-1111-4111-8111-111111111111', email: 'canary@example.invalid' };
   const clientId = '22222222-2222-4222-8222-222222222222';
-  const authorizationId = '33333333-3333-4333-8333-333333333333';
+  const authorizationId = 'unfpzwemgihdvyhaj5kl3xqfysfnmsyg';
   const callback = 'https://chat.example.invalid/return';
   const authKey = 'sb-abcdefghijklmnopqrst-auth-token';
   const roundKey = `recall.round.v2.${config.url}.${account.id}`;
@@ -98,6 +98,7 @@ test('the actual canary entry signs in and approves without changing Account ide
   const host = document.createElement('main'); host.id = 'root'; document.body.append(host);
   await act(async () => { await import('../src/oauth/main'); });
   expect(host.textContent).toContain('Connect Recall canary');
+  expect(host.textContent).toContain('Sign in with the dedicated canary account');
   const form = host.querySelector('form')!;
   form.querySelector<HTMLInputElement>('[name="email"]')!.value = canary.email;
   form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-canary-password';

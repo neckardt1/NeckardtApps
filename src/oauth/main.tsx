@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import type { PublicSupabaseConfig } from '../../shared/browser-auth.mts';
-import { configured, decide, openRequest, uuid, type ConsentLimits } from './flow';
+import { configured, decide, openRequest, readAuthorizationId, type ConsentLimits } from './flow';
 import '../../shared/shell.css';
 import './consent.css';
 
@@ -16,8 +16,7 @@ const limits: ConsentLimits = {
 const auth = createClient(__SITE_PUBLIC_CONFIG__.url, __SITE_PUBLIC_CONFIG__.publishableKey, {
   auth: { storageKey: 'recall-canary-consent', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 }).auth;
-const ids = new URLSearchParams(location.search).getAll('authorization_id');
-const id = ids.length === 1 && uuid.test(ids[0]) ? ids[0] : null;
+const id = readAuthorizationId(location.search);
 
 function Consent() {
   const [request, setRequest] = useState<Awaited<ReturnType<typeof openRequest>> | null>(null);
