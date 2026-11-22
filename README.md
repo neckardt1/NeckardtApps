@@ -80,6 +80,30 @@ review rebuild must adopt the shared shell in its own reviewed step, with its
 database prerequisite and cached-client release sequencing revalidated. Its
 existing PR/branch is not changed by this work.
 
-Backend files under `apps/recall/supabase/` remain source-only, unchanged, and
+Backend files under `apps/recall/supabase/` remain source-only and
 excluded from the site. Never rerun historical migrations on a provisioned
 database or commit live seeds, account credentials, cards, or review history.
+
+## Recall completion canary
+
+The [canary runbook](apps/recall/supabase/recall-canary.md) covers setup, receipts and cleanup.
+For ChatGPT web, follow the [OAuth setup guide](apps/recall/supabase/recall-canary-oauth.md). The function lets a Dot subscribe to a synthetic review-completion event.
+To exercise the full loop, subscribe from the Dot conversation that should receive the reply,
+then insert one synthetic completion after the Dot becomes idle. Measure until that conversation
+shows the reply. The delivery acknowledgment measures only when ChatGPT accepted the callback.
+
+Keep the function source in `apps/recall/supabase/functions/recall-events/` and apply the canary's
+new SQL migration once with the existing migration process. Deploy the reviewed source to Supabase
+using the connected deployment tool or run the following from `apps/recall/` with a deployment token
+in the environment:
+
+```sh
+supabase functions deploy recall-events --project-ref "$SUPABASE_PROJECT_REF" --use-api
+```
+
+For ongoing releases, configure `SUPABASE_PROJECT_REF` as a GitHub Actions repository variable and
+`SUPABASE_ACCESS_TOKEN` as a repository secret with Edge Function deployment access. The **Deploy
+Recall events function** workflow deploys that named function on changes to its source, configuration,
+or workflow on `main`. You can also run it manually against `main`. The workflow summary tells you
+when configuration is missing. Database migrations are applied separately. Keep webhook signing
+secrets and MCP connection credentials in their designated secret stores.

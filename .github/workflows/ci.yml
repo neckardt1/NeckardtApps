@@ -24,3 +24,11 @@ jobs:
           npm run typecheck
           npm test
           node scripts/build-pages.mjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.5.6
+      - name: Check and test the OAuth resource
+        working-directory: apps/recall/supabase/functions/recall-events
+        run: |
+          deno check --frozen index.ts
+          deno test --frozen --allow-env oauth.test.ts

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs supabase/functions/recall-events/handler.test.mjs"
   },
   "dependencies": {
     "ts-fsrs": "5.4.2"
