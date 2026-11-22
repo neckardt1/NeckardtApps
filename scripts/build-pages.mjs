@@ -14,4 +14,4 @@ const out = process.argv[2] ? resolve(process.argv[2]) : join(repo, "_site");
 loadPublicBuildConfig();
 await mkdir(out);
 execFileSync(process.execPath, [vite, "build", "--emptyOutDir", "--outDir", out], { cwd: repo, stdio: "inherit" });
-console.log("Built Apps and the scriptless /recall/ maintenance entry.");
+console.log("Built Apps and Habit Practice page entries.");

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { makeSiteClientGetter, readPublicSupabaseConfig, type PublicSupabaseConfig } from './browser-auth.mts';
+import { getSiteClient } from './site-client';
+import { readPublicSupabaseConfig, type PublicSupabaseConfig } from './browser-auth.mts';
 
 export interface SessionUser { id: string; email?: string }
 export type SessionStatus = 'loading' | 'signed-out' | 'signed-in' | 'unavailable';
@@ -14,11 +14,12 @@ export interface SiteSession {
   user: SessionUser | null;
   busy: boolean;
   error: string | null;
+  /** Whether this observed identity generation is still active, before React rerenders. */
+  isCurrent(): boolean;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
-const getClient = makeSiteClientGetter(createClient);
 const apis = new Map<string, SessionApi>();
 
 // This is a browser session display/transport adapter, never an app access check.
@@ -30,7 +31,7 @@ export function makeSiteSessionApi(input: PublicSupabaseConfig | null): SessionA
   const existing = apis.get(config.url);
   if (existing) return existing;
   try {
-    const client = getClient(config);
+    const client = getSiteClient(config);
     const api: SessionApi = {
       observe(onChange, onError) {
         let active = true;
@@ -67,28 +68,30 @@ export function makeSiteSessionApi(input: PublicSupabaseConfig | null): SessionA
   } catch { return null; }
 }
 
-type Snapshot = Pick<SiteSession, 'status' | 'user' | 'busy' | 'error'> & { api: SessionApi | null };
-type Runtime = Snapshot & { api: SessionApi; active: boolean; revision: number };
-const initial = (api: SessionApi | null): Snapshot => ({ api, status: api ? 'loading' : 'unavailable', user: null, busy: false, error: null });
+type Snapshot = Pick<SiteSession, 'status' | 'user' | 'busy' | 'error'> & { api: SessionApi | null; identityToken: object | null };
+type Runtime = Snapshot & { api: SessionApi; identityToken: object; active: boolean; revision: number };
+const initial = (api: SessionApi | null): Snapshot => ({ api, identityToken: null, status: api ? 'loading' : 'unavailable', user: null, busy: false, error: null });
 const Context = createContext<SiteSession | null>(null);
 
 export function SessionProvider({ api, children }: { api: SessionApi | null; children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<Snapshot>(() => initial(api));
   const runtime = useRef<Runtime | null>(null);
+  const configuredApi = useRef(api);
+  configuredApi.current = api;
   useEffect(() => {
     setSnapshot(initial(api));
     if (!api) { runtime.current = null; return; }
-    const state: Runtime = { ...initial(api), api, active: true, revision: 0 };
+    const state: Runtime = { ...initial(api), api, identityToken: {}, active: true, revision: 0 };
     runtime.current = state;
     const publish = () => {
       if (state.active && runtime.current === state) setSnapshot({
-        api, status: state.status, user: state.user, busy: state.busy, error: state.error
+        api, identityToken: state.identityToken, status: state.status, user: state.user, busy: state.busy, error: state.error
       });
     };
     let unsubscribe = () => {};
     const unavailable = () => {
       if (!state.active) return;
-      state.revision++;
+      state.revision++; state.identityToken = {};
       state.status = 'unavailable'; state.user = null;
       state.error = 'Unable to check your session. Reload to try again.';
       publish();
@@ -97,7 +100,9 @@ export function SessionProvider({ api, children }: { api: SessionApi | null; chi
       unsubscribe = api.observe(user => {
         if (!state.active) return;
         state.revision++;
-        state.user = user; state.status = user ? 'signed-in' : 'signed-out'; state.error = null;
+        const status = user ? 'signed-in' : 'signed-out';
+        if (state.status !== status || state.user?.id !== user?.id) state.identityToken = {};
+        state.user = user; state.status = status; state.error = null;
         publish();
       }, unavailable);
     } catch { unavailable(); }
@@ -114,7 +119,7 @@ export function SessionProvider({ api, children }: { api: SessionApi | null; chi
     const revision = state.revision;
     const publish = () => {
       if (state.active && runtime.current === state) setSnapshot({
-        api: state.api, status: state.status, user: state.user, busy: state.busy, error: state.error
+        api: state.api, identityToken: state.identityToken, status: state.status, user: state.user, busy: state.busy, error: state.error
       });
     };
     state.busy = true; state.error = null; publish();
@@ -131,8 +136,15 @@ export function SessionProvider({ api, children }: { api: SessionApi | null; chi
   const signOut = useCallback(() => operate(client => client.signOut(), 'Sign-out failed. Please try again.'), [operate]);
   // Do not briefly display the previous project's identity while effects switch.
   const current = snapshot.api === api ? snapshot : initial(api);
+  const identityToken = current.identityToken;
+  const isCurrent = useCallback(() => {
+    const state = runtime.current;
+    return !!state?.active && configuredApi.current === api && state.api === api
+      && state.status !== 'loading' && state.status !== 'unavailable'
+      && identityToken !== null && state.identityToken === identityToken;
+  }, [api, identityToken]);
   const value = useMemo<SiteSession>(() => ({ status: current.status, user: current.user, busy: current.busy,
-    error: current.error, signIn, signOut }), [current.status, current.user, current.busy, current.error, signIn, signOut]);
+    error: current.error, isCurrent, signIn, signOut }), [current.status, current.user, current.busy, current.error, isCurrent, signIn, signOut]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

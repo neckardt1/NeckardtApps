@@ -5,6 +5,7 @@ import {readFile} from "node:fs/promises";
 import * as fsrsLib from "ts-fsrs";
 import {PGlite} from "@electric-sql/pglite";
 import {gradeHandler,schedulerFor} from "../supabase/functions/recall-grade/grade.mjs";
+import {makeOutbox,makeReviewSession} from "../src/review-session.ts";
 
 test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
  const db=new PGlite();
@@ -105,4 +106,49 @@ test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
   assert.equal(reviews[1].fsrs_log.rating,2);
   assert.equal(reviews[1].after_state.reps,2);
  } finally {await db.close();}
+});
+
+test("Anki-style session reveals, advances before saver, retries exact event and caps queue",async ()=>{
+ const cache=new Map();
+ const storage={get length(){return cache.size;},setItem:(k,v)=>cache.set(k,v),getItem:k=>cache.get(k),
+   removeItem:k=>cache.delete(k),key:i=>[...cache.keys()][i]};
+ let release,requests=[],db=new Map();
+ const outbox=makeOutbox({storage,prefix:"test.",async send(event){
+   requests.push(event);
+   if(requests.length===1){
+     await new Promise(resolve=>{release=resolve;});
+     db.set(event.review_id,event); // atomically committed, response lost
+     throw Error("network dropped");
+   }
+   if(!db.has(event.review_id))db.set(event.review_id,event);
+ }});
+ let sequence=0;
+ const review=makeReviewSession(Array.from({length:6},(_,i)=>({card_id:"c"+i,revision:0,front:"q"+i,back:"a"+i})),
+    event=>outbox.enqueue(event),{makeId:()=>String(++sequence),now:()=>new Date().toISOString()});
+ assert.deepEqual(review.view(),{index:0,total:5,current:"q0",revealed:false,answer:null,done:false});
+ assert.equal(review.rate("miss"),null);
+ assert.equal(outbox.entries().length,0);
+ assert.equal(review.reveal(),true);
+ assert.equal(review.reveal(),false);
+ assert.deepEqual(review.view(),{index:0,total:5,current:"q0",revealed:true,answer:"a0",done:false});
+ assert.equal(outbox.entries().length,0);
+ const first=review.rate("miss");
+ assert.equal(first.grade,"miss");
+ const save=outbox.flush();
+ assert.deepEqual(review.view(),{index:1,total:5,current:"q1",revealed:false,answer:null,done:false});
+ assert.equal(review.rate("medium"),null);
+ assert.equal(outbox.entries()[0].status,"pending"); assert.equal(db.size,0);
+ release(); await save;
+ assert.equal(outbox.entries()[0].status,"failed");
+ outbox.retry(); await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(requests[1],first); assert.equal(db.size,1);
+ for(const grade of ["hard","medium","easy","miss"]){
+   assert.equal(review.reveal(),true);
+   assert.equal(review.rate(grade).grade,grade);
+   assert.equal(review.view().answer,null);
+ }
+ assert.equal(review.view().current,null); assert.equal(review.view().total,5);
+ assert.equal(review.rate("easy"),null);
+ assert.equal(review.reveal(),false);
+ await outbox.flush(); assert.equal(db.size,5);
 });
