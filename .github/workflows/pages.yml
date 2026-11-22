@@ -33,11 +33,8 @@ jobs:
         run: |
           npm --prefix apps/recall run typecheck
           npm --prefix apps/recall test
-          node --test tests/pages.test.mjs
+          node --test tests/*.test.mjs
       - name: Build public site
-        env:
-          RECALL_SUPABASE_URL: ${{ vars.RECALL_SUPABASE_URL }}
-          RECALL_SUPABASE_PUBLISHABLE_KEY: ${{ vars.RECALL_SUPABASE_PUBLISHABLE_KEY }}
         run: node scripts/build-pages.mjs
       - uses: actions/upload-pages-artifact@v4
         with:

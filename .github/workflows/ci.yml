@@ -23,5 +23,5 @@ jobs:
         run: |
           npm --prefix apps/recall run typecheck
           npm --prefix apps/recall test
-          node --test tests/pages.test.mjs
+          node --test tests/*.test.mjs
           node scripts/build-pages.mjs
