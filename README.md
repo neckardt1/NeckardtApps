@@ -1,10 +1,10 @@
 # Neckardt Apps
 
-A static launcher for small personal tools. [Recall](apps/recall/) is the
-first app: see a flashcard, show its answer, then grade it with Again, Hard,
-Good, or Easy. Reviews save asynchronously.
+A public static launcher for small personal tools. Recall is temporarily offline
+while its replacement is reviewed separately. Fresh loads of `/recall/` receive
+a static maintenance page with a link back to Apps.
 
-## Local development
+## Local checks and preview
 
 Requires Node.js 24.
 
@@ -12,67 +12,72 @@ Requires Node.js 24.
 npm ci --prefix apps/recall
 npm --prefix apps/recall run typecheck
 npm --prefix apps/recall test
-node --test tests/pages.test.mjs
+node --test tests/*.test.mjs
 node scripts/build-pages.mjs
+python3 -m http.server 4173 --bind 127.0.0.1 --directory _site
 ```
 
-Run `npm --prefix apps/recall run dev` for the Recall Vite dev server, or serve
-`_site/` with a static server to preview both pages. Rebuild into a new
-directory after each build, or remove the old generated output first.
-The default connection uses the documented public browser settings in
-`apps/recall/public-config.json`. To target a separate project for local
-development, provide both variables below to the build command. The app
-uses an existing Supabase Auth account, not a GitHub login. No signup form.
+The typecheck still covers the shared browser-auth module. The backend integration
+test still exercises the actual Edge handler, FSRS, SQL, owner access, and replay
+safety using synthetic in-memory fixtures. Shared auth convention checks remain
+in `tests/browser-auth.test.mjs`; they do not load auth into the site.
 
-## Adding an app
+The build copies exactly two HTML files: the launcher and `recall/index.html`.
+It does not run Vite, bundle JavaScript, read Supabase configuration, or package
+backend files. It refuses an existing output path so old review assets cannot
+silently enter a new artifact. Rebuild into a new directory, or deliberately
+remove only the generated output first.
 
-Keep the root launcher public. Give each app its own HTML entry, source,
-and tests under `apps/<name>/`. Follow the Recall React + TypeScript + Vite
-pattern: build with a relative asset base (`./`) and stage the output in a
-real per-app directory under `_site/`. Add a relative launcher link and
-a direct-route test; no shared router or UI kit is required.
+## Offline behavior and limits
 
-To share sign-in on the same origin and Supabase project, reuse the browser
-client convention in `shared/browser-auth.mts` and keep the SDK's project-based
-session key. Do not add a path-specific session key or infer authorization
-from browser UI state; the backend still controls each app's access. Sessions
-do not cross between the default Pages hostname and the custom domain.
+The maintenance page has no script, sign-in form, review controls, external
+assets, auth client, redirects, or storage access. Its content security policy
+disallows scripts and network resources. It cannot initiate a review on a fresh
+load of this artifact. The launcher remains public and reports the offline status.
 
-## GitHub Pages
+This is a frontend pause, not backend revocation. Already-open tabs and previously
+cached old HTML/JavaScript may continue to operate against the unchanged backend.
+Existing in-flight requests are not cancelled. This change does not read, clear,
+migrate, or modify browser storage, sessions, queued responses, cards, schedules,
+or review history. Preserve pending responses; do not clear browser data as part
+of taking the frontend offline.
 
-1. In **Settings → Pages**, set **Source** to **GitHub Actions** and run the
-   deployment workflow on `main`. It tests first and publishes only the
-   generated HTML and browser assets under `_site/`; tests, backend
-   migrations and functions are not part of the Pages artifact.
-2. The launcher and `/recall/` use relative paths, so they work at the
-   repository's default Pages base path or at a custom domain such as
-   `apps.neckardt.com`. For a custom domain, set it in Pages settings, follow
-   GitHub's DNS instructions, and enforce HTTPS when available. Prefer the
-   custom domain for sign-in: apps sharing a browser origin also share
-   its browser storage, regardless of path.
-3. No repository variables are needed with the defaults in
-   `apps/recall/public-config.json`. To override both, add
-   `RECALL_SUPABASE_URL` and `RECALL_SUPABASE_PUBLISHABLE_KEY` in
-   **Settings → Secrets and variables → Actions → Variables**.
-   Use only the public HTTPS URL and the `sb_publishable_…` value;
-   never a server secret, database credential, or session token.
+The old Recall frontend implementation and browser build tooling are removed
+from this branch. Its Supabase migrations and Edge Function source stay intact.
+No backend block, schema apply, Edge deployment, or review write is included.
 
-Pull requests run type checking, tests, and the static build without publishing.
+## GitHub Pages and adding apps
 
-See the [GitHub Pages workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-and [GitHub's custom domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/about-custom-domains-and-github-pages).
+Pull requests run checks and build without publishing. A push to `main` runs the
+Pages deployment workflow. Merge and deployment require separate authorization;
+preparing this PR does not take the live site offline.
+
+The relative launcher link `./recall/` and maintenance link `../` work at both
+`/recall/` and `/NeckardtApps/recall/`, including direct `index.html` loads.
+Tests serve the actual artifact over HTTP at both bases and verify that old JS,
+configuration, and backend paths are absent. No Supabase build variables are
+needed or read while Recall is offline.
+
+Keep the root launcher public. Give future apps real per-app output directories,
+relative links, and direct-route tests. The shared browser-auth module is retained
+for future applications but is not part of this static artifact.
+
+## Recovery
+
+This removal is one reversible commit. To restore the previous frontend and
+build, prepare a separately reviewed revert of the offline PR's single commit:
+`git revert <offline-pr-commit>`. Run the full checks, inspect the resulting
+artifact, and obtain the required approval before merging/deploying the revert.
+No database rollback or browser-storage cleanup is needed for this frontend-only
+change. Recheck backend compatibility if it has changed independently.
+
+The Recall rewrite remains on its existing separate PR/branch. This removal does
+not rebase, replace, or merge that work; a later rewrite integration needs its own
+review.
 
 ## Source and data boundaries
 
-- `apps/recall/` contains the UI, tests, and generic Supabase migrations and
-  Edge Function implementation. No live seed, database dump, owner account,
-  or card/review data belongs here. Tests generate their fixtures in memory.
-- Publishing the frontend does not apply schema migrations, deploy the Edge
-  Function, or make private Supabase data public. The backend must already be
-  provisioned and owner-only authorization enforced. Keep
-  `flashcards_private` out of the exposed Data API schemas. Do not rerun the
-  initial migrations on a provisioned database.
-- The browser can see its publishable key and the public app source; only an
-  allowlisted signed-in account can access the deck. The grading function uses
-  Supabase-managed server credentials only inside its runtime; deployment and
-  private data live outside this repository.
+Backend files under `apps/recall/supabase/` remain source-only and are never
+published with the site. Do not rerun historical migrations on a provisioned
+database. Keep private schemas and owner-only access unchanged. No live seeds,
+database dumps, owner credentials, or card/review data belong in this repository.
