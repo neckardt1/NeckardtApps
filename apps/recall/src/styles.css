@@ -1,0 +1,52 @@
+.habit-practice { width: min(100%, 39rem); margin: 0 auto; --warn: #8c3e2b; min-height: calc(100svh - 4rem - 1px - env(safe-area-inset-top)); padding: clamp(2.75rem, 9vh, 5.5rem) clamp(1.4rem, 6.4vw, 2.6rem) 0; display: flex; flex-direction: column; }
+.habit-practice .today-card, .habit-practice .review-card, .habit-practice .saved-screen { overflow-wrap: anywhere; }
+.habit-practice h1, .habit-practice h2, .habit-practice .prompt { font-family: Georgia, "Times New Roman", serif; font-weight: 400; letter-spacing: -.035em; line-height: 1.12; margin: 0; overflow-wrap: anywhere; }
+.habit-practice h1 { font-size: clamp(3.4rem, 12vw, 4.5rem); }
+.habit-practice .prompt, .habit-practice .review-card h1 { font-size: clamp(2.1rem, 8.7vw, 3rem); }
+.habit-practice h1:focus, .habit-practice .prompt:focus, .habit-practice .answer-panel:focus, .habit-practice [data-review-focus]:focus { outline: none; }
+.habit-practice .today-card > p, .habit-practice .saved-screen > p { margin: 1.2rem 0 0; color: var(--muted); font-size: 1.0625rem; }
+.habit-practice .eyebrow { margin: 0 0 1.2rem; color: var(--muted); font-size: .875rem; font-weight: 550; }
+.habit-practice .cue { margin: 0 0 .8rem; color: var(--muted); font-size: 1.0625rem; }
+.habit-practice .answer-panel { margin-top: 2.1rem; padding: .95rem 1.05rem; border-radius: .6rem; background: var(--sage); color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.35rem, 5.6vw, 1.7rem); line-height: 1.26; overflow-wrap: anywhere; }
+.habit-practice .answer-panel > :first-child { margin-top: 0; }
+.habit-practice .answer-panel > :last-child { margin-bottom: 0; }
+.habit-practice .answer-panel p { margin: .75em 0; }
+.habit-practice .answer-panel ul, .habit-practice .answer-panel ol { padding-left: 1.25em; margin: .65em 0; }
+.habit-practice .answer-panel h2, .habit-practice .answer-panel h3 { font-family: inherit; font-weight: 600; font-size: 1.08em; line-height: 1.25; margin: .8em 0 .35em; }
+.habit-practice .answer-panel pre { overflow-x: auto; white-space: pre-wrap; }
+.habit-practice .answer-panel pre, .habit-practice .answer-panel code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .78em; }
+.habit-practice .answer-panel code { background: #dfe5d9; border-radius: .2em; padding: .1em .2em; }
+.habit-practice .answer-panel blockquote { margin: .7em 0; border-left: 2px solid #9ba997; padding-left: .75em; }
+.habit-practice .action-dock { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 1rem 0 max(1.5rem, env(safe-area-inset-bottom)); background: var(--paper); }
+.habit-practice .action-dock::before { content: ""; display: block; height: 1px; margin-bottom: 1rem; background: var(--line); }
+.habit-practice .primary, .habit-practice .secondary, .habit-practice .ratings button, .habit-practice .choices button:not(.text-button) { min-height: 3.4rem; padding: .75rem .7rem; border: 1px solid #b3bcae; border-radius: .55rem; background: var(--card); color: var(--ink); font-size: .9375rem; font-weight: 550; line-height: 1.25; }
+.habit-practice .primary { display: block; width: 100%; border-color: var(--green); background: var(--green); color: #fffefa; }
+.habit-practice .primary:hover:not(:disabled) { background: #294333; border-color: #294333; }
+.habit-practice .primary:active:not(:disabled) { background: #213b2b; }
+.habit-practice .secondary:hover:not(:disabled), .habit-practice .ratings button:hover:not(:disabled), .habit-practice .choices button:not(.text-button):hover:not(:disabled) { background: #eff2e9; }
+.habit-practice .ratings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
+.habit-practice .ratings button { padding: .75rem .1rem; font-size: clamp(.875rem, 3.7vw, 1rem); }
+.habit-practice .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.habit-practice .choices > :nth-child(n+3) { grid-column: 1 / -1; }
+.habit-practice .text-button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .5rem 0; border: 0; background: transparent; color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .9375rem; }
+.habit-practice .choices .text-button { margin-top: .1rem; color: var(--muted); }
+.habit-practice .saved-screen .text-button { align-self: flex-start; margin-top: 1.3rem; }
+.habit-practice .status { margin: .6rem 0; color: var(--muted); font-size: .875rem; line-height: 1.45; overflow-wrap: anywhere; }
+.habit-practice .status:empty { display: none; }
+.habit-practice .status.error, .habit-practice .error { color: var(--warn); }
+.habit-practice .save-status { margin: 0 0 .75rem; }
+.habit-practice .error-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin: .75rem 0; }
+@media (min-width: 700px) {
+  .habit-practice { width: min(100%, 43rem); padding-top: clamp(3rem, 10vh, 6rem); }
+  .habit-practice .action-dock { padding-bottom: 2rem; }
+}
+@media (max-height: 600px) {
+  .habit-practice { padding-top: 1.5rem; }
+  .habit-practice .action-dock { position: relative; margin-top: 2rem; }
+}
+
+.habit-practice .screen-content:focus { outline: none; }
+.habit-practice .formatted > :first-child { margin-top: 0; }
+.habit-practice .formatted > :last-child { margin-bottom: 0; }
+.habit-practice .debrief-link { display: inline-block; margin-top: 1.8rem; font-size: .9375rem; font-weight: 550; }
+.habit-practice .save-messages { margin-top: 1rem; }

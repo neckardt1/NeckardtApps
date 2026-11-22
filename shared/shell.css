@@ -42,7 +42,7 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .account-note { margin: 0 0 .9rem; color: var(--muted); font-size: .9375rem; }
 .account-note:last-child { margin-bottom: 0; }
 .account-form label { display: block; margin: .9rem 0; font-size: .9375rem; }
-.account-form input { display: block; width: 100%; min-height: 2.75rem; margin-top: .35rem; padding: .55rem .65rem; border: 1px solid #b3bcae; border-radius: .4rem; background: var(--card); color: var(--ink); }
+.account-form input { font-size: max(1rem, 16px); display: block; width: 100%; min-height: 2.75rem; margin-top: .35rem; padding: .55rem .65rem; border: 1px solid #b3bcae; border-radius: .4rem; background: var(--card); color: var(--ink); }
 .account-action { display: block; width: 100%; min-height: 2.75rem; margin-top: 1rem; padding: .65rem .9rem; border: 1px solid var(--green); border-radius: .45rem; background: var(--green); color: #fffefa; font-size: .9375rem; font-weight: 550; }
 .account-action:hover:not(:disabled) { background: #294333; }
 .account-error { margin: .9rem 0 0; color: #8c3e2b; font-size: .875rem; overflow-wrap: anywhere; }

@@ -51,7 +51,7 @@ async function escape() {
 function assertPublicLauncher() {
   expect(target.querySelector("h1")?.textContent).toBe("Your apps");
   expect(target.querySelector(".app-name")?.textContent).toBe("Habit Practice");
-  expect(target.querySelector(".app-status")?.textContent).toBe("Offline");
+  expect(target.querySelector(".app-status")?.textContent).toBe("Open");
   expect(target.querySelector(".app-card")?.getAttribute("href")).toBe("./recall/");
 }
 
@@ -146,7 +146,7 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
 });
 
 test("the shared registry and explicit relative app base support both ordinary page depths", async () => {
-  expect(apps).toEqual([{ id: "recall", name: "Habit Practice", path: "recall/", status: "offline", description: "Rebuild underway." }]);
+  expect(apps).toEqual([{ id: "recall", name: "Habit Practice", path: "recall/", status: "available", description: "A little practice, every day." }]);
   for (const appsHref of ["./", "../"] as const) {
     await mount(null, appsHref);
     await tap("Apps");

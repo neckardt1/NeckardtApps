@@ -24,6 +24,8 @@
     "tests/*.tsx",
     "vite.config.ts",
     "vitest.config.ts",
-    "build-config.ts"
+    "build-config.ts",
+    "apps/recall/src",
+    "apps/recall/tests"
   ]
 }

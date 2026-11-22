@@ -1,9 +1,10 @@
-# Apps
+# Apps and Habit Practice
 
-A public app launcher with a reusable Apps/Account shell. The display name
-**Habit Practice** points to the existing `/recall/` URL; internal identifiers
-and storage/auth keys are unchanged. Its maintenance page remains scriptless and
-identical to the approved offline baseline. The review rebuild is separate work.
+A public launcher and Habit Practice share one unbranded Apps/Account shell,
+app registry, styles, and Supabase session. Habit Practice uses the existing
+`/recall/` URL and the existing internal `recall` identifiers and storage keys.
+The launcher stays public; signing in does not grant access to any app's data.
+Each feature/backend enforces its own authorization.
 
 ## Local development and checks
 
@@ -17,72 +18,103 @@ npm run build
 npm run dev
 ```
 
-There is one top-level React + TypeScript + Vite frontend build. The root workspace
-also installs the pinned backend test dependencies under `apps/recall/`.
-`npm test` runs shared-auth and HTTP artifact tests, synthetic React/session
-tests, and the unchanged Edge/FSRS/SQL backend integration assertions.
-No live account, card, database, or review data is needed for these tests.
+One top-level React + TypeScript + Vite build emits `index.html`,
+`recall/index.html`, and `oauth/consent/index.html` at matching paths within
+`_site/`. Navigation uses ordinary links and full page loads, without a router.
+Relative asset paths and explicit `appsHref` values support both `/`
+and `/NeckardtApps/`, including direct `index.html` URLs. The root workspace
+installs the pinned backend test dependencies under `apps/recall/`.
 
-The real HTML entries are `index.html`, `recall/index.html`, and `oauth/consent/index.html`.
-They publish at matching paths within `_site/`. Navigation uses ordinary
-links and full page loads, with no router. Vite uses relative asset paths.
-The maintenance HTML was moved to its top-level entry without content changes
-and must remain byte-identical after building.
+Tests use only synthetic fixtures. They exercise shared session identity,
+launcher-to-practice navigation, exact resume, pending saves, owner changes,
+keyboard focus, safe formatting, the actual Edge handler, FSRS, and SQL/ACL
+compatibility. HTTP tests serve the production artifact at both base paths and
+verify that the launcher and OAuth consent page do not load review code. No live
+account or data is needed. Browser emulation is not a real iOS WebKit/soft-keyboard test.
 
-The build validates browser-safe configuration and refuses an existing output
-path. Build into a new directory, or deliberately remove only generated output.
-It disables automatic public-directory copying and source maps. No backend,
-test, source, or standalone configuration file belongs in the published artifact.
+The build refuses an existing output path. Build to a new directory or deliberately
+remove only generated output. Source maps and automatic public-directory copying
+are disabled. Backend files, tests, private fixtures, and standalone configuration
+are excluded from the published artifact.
 
-## Shared shell and sessions
+## Shared session and feature boundaries
 
-The launcher renders its app list immediately, even if Account is unavailable,
-still loading, or fails. Sign-in is optional for browsing the launcher.
-The unbranded shell keeps Apps on the left, Account on the right, and no title
-in the middle. The app registry supplies display names, paths, and status.
+`SiteRoot` owns the shared Apps/Account UI; feature code lives outside it.
+The launcher and Habit Practice entries use one shared SDK client getter and the
+unchanged Supabase project-based session storage convention. Same-origin pages
+share the session; different hostnames and browser profiles do not. Local-scope sign-out leaves
+unrelated browser data and queued review responses intact.
 
-Future scripted page entries can render their content within `SiteRoot`.
-Pass `appsHref="./"` at the launcher and `appsHref="../"` in a single-level app
-entry. This keeps both the default `/NeckardtApps/` base and custom-domain root
-working. Feature code stays outside the shared shell.
+The separate OAuth consent entry uses its own memory-only canary session. It does
+not replace or clear the shared Account session or queued practice responses.
 
-`shared/browser-auth.mts` retains the existing Supabase project-based storage
-convention. The shared session adapter/provider owns Account identity and uses
-local-scope sign-out. It does not clear arbitrary browser data or queued reviews.
-Pages on the same origin and Supabase project use the same persisted session;
-sessions do not cross between different hostnames or browser profiles.
+The session observer supplies identity. A generation guard invalidates old work
+synchronously when identity changes, including a rapid owner A to B to A switch.
+A same-owner token refresh retains the active review. Each app still handles
+server-enforced access failures; browser identity is not an authorization grant.
 
-Authentication is identity, not app authorization. Each feature decides when
-sign-in is required and handles its own server-enforced access checks. The public
-launcher never calls review/card/action APIs and cannot grant access to a deck.
-The maintenance page loads neither the shell nor any auth JavaScript. No Recall
-review logic, new database contract, or migration is part of this PR.
+The shared Account form preserves its focus behavior and pinch zoom. Its inputs
+have a minimum 16px font to mitigate focus zoom on affected iOS Safari versions;
+this is a compatibility precaution, not a claim of actual-device verification.
 
-The existing public URL and publishable key live in `public-config.json`.
-Optional build overrides retain the names `RECALL_SUPABASE_URL` and
-`RECALL_SUPABASE_PUBLISHABLE_KEY`; set both. Secret keys and malformed hosts are
-rejected before output is created. Never place server credentials in browser code.
+`public-config.json` contains only the existing browser-safe URL and publishable
+key. Optional build overrides retain `RECALL_SUPABASE_URL` and
+`RECALL_SUPABASE_PUBLISHABLE_KEY`; set both. Secret keys and malformed hosts fail
+validation before output creation.
 
-## Release and recovery
+## Durable practice flow
 
-PR checks install at the repository root, typecheck, test, and build. A push to
-`main` triggers Pages deployment; opening this PR does not deploy it.
-Merge requires the repository's exact-head approval or merge instruction.
+Today starts or resumes the saved round. Provisioned habit opportunities precede
+recall and use Yes, No, No opportunity, or Skip independently of recall grading.
+Reveal shows safely formatted answers; Again, Hard, Good, and Easy advance after
+the response is durably recorded. Apps/Account popovers suppress review shortcuts.
 
-Habit Practice's `/recall/` route stays offline for fresh loads. Previously cached
-or already-open old clients are not revoked, and in-flight requests are not
-cancelled. Preserve browser data and pending responses. No backend or storage
-cleanup is included.
+Progress, original event IDs, pending responses, and verified acknowledgments
+live in one owner-scoped atomic record, with Web Locks coordinating tabs.
+Leaving for the launcher or signing out stops further drains, preserves pending
+responses, and never completes the round. Returning restores the exact revealed
+card after Resume, including an earlier uncertain grade awaiting replay.
+Unsupported/conflicting responses remain preserved for reconciliation. Finish
+requires verified saves and an explicit action; Debrief with Dot is optional.
 
-A separately reviewed revert of this shell commit restores the static launcher
-and build without changing the maintenance content or database. The later
-review rebuild must adopt the shared shell in its own reviewed step, with its
-database prerequisite and cached-client release sequencing revalidated. Its
-existing PR/branch is not changed by this work.
+## Release prerequisites and recovery
 
-Backend files under `apps/recall/supabase/` remain source-only, unchanged, and
-excluded from the site. Never rerun historical migrations on a provisioned
-database or commit live seeds, account credentials, cards, or review history.
+This frontend candidate does not apply migrations, deploy Edge Functions, change
+live data, or enable notifications. Keep the published maintenance route in place
+until a separate release is approved. PR checks build without publishing; a push
+to `main` triggers Pages deployment and therefore belongs to the release decision.
+
+The additive compatibility migration
+`apps/recall/supabase/migrations/20261122013041_recall_opportunities.sql` is the
+reviewed backend prerequisite. It adds the private opportunity/response contract
+and required `recall_due` read API while preserving the legacy due RPC signature,
+row shape, default/client limits, owner access, and ACL. The new frontend fails
+closed if the required read API is absent. The existing `recall-grade` Edge
+Function source is unchanged; no Edge deployment is required by this candidate.
+
+Before a separately authorized migration/frontend rollout, pause/close cached
+old clients and preserve their pending data without draining them against the
+old permissive backend. An already-open old tab may retain an
+unsupported card: grading it after the migration returns a conflict and keeps the
+original response; it must not be translated into a habit result or silently
+removed. Old tabs can also create V1 keys after V2 initializes, so coordinate their
+closure/reload and reconciliation rather than clearing browser storage.
+After old clients are paused, apply the reviewed backward-compatible database
+guard/bridge and verify it with separately authorized checks. Only then replay
+supported original events with a controlled recovery/new client, retaining
+unsupported conflicts for explicit reconciliation. Release the reviewed frontend
+after these prerequisites. No live production apply or validation is performed
+by this local test suite.
+
+To take the new frontend offline again, separately review a revert of the
+integration commit. That restores the prior scriptless maintenance entry and
+shared launcher without a database rollback. Do not automatically reverse the
+additive migration or clear browser data: doing so may discard responses or break
+cached/new clients. Already-open tabs are not revoked by a frontend rollback.
+Revalidate backend compatibility and cached-client handling for any later rollout.
+
+Keep Supabase migrations and Edge/backend files source-only; never publish them
+as site assets or rerun historical migrations on a provisioned database. Do not commit live seeds, credentials, cards, or history.
 
 ## OAuth consent for the Recall canary
 

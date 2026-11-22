@@ -209,6 +209,70 @@ describe('shared session adapter', () => {
 });
 
 describe('SessionProvider lifecycle and operations', () => {
+  it('invalidates captured identity guards synchronously, including an A-to-B-to-A change before render', async () => {
+    const mock = manualApi(); const screen = await mount(mock.api);
+    expect(screen.session().isCurrent()).toBe(false);
+    await act(async () => mock.emit({ id: 'owner-a' }));
+    const firstGuard = screen.session().isCurrent;
+    expect(firstGuard()).toBe(true);
+    await act(async () => {
+      mock.emit({ id: 'owner-b' });
+      // React still exposes the previous render; queued work must already stop.
+      expect(screen.session().user?.id).toBe('owner-a');
+      expect(firstGuard()).toBe(false);
+      mock.emit({ id: 'owner-a' });
+      expect(firstGuard()).toBe(false);
+      await Promise.resolve();
+      expect(firstGuard()).toBe(false);
+    });
+    expect(screen.session().user?.id).toBe('owner-a');
+    expect(screen.session().isCurrent).not.toBe(firstGuard);
+    expect(screen.session().isCurrent()).toBe(true);
+    const latestGuard = screen.session().isCurrent;
+    await act(async () => { mock.emit(null); expect(latestGuard()).toBe(false); });
+    expect(screen.session().status).toBe('signed-out');
+  });
+
+  it('keeps the identity guard stable on same-owner token refresh', async () => {
+    const client = sdk(); sdkFactory.mockReturnValue(client);
+    const screen = await mount(makeSiteSessionApi(config()));
+    await act(async () => client.emit('INITIAL_SESSION', { id: 'same-owner' }));
+    const guard = screen.session().isCurrent;
+    await act(async () => {
+      client.emit('TOKEN_REFRESHED', { id: 'same-owner', email: 'refreshed@example.invalid' });
+      expect(guard()).toBe(true);
+    });
+    expect(screen.session().isCurrent).toBe(guard);
+    expect(guard()).toBe(true);
+  });
+
+  it('invalidates identity guards immediately when session observation becomes unavailable', async () => {
+    const mock = manualApi(); const screen = await mount(mock.api);
+    await act(async () => mock.emit({ id: 'observed-owner' }));
+    const guard = screen.session().isCurrent;
+    await act(async () => { mock.fail(Error('Synthetic auth unavailable')); expect(guard()).toBe(false); });
+    expect(screen.session().status).toBe('unavailable');
+    expect(screen.session().isCurrent()).toBe(false);
+    await act(async () => mock.emit({ id: 'observed-owner' }));
+    expect(guard()).toBe(false);
+    expect(screen.session().isCurrent()).toBe(true);
+  });
+
+  it('invalidates captured identity guards on API replacement and unmount', async () => {
+    const first = manualApi(), second = manualApi(); const screen = await mount(first.api);
+    await act(async () => first.emit({ id: 'same-user-id' }));
+    const firstGuard = screen.session().isCurrent;
+    await screen.render(second.api);
+    expect(firstGuard()).toBe(false);
+    expect(screen.session().isCurrent()).toBe(false);
+    await act(async () => second.emit({ id: 'same-user-id' }));
+    const secondGuard = screen.session().isCurrent;
+    expect(firstGuard()).toBe(false);
+    expect(secondGuard()).toBe(true);
+    await screen.unmount();
+    expect(secondGuard()).toBe(false);
+  });
+
   it('does not infer signed-in identity from a completed sign-in request', async () => {
     const mock = manualApi(), request = deferred<void>();
     vi.mocked(mock.api.signIn).mockReturnValue(request.promise);

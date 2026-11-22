@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readdir, readFile, writeFile, symlink, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const build = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
 const fixture = {
   RECALL_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
-  RECALL_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_build_fixture"
+  RECALL_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_build_fixture",
+  VITE_CANARY_CLIENT_ID: "11111111-1111-4111-8111-111111111111",
+  VITE_CANARY_USER_ID: "22222222-2222-4222-8222-222222222222",
+  VITE_CANARY_CALLBACK_URL: "https://consent.example.invalid/callback"
 };
 const run = (out, vars = {}) => spawnSync(process.execPath, [build, out], {
-  encoding: "utf8", env: { ...process.env, RECALL_SUPABASE_URL: "", RECALL_SUPABASE_PUBLISHABLE_KEY: "", ...vars }
+  encoding: "utf8", env: {
+    ...process.env,
+    RECALL_SUPABASE_URL: "", RECALL_SUPABASE_PUBLISHABLE_KEY: "",
+    VITE_CANARY_CLIENT_ID: "", VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "",
+    ...vars
+  }
 });
 async function serve(out) {
   const files = createServer(async (req, res) => {
@@ -30,37 +37,55 @@ async function serve(out) {
   await new Promise((yes, no) => files.on("error", no).listen(0, "127.0.0.1", yes));
   return { files, origin: "http://127.0.0.1:" + files.address().port };
 }
-function inertMaintenance(html) {
-  assert.doesNotMatch(html, /<(?:script|iframe|object|embed|form|input|button|base)\b|\bon\w+\s*=|javascript:|@import|url\s*\(/i);
-  assert.doesNotMatch(html, /http-equiv=["']refresh|https?:\/\/|supabase|sb_publishable_|localStorage|sessionStorage|indexedDB|serviceWorker/i);
-  assert.match(html, /default-src 'none'/);
+async function scriptGraph(out, entry, graph = new Map()) {
+  if (graph.has(entry)) return graph;
+  graph.set(entry, "");
+  const source = await readFile(join(out, "assets", entry), "utf8");
+  graph.set(entry, source);
+  const dependencies = [...source.matchAll(/(?:from\s*|import\s*\(?\s*)["']\.\/([\w-]+\.js)["']/g)].map(match => match[1]);
+  await Promise.all(dependencies.map(file => scriptGraph(out, file, graph)));
+  return graph;
 }
 function assetReferences(html) {
   assert.match(html, /<script\b[^>]*type="module"[^>]*src=/);
   return [...html.matchAll(/(?:src|href)="([^"]+\.(?:css|js))"/g)].map(match => match[1]);
 }
-async function checkPageAssets(html, pageUrl, assetsUrl) {
-  const scripts = [];
-  for (const link of assetReferences(html)) {
+async function pageGraph(out, html) {
+  const graph = new Map();
+  // Include script and modulepreload roots, then follow emitted module imports.
+  // Config and SDK chunks need not be linked directly from every HTML entry.
+  for (const link of assetReferences(html).filter(link => link.endsWith(".js"))) {
+    const entry = link.split("/").at(-1);
+    assert.match(entry, /^[\w-]+\.js$/);
+    await scriptGraph(out, entry, graph);
+  }
+  return graph;
+}
+async function checkPageAssets(out, html, pageUrl, assetsUrl) {
+  const references = assetReferences(html);
+  assert(references.some(link => link.endsWith(".js")));
+  assert(references.some(link => link.endsWith(".css")));
+  for (const link of references) {
     const url = new URL(link, pageUrl);
     assert.equal(new URL(".", url).href, assetsUrl);
+    assert.equal((await fetch(url)).status, 200, url.href);
+  }
+  const graph = await pageGraph(out, html);
+  for (const [name, source] of graph) {
+    const url = new URL(name, assetsUrl);
     const response = await fetch(url);
     assert.equal(response.status, 200, url.href);
-    if (url.pathname.endsWith(".js")) scripts.push(await response.text());
+    assert.equal(await response.text(), source, url.href);
   }
-  const js = scripts.join("\n");
-  assert(js.includes(fixture.RECALL_SUPABASE_URL));
-  assert(js.includes(fixture.RECALL_SUPABASE_PUBLISHABLE_KEY));
-  assert.doesNotMatch(js, /recall-grade|recall_due|recall_record_action|recall\.round|recall\.live/);
+  return graph;
 }
-test("Pages serves the Apps shell, OAuth consent route and unchanged maintenance at both bases", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-shell-"));
+const graphText = graph => [...graph.values()].join("\n");
+const recallCode = /recall-grade|recall_due|recall_opportunities|recall_record_action|demo_flashcards_due|recall\.round|recall\.live/;
+
+test("one multipage build serves Apps, Habit Practice and OAuth consent directly at both Pages bases", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-practice-"));
   let files;
   try {
-    const source = await readFile(new URL("../recall/index.html", import.meta.url));
-    const blob = createHash("sha1").update("blob " + source.length + "\0").update(source).digest("hex");
-    // Pinned maintenance content from the approved clean-slate main.
-    assert.equal(blob, "c720c6508f96524c9d0fef69c59c89d0786957fd");
     const out = join(tmp, "site");
     const done = run(out, fixture);
     assert.equal(done.status, 0, done.stderr);
@@ -68,47 +93,67 @@ test("Pages serves the Apps shell, OAuth consent route and unchanged maintenance
     assert.deepEqual(await readdir(join(out, "oauth")), ["consent"]);
     assert.deepEqual(await readdir(join(out, "oauth", "consent")), ["index.html"]);
     assert.deepEqual(await readdir(join(out, "recall")), ["index.html"]);
-    assert((await readFile(join(out, "recall", "index.html"))).equals(source), "Built maintenance HTML must match its source bytes");
     const assets = await readdir(join(out, "assets"));
+    assert(assets.length >= 4);
     assert(assets.every(name => /^[\w-]+\.(?:js|css)$/.test(name)));
+    const entries = new Set(), pages = [];
     let origin;
     ({ files, origin } = await serve(out));
     for (const base of ["/", "/NeckardtApps/"]) {
-      for (const homeUrl of [origin + base, origin + base + "index.html"]) {
-        const response = await fetch(homeUrl);
-        assert.equal(response.status, 200);
-        const home = await response.text();
-        assert.match(home, /Habit Practice/); // public noscript fallback
-        const appHref = home.match(/href="([^"]+recall\/)"/)?.[1];
-        assert(appHref);
-        assert.equal(new URL(appHref, homeUrl).pathname, base + "recall/");
-        await checkPageAssets(home, homeUrl, origin + base + "assets/");
-      }
-      for (const path of ["oauth/consent/", "oauth/consent/index.html"]) {
-        const url = new URL(base + path + "?authorization_id=synthetic", origin);
+      for (const path of ["", "index.html", "recall/", "recall/index.html", "oauth/consent/", "oauth/consent/index.html"]) {
+        const kind = path.startsWith("oauth/") ? "consent" : path.startsWith("recall/") ? "recall" : "apps";
+        const query = kind === "consent" ? "?authorization_id=33333333-3333-4333-8333-333333333333" : "";
+        const url = new URL(base + path + query, origin);
         const response = await fetch(url);
-        assert.equal(response.status, 200);
+        assert.equal(response.status, 200, url.href);
         const html = await response.text();
-        assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
-        await checkPageAssets(html, url, origin + base + "assets/");
+        const entry = html.match(/<script[^>]+src="[^"]*assets\/([\w-]+\.js)"/)?.[1];
+        assert(entry);
+        entries.add(entry);
+        const graph = await checkPageAssets(out, html, url, origin + base + "assets/");
+        const js = graphText(graph);
+        pages.push({ kind, graph });
+        assert(js.includes(fixture.RECALL_SUPABASE_URL));
+        assert(js.includes(fixture.RECALL_SUPABASE_PUBLISHABLE_KEY));
+        if (kind === "recall") {
+          assert.match(html, /<title>Habit Practice<\/title>/);
+          assert.doesNotMatch(html, /user-scalable=no|maximum-scale/);
+          for (const expected of ["recall_due", "recall-grade", "recall_opportunities", "recall_record_action", "recall.round.v2.", "recall.live.v1."]) {
+            assert(js.includes(expected), `Recall graph must include ${expected}`);
+          }
+          const back = html.match(/href="(\.\.\/)"/)?.[1];
+          assert(back);
+          assert.equal(new URL(back, url).pathname, base);
+        } else {
+          assert.doesNotMatch(js, recallCode);
+          if (kind === "consent") {
+            assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
+            assert(js.includes("recall-canary-consent"));
+            for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_ID", "VITE_CANARY_CALLBACK_URL"]) {
+              assert(js.includes(fixture[key]), `OAuth graph must include synthetic ${key}`);
+            }
+          } else {
+            assert.match(html, /Habit Practice/); // Public noscript fallback.
+            const href = html.match(/href="([^"]+recall\/)"/)?.[1];
+            assert(href);
+            assert.equal(new URL(href, url).pathname, base + "recall/");
+          }
+        }
       }
-      for (const path of ["recall/", "recall/index.html"]) {
-        const direct = new URL(base + path, origin);
-        const response = await fetch(direct);
-        assert.equal(response.status, 200);
-        const html = await response.text();
-        assert.equal(html, source.toString());
-        inertMaintenance(html);
-        const back = html.match(/href="(\.\.\/)"/)?.[1];
-        assert(back);
-        const root = new URL(back, direct);
-        assert.equal(root.pathname, base);
-        assert.equal((await fetch(root)).status, 200);
-      }
-      for (const missing of ["recall/assets/index-BGcdV7RE.js","recall/src/main.tsx","public-config.json","src/oauth/main.tsx",
-        "recall/supabase/config.toml","shared/browser-auth.mts","apps/recall/index.html"]) {
+      for (const missing of ["recall/assets/index-BGcdV7RE.js", "recall/src/main.tsx", "public-config.json", "src/oauth/main.tsx",
+        "recall/supabase/config.toml", "shared/browser-auth.mts", "apps/recall/index.html"]) {
         assert.equal((await fetch(origin + base + missing)).status, 404, missing);
       }
+    }
+    assert.equal(entries.size, 3, "Each HTML entry must load its own page module");
+    const css = (await Promise.all(assets.filter(name => name.endsWith(".css")).map(name => readFile(join(out, "assets", name), "utf8")))).join("\n");
+    assert.match(css, /\.account-form input\{[^}]*font-size:max\(1rem,16px\)/);
+    assert.doesNotMatch(css, /touch-action:none/);
+    const scripts = await Promise.all(assets.filter(name => name.endsWith(".js")).map(async name => ({ name, source: await readFile(join(out, "assets", name), "utf8") })));
+    const sessions = scripts.filter(({ source }) => source.includes("Unable to check your session. Reload to try again."));
+    assert.equal(sessions.length, 1, "Apps and Habit Practice share one Account session bundle");
+    for (const { kind, graph } of pages) {
+      assert.equal(graph.has(sessions[0].name), kind !== "consent", `${kind} Account session dependency`);
     }
   } finally {
     if (files) await new Promise(yes => files.close(yes));
@@ -132,10 +177,11 @@ test("root build accepts public defaults and refuses partial, secret, or false-h
     const done = run(out);
     assert.equal(done.status, 0, done.stderr);
     const defaults = JSON.parse(await readFile(new URL("../public-config.json", import.meta.url), "utf8"));
-    const index = pathToFileURL(join(out, "index.html"));
-    const refs = assetReferences(await readFile(index, "utf8")).filter(link => link.endsWith(".js"));
-    const js = (await Promise.all(refs.map(link => readFile(new URL(link, index), "utf8")))).join("\n");
-    assert(js.includes(defaults.url)); assert(js.includes(defaults.publishableKey));
+    for (const path of ["index.html", "recall/index.html", "oauth/consent/index.html"]) {
+      const js = graphText(await pageGraph(out, await readFile(join(out, path), "utf8")));
+      assert(js.includes(defaults.url), path);
+      assert(js.includes(defaults.publishableKey), path);
+    }
   } finally { await rm(tmp, { recursive: true, force: true }); }
 });
 test("root build rejects existing destinations without removing stale assets", async () => {
