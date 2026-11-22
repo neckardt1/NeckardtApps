@@ -35,6 +35,9 @@ jobs:
           npm test
       - name: Build public site
         env:
+          VITE_CANARY_USER_ID: ${{ vars.RECALL_CANARY_USER_ID }}
+          VITE_CANARY_CLIENT_ID: ${{ vars.RECALL_CANARY_CLIENT_ID }}
+          VITE_CANARY_CALLBACK_URL: ${{ vars.RECALL_CANARY_CALLBACK_URL }}
           RECALL_SUPABASE_URL: ${{ vars.RECALL_SUPABASE_URL }}
           RECALL_SUPABASE_PUBLISHABLE_KEY: ${{ vars.RECALL_SUPABASE_PUBLISHABLE_KEY }}
         run: node scripts/build-pages.mjs
