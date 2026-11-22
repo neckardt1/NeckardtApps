@@ -4,3 +4,7 @@ project_id = "recall-synthetic"
 # Edge code verifies the exact user JWT through Supabase Auth on every call;
 # do not rely on the gateway's project-key check as user authentication.
 verify_jwt = false
+
+[functions.recall-events]
+# The MCP client and database webhook authenticate with separate canary credentials.
+verify_jwt = false

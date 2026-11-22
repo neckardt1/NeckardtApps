@@ -1,0 +1,53 @@
+name: Deploy Recall events function
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/recall/supabase/functions/recall-events/**
+      - apps/recall/supabase/config.toml
+      - .github/workflows/recall-events.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-recall-events
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployment configuration
+        id: config
+        env:
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DEPLOY_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [[ -n "$PROJECT_REF" && -n "$DEPLOY_TOKEN" ]]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::Deployment skipped. Set SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN to enable releases.'
+            echo 'Deployment skipped. Configure the project reference and deployment credential, then rerun this workflow.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v6
+        if: steps.config.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: '24'
+      - name: Install Supabase CLI
+        if: steps.config.outputs.ready == 'true'
+        run: npm install --prefix "$RUNNER_TEMP/recall-cli" --no-audit --no-fund supabase@2.122.1
+      - name: Deploy recall-events
+        if: steps.config.outputs.ready == 'true'
+        working-directory: apps/recall
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: '"$RUNNER_TEMP/recall-cli/node_modules/.bin/supabase" functions deploy recall-events --project-ref "$PROJECT_REF" --use-api'
