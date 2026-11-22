@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { configured, openRequest, decide } from '../src/oauth/flow';
+import { configured, openRequest, decide, readAuthorizationId } from '../src/oauth/flow';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const clientId = '22222222-2222-4222-8222-222222222222';
-const id = '33333333-3333-4333-8333-333333333333';
+const id = 'jp5ugn7b3fsj6wmgveqvbni7ynxl7yag';
 const callback = 'https://chat.example/return';
 const scope = 'openid email';
 const limits = { userId, clientId, callback };
@@ -37,6 +37,19 @@ function fixture(options: { loginId?: string; authorization?: unknown; redirect?
   return { auth: client.auth, calls };
 }
 describe('canary authorization', () => {
+  it('requires exactly one authorization ID in the query', () => {
+    expect(readAuthorizationId('')).toBeNull();
+    expect(readAuthorizationId(`?authorization_id=${id}`)).toBe(id);
+    expect(readAuthorizationId(`?authorization_id=${id}&authorization_id=${id}`)).toBeNull();
+  });
+  it.each(['', userId, id.slice(1), id + 'a', id.toUpperCase(), '0' + id.slice(1), id + '\n'])(
+    'rejects malformed authorization IDs before sign-in', async invalid => {
+      const { auth, calls } = fixture();
+      expect(readAuthorizationId(new URLSearchParams({ authorization_id: invalid }).toString())).toBeNull();
+      await expect(openRequest(auth, invalid, limits, user.email, 'fixture')).rejects.toThrow('Start a new connection');
+      expect(calls).toEqual([]);
+    }
+  );
   it.each(['approve', 'deny'] as const)('submits %s only after an explicit decision', async action => {
     const { auth, calls } = fixture();
     const info = await openRequest(auth, id, limits, user.email, 'fixture');
@@ -53,7 +66,7 @@ describe('canary authorization', () => {
   it.each([
     { ...details, client: { ...details.client, id: userId } },
     { ...details, user: { ...user, id: clientId } },
-    { ...details, authorization_id: userId },
+    { ...details, authorization_id: 'a' + id.slice(1) },
     { ...details, redirect_uri: callback + '-other' },
     { redirect_url: callback + '?code=fixture' }
   ])('refuses mismatched or unverifiable details', async authorization => {

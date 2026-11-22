@@ -102,7 +102,7 @@ test("one multipage build serves Apps, Habit Practice and OAuth consent directly
     for (const base of ["/", "/NeckardtApps/"]) {
       for (const path of ["", "index.html", "recall/", "recall/index.html", "oauth/consent/", "oauth/consent/index.html"]) {
         const kind = path.startsWith("oauth/") ? "consent" : path.startsWith("recall/") ? "recall" : "apps";
-        const query = kind === "consent" ? "?authorization_id=33333333-3333-4333-8333-333333333333" : "";
+        const query = kind === "consent" ? "?authorization_id=t6iubjdnqfkp4d4odxwleypuhprekmuh" : "";
         const url = new URL(base + path + query, origin);
         const response = await fetch(url);
         assert.equal(response.status, 200, url.href);
