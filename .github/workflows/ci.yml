@@ -17,11 +17,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: Install Recall dependencies
-        run: npm ci --prefix apps/recall
+      - name: Install site and backend test dependencies
+        run: npm ci
       - name: Typecheck, test, and build
         run: |
-          npm --prefix apps/recall run typecheck
-          npm --prefix apps/recall test
-          node --test tests/*.test.mjs
+          npm run typecheck
+          npm test
           node scripts/build-pages.mjs

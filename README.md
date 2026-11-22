@@ -1,83 +1,85 @@
-# Neckardt Apps
+# Apps
 
-A public static launcher for small personal tools. Recall is temporarily offline
-while its replacement is reviewed separately. Fresh loads of `/recall/` receive
-a static maintenance page with a link back to Apps.
+A public app launcher with a reusable Apps/Account shell. The display name
+**Habit Practice** points to the existing `/recall/` URL; internal identifiers
+and storage/auth keys are unchanged. Its maintenance page remains scriptless and
+identical to the approved offline baseline. The review rebuild is separate work.
 
-## Local checks and preview
+## Local development and checks
 
 Requires Node.js 24.
 
 ```sh
-npm ci --prefix apps/recall
-npm --prefix apps/recall run typecheck
-npm --prefix apps/recall test
-node --test tests/*.test.mjs
-node scripts/build-pages.mjs
-python3 -m http.server 4173 --bind 127.0.0.1 --directory _site
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run dev
 ```
 
-The typecheck still covers the shared browser-auth module. The backend integration
-test still exercises the actual Edge handler, FSRS, SQL, owner access, and replay
-safety using synthetic in-memory fixtures. Shared auth convention checks remain
-in `tests/browser-auth.test.mjs`; they do not load auth into the site.
+There is one top-level React + TypeScript + Vite frontend build. The root workspace
+also installs the pinned backend test dependencies under `apps/recall/`.
+`npm test` runs shared-auth and HTTP artifact tests, synthetic React/session
+tests, and the unchanged Edge/FSRS/SQL backend integration assertions.
+No live account, card, database, or review data is needed for these tests.
 
-The build copies exactly two HTML files: the launcher and `recall/index.html`.
-It does not run Vite, bundle JavaScript, read Supabase configuration, or package
-backend files. It refuses an existing output path so old review assets cannot
-silently enter a new artifact. Rebuild into a new directory, or deliberately
-remove only the generated output first.
+The two real HTML entries are `index.html` and `recall/index.html`. They publish
+to `_site/index.html` and `_site/recall/index.html`. Navigation uses ordinary
+links and full page loads, with no router. Vite uses relative asset paths.
+The maintenance HTML was moved to its top-level entry without content changes
+and must remain byte-identical after building.
 
-## Offline behavior and limits
+The build validates browser-safe configuration and refuses an existing output
+path. Build into a new directory, or deliberately remove only generated output.
+It disables automatic public-directory copying and source maps. No backend,
+test, source, or standalone configuration file belongs in the published artifact.
 
-The maintenance page has no script, sign-in form, review controls, external
-assets, auth client, redirects, or storage access. Its content security policy
-disallows scripts and network resources. It cannot initiate a review on a fresh
-load of this artifact. The launcher remains public and reports the offline status.
+## Shared shell and sessions
 
-This is a frontend pause, not backend revocation. Already-open tabs and previously
-cached old HTML/JavaScript may continue to operate against the unchanged backend.
-Existing in-flight requests are not cancelled. This change does not read, clear,
-migrate, or modify browser storage, sessions, queued responses, cards, schedules,
-or review history. Preserve pending responses; do not clear browser data as part
-of taking the frontend offline.
+The launcher renders its app list immediately, even if Account is unavailable,
+still loading, or fails. Sign-in is optional for browsing the launcher.
+The unbranded shell keeps Apps on the left, Account on the right, and no title
+in the middle. The app registry supplies display names, paths, and status.
 
-The old Recall frontend implementation and browser build tooling are removed
-from this branch. Its Supabase migrations and Edge Function source stay intact.
-No backend block, schema apply, Edge deployment, or review write is included.
+Future scripted page entries can render their content within `SiteRoot`.
+Pass `appsHref="./"` at the launcher and `appsHref="../"` in a single-level app
+entry. This keeps both the default `/NeckardtApps/` base and custom-domain root
+working. Feature code stays outside the shared shell.
 
-## GitHub Pages and adding apps
+`shared/browser-auth.mts` retains the existing Supabase project-based storage
+convention. The shared session adapter/provider owns Account identity and uses
+local-scope sign-out. It does not clear arbitrary browser data or queued reviews.
+Pages on the same origin and Supabase project use the same persisted session;
+sessions do not cross between different hostnames or browser profiles.
 
-Pull requests run checks and build without publishing. A push to `main` runs the
-Pages deployment workflow. Merge and deployment require separate authorization;
-preparing this PR does not take the live site offline.
+Authentication is identity, not app authorization. Each feature decides when
+sign-in is required and handles its own server-enforced access checks. The public
+launcher never calls review/card/action APIs and cannot grant access to a deck.
+The maintenance page loads neither the shell nor any auth JavaScript. No Recall
+review logic, new database contract, or migration is part of this PR.
 
-The relative launcher link `./recall/` and maintenance link `../` work at both
-`/recall/` and `/NeckardtApps/recall/`, including direct `index.html` loads.
-Tests serve the actual artifact over HTTP at both bases and verify that old JS,
-configuration, and backend paths are absent. No Supabase build variables are
-needed or read while Recall is offline.
+The existing public URL and publishable key live in `public-config.json`.
+Optional build overrides retain the names `RECALL_SUPABASE_URL` and
+`RECALL_SUPABASE_PUBLISHABLE_KEY`; set both. Secret keys and malformed hosts are
+rejected before output is created. Never place server credentials in browser code.
 
-Keep the root launcher public. Give future apps real per-app output directories,
-relative links, and direct-route tests. The shared browser-auth module is retained
-for future applications but is not part of this static artifact.
+## Release and recovery
 
-## Recovery
+PR checks install at the repository root, typecheck, test, and build. A push to
+`main` triggers Pages deployment; opening this PR does not deploy it.
+Merge requires the repository's exact-head approval or merge instruction.
 
-This removal is one reversible commit. To restore the previous frontend and
-build, prepare a separately reviewed revert of the offline PR's single commit:
-`git revert <offline-pr-commit>`. Run the full checks, inspect the resulting
-artifact, and obtain the required approval before merging/deploying the revert.
-No database rollback or browser-storage cleanup is needed for this frontend-only
-change. Recheck backend compatibility if it has changed independently.
+Habit Practice's `/recall/` route stays offline for fresh loads. Previously cached
+or already-open old clients are not revoked, and in-flight requests are not
+cancelled. Preserve browser data and pending responses. No backend or storage
+cleanup is included.
 
-The Recall rewrite remains on its existing separate PR/branch. This removal does
-not rebase, replace, or merge that work; a later rewrite integration needs its own
-review.
+A separately reviewed revert of this shell commit restores the static launcher
+and build without changing the maintenance content or database. The later
+review rebuild must adopt the shared shell in its own reviewed step, with its
+database prerequisite and cached-client release sequencing revalidated. Its
+existing PR/branch is not changed by this work.
 
-## Source and data boundaries
-
-Backend files under `apps/recall/supabase/` remain source-only and are never
-published with the site. Do not rerun historical migrations on a provisioned
-database. Keep private schemas and owner-only access unchanged. No live seeds,
-database dumps, owner credentials, or card/review data belong in this repository.
+Backend files under `apps/recall/supabase/` remain source-only, unchanged, and
+excluded from the site. Never rerun historical migrations on a provisioned
+database or commit live seeds, account credentials, cards, or review history.
