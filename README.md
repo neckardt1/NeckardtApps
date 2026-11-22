@@ -76,3 +76,9 @@ and [GitHub's custom domain guide](https://docs.github.com/en/pages/configuring-
   allowlisted signed-in account can access the deck. The grading function uses
   Supabase-managed server credentials only inside its runtime; deployment and
   private data live outside this repository.
+
+## Notifier experiment
+
+The isolated [Recall notifier latency experiment](apps/recall/notifier/README.md)
+includes a durable queue, failure tests and a local HTTP benchmark. It is not
+enabled in the app or deployed by the Pages workflow.

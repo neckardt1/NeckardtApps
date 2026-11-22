@@ -1,0 +1,38 @@
+{
+  "environment": "warm local PGlite + actual recall-grade/FSRS + loopback HTTP; synthetic one-card sessions; no browser/Auth/grade-network or hosted cold starts",
+  "samples": 40,
+  "warmup_excluded": 1,
+  "stages": {
+    "tap_to_save_ack_ms": {
+      "p50_ms": 3.02,
+      "p95_ms": 5.45,
+      "max_ms": 6.63
+    },
+    "tap_to_local_relay_ms": {
+      "p50_ms": 4.58,
+      "p95_ms": 9.18,
+      "max_ms": 10.52
+    },
+    "tap_to_persisted_relay_ack_ms": {
+      "p50_ms": 5.33,
+      "p95_ms": 10.9,
+      "max_ms": 12.46
+    },
+    "tap_to_dispatch_drain_ms": {
+      "p50_ms": 7.66,
+      "p95_ms": 14.49,
+      "max_ms": 18.16
+    }
+  },
+  "controlled_100ms_dispatch_delay": {
+    "samples": 20,
+    "p50_ms": 106.36,
+    "p95_ms": 108.07,
+    "max_ms": 135.11
+  },
+  "external_stages": {
+    "gmail_delivery": "not measured",
+    "dot_wake": "not measured",
+    "dot_debrief": "not measured"
+  }
+}

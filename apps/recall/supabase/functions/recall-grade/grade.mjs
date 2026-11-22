@@ -35,7 +35,13 @@ export function schedulerFor(fsrsLib) {
   };
 }
 
-export function gradeHandler({getOwner,prepare,commit,schedule}) {
+export function gradeHandler({getOwner,prepare,commit,schedule,afterSave=()=>{}}) {
+  function savedResponse(result) {
+    // Optional notifier seam: only after the durable save or verified replay.
+    // Never await the relay and never turn a saved rating into a failed rating.
+    try { Promise.resolve(afterSave()).catch(()=>{}); } catch {}
+    return json(onlyResult(result));
+  }
   return async (request)=>{
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers});
     if(request.method!=="POST") return json({error:"Method not allowed"},405);
@@ -60,12 +66,12 @@ export function gradeHandler({getOwner,prepare,commit,schedule}) {
         p_grade:p.grade,p_reviewed_at:p.reviewed_at
       };
       const context=await prepare(owned);
-      if(context.kind==="replay") return json(onlyResult(context));
+      if(context.kind==="replay") return savedResponse(context);
       if(context.kind!=="card") throw new Error("Unknown review snapshot");
       const result=schedule(context,p.grade,p.reviewed_at);
       const saved=await commit({...owned,p_due_at:result.dueAt,p_state:result.state,p_log:result.log,
         p_scheduler_build:result.build,p_scheduler_config:result.config});
-      return json(onlyResult(saved));
+      return savedResponse(saved);
     } catch(error) {
       const code=error?.code;
       if(code==="42501") return json({error:"This deck is available only to the configured owner."},403);
