@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { configured, openRequest, decide, readAuthorizationId } from '../src/oauth/flow';
+import { configured, openRequest, decide, ownerDigest, readAuthorizationId } from '../src/oauth/flow';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const clientId = '22222222-2222-4222-8222-222222222222';
 const id = 'jp5ugn7b3fsj6wmgveqvbni7ynxl7yag';
 const callback = 'https://chat.example/return';
-const scope = 'openid email';
-const limits = { userId, clientId, callback };
+const scope = 'openid';
+const userDigest = '30ffc7cc343265aa0f8bf7c138b8d3d8752630a527e66c95eafbe261f1c48d06';
+const limits = { userDigest, clientId, callback };
 const user = { id: userId, email: 'canary@example.test' };
 const details = { authorization_id: id, user, client: { id: clientId, name: 'Recall canary' }, scope, redirect_uri: callback };
 const endpoint = '/auth/v1/oauth/authorizations/' + id;
@@ -37,6 +38,11 @@ function fixture(options: { loginId?: string; authorization?: unknown; redirect?
   return { auth: client.auth, calls };
 }
 describe('canary authorization', () => {
+  it('hashes the canonical lowercase UUID with the owner domain separator', async () => {
+    expect(await ownerDigest('ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF'))
+      .toBe('5526f90eb30cf09ec0bf857ee82f3ce4999b81d97365c877acba9fe58849b077');
+    await expect(ownerDigest('')).rejects.toThrow('Invalid account identifier');
+  });
   it('requires exactly one authorization ID in the query', () => {
     expect(readAuthorizationId('')).toBeNull();
     expect(readAuthorizationId(`?authorization_id=${id}`)).toBe(id);
@@ -58,10 +64,27 @@ describe('canary authorization', () => {
     expect(await decide(auth.oauth, id, callback, action)).toBe(callback + '?state=fake&code=fixture');
     expect(calls.at(-1)).toEqual({ path: endpoint + '/consent', body: { action } });
   });
+  it.each(['openid email', 'profile', ''])('refuses consent for unsupported scopes', async scope => {
+    const { auth, calls } = fixture({ authorization: { ...details, scope } });
+    await expect(openRequest(auth, id, limits, user.email, 'fixture')).rejects.toThrow('openid');
+    expect(calls.map(call => call.path)).toEqual(['/auth/v1/token?grant_type=password', endpoint]);
+  });
   it('stops before fetching authorization details for another signed-in user', async () => {
     const { auth, calls } = fixture({ loginId: clientId });
-    await expect(openRequest(auth, id, limits, user.email, 'fixture')).rejects.toThrow('dedicated canary account');
+    await expect(openRequest(auth, id, limits, user.email, 'fixture')).rejects.toThrow('account authorized');
     expect(calls).toHaveLength(1);
+  });
+  it('refuses a different configured owner digest before fetching details', async () => {
+    const { auth, calls } = fixture();
+    await expect(openRequest(auth, id, { ...limits, userDigest: '0'.repeat(64) }, user.email, 'fixture'))
+      .rejects.toThrow('account authorized');
+    expect(calls).toHaveLength(1);
+  });
+  it.each(['', userId, userDigest.toUpperCase()])('rejects an absent or invalid digest before login', async invalid => {
+    const { auth, calls } = fixture();
+    await expect(openRequest(auth, id, { ...limits, userDigest: invalid }, user.email, 'fixture'))
+      .rejects.toThrow('Start a new connection');
+    expect(calls).toEqual([]);
   });
   it.each([
     { ...details, client: { ...details.client, id: userId } },

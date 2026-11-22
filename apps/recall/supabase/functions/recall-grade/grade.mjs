@@ -35,6 +35,24 @@ export function schedulerFor(fsrsLib) {
   };
 }
 
+function authData({data,error}) {
+  if(error && (!error.status || error.status>=500)) throw error;
+  return error ? null : data;
+}
+
+export async function firstPartyOwner(auth,issuer,jwt) {
+  // getUser can accept delegated OAuth tokens for this same user. Check the
+  // verified JWT's intended audience and grant before performing owner RPCs.
+  const claims=authData(await auth.getClaims(jwt))?.claims;
+  if(!claims || claims.iss!==issuer || claims.aud!=="authenticated" ||
+     claims.role!=="authenticated" || Object.hasOwn(claims,"client_id") ||
+     typeof claims.sub!=="string" || !uuid.test(claims.sub) ||
+     typeof claims.session_id!=="string" || !uuid.test(claims.session_id) ||
+     (Object.hasOwn(claims,"is_anonymous") && claims.is_anonymous!==false)) return null;
+  const user=authData(await auth.getUser(jwt))?.user;
+  return user && user.id===claims.sub && !user.is_anonymous ? user.id : null;
+}
+
 export function gradeHandler({getOwner,prepare,commit,schedule}) {
   return async (request)=>{
     if(request.method==="OPTIONS") return new Response(null,{status:204,headers});

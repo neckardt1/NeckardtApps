@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readdir, readFile, writeFile, symlink, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -8,18 +9,25 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const build = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
+const primaryOwnerId = "deafcafe-deaf-4ace-8123-abcd1234abcd";
+const legacyCanaryId = "22222222-2222-4222-8222-222222222222";
+const expectedDigest = id => createHash("sha256")
+  .update("neckardtapps:recall-consent:owner:v1:" + id.toLowerCase(), "utf8").digest("hex");
 const fixture = {
   RECALL_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
   RECALL_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_build_fixture",
   VITE_CANARY_CLIENT_ID: "11111111-1111-4111-8111-111111111111",
-  VITE_CANARY_USER_ID: "22222222-2222-4222-8222-222222222222",
+  VITE_CANARY_USER_DIGEST: expectedDigest(primaryOwnerId),
+  RECALL_LEGACY_CANARY_USER_ID: legacyCanaryId,
+  VITE_CANARY_USER_ID: primaryOwnerId, // The retired public variable must never leak into a build.
   VITE_CANARY_CALLBACK_URL: "https://consent.example.invalid/callback"
 };
 const run = (out, vars = {}) => spawnSync(process.execPath, [build, out], {
   encoding: "utf8", env: {
     ...process.env,
     RECALL_SUPABASE_URL: "", RECALL_SUPABASE_PUBLISHABLE_KEY: "",
-    VITE_CANARY_CLIENT_ID: "", VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "",
+    VITE_CANARY_CLIENT_ID: "", VITE_CANARY_USER_DIGEST: "", RECALL_LEGACY_CANARY_USER_ID: "",
+    VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "",
     ...vars
   }
 });
@@ -82,6 +90,17 @@ async function checkPageAssets(out, html, pageUrl, assetsUrl) {
 const graphText = graph => [...graph.values()].join("\n");
 const recallCode = /recall-grade|recall_due|recall_opportunities|recall_record_action|demo_flashcards_due|recall\.round|recall\.live/;
 
+async function assertOwnerValuesAbsent(out, values) {
+  const files = await readdir(out, { recursive: true, withFileTypes: true });
+  for (const file of files.filter(entry => entry.isFile())) {
+    const path = join(file.parentPath, file.name);
+    const content = (await readFile(path)).toString("utf8").toLowerCase();
+    for (const value of values) {
+      assert(!content.includes(value.toLowerCase()), `Unexpected owner configuration in ${path}`);
+    }
+  }
+}
+
 test("one multipage build serves Apps, Habit Practice and OAuth consent directly at both Pages bases", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-practice-"));
   let files;
@@ -89,6 +108,7 @@ test("one multipage build serves Apps, Habit Practice and OAuth consent directly
     const out = join(tmp, "site");
     const done = run(out, fixture);
     assert.equal(done.status, 0, done.stderr);
+    await assertOwnerValuesAbsent(out, [primaryOwnerId, legacyCanaryId, expectedDigest(legacyCanaryId)]);
     assert.deepEqual((await readdir(out)).sort(), ["assets", "index.html", "oauth", "recall"]);
     assert.deepEqual(await readdir(join(out, "oauth")), ["consent"]);
     assert.deepEqual(await readdir(join(out, "oauth", "consent")), ["index.html"]);
@@ -129,7 +149,7 @@ test("one multipage build serves Apps, Habit Practice and OAuth consent directly
           if (kind === "consent") {
             assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
             assert(js.includes("recall-canary-consent"));
-            for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_ID", "VITE_CANARY_CALLBACK_URL"]) {
+            for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_DIGEST", "VITE_CANARY_CALLBACK_URL"]) {
               assert(js.includes(fixture[key]), `OAuth graph must include synthetic ${key}`);
             }
           } else {
@@ -159,6 +179,18 @@ test("one multipage build serves Apps, Habit Practice and OAuth consent directly
     if (files) await new Promise(yes => files.close(yes));
     await rm(tmp, { recursive: true, force: true });
   }
+});
+test("legacy synthetic owner configuration publishes its domain-separated digest", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-legacy-consent-"));
+  try {
+    const out = join(tmp, "site");
+    const done = run(out, { ...fixture, VITE_CANARY_USER_DIGEST: "" });
+    assert.equal(done.status, 0, done.stderr);
+    const html = await readFile(join(out, "oauth", "consent", "index.html"), "utf8");
+    const js = graphText(await pageGraph(out, html));
+    assert(js.includes(expectedDigest(legacyCanaryId)), "Consent must recognize the legacy synthetic account");
+    await assertOwnerValuesAbsent(out, [primaryOwnerId, legacyCanaryId, expectedDigest(primaryOwnerId)]);
+  } finally { await rm(tmp, { recursive: true, force: true }); }
 });
 test("root build accepts public defaults and refuses partial, secret, or false-host configuration", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-shell-config-"));
