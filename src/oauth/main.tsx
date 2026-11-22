@@ -9,10 +9,10 @@ import './consent.css';
 declare const __SITE_PUBLIC_CONFIG__: PublicSupabaseConfig;
 const limits: ConsentLimits = {
   clientId: import.meta.env.VITE_CANARY_CLIENT_ID ?? '',
-  userId: import.meta.env.VITE_CANARY_USER_ID ?? '',
+  userDigest: import.meta.env.VITE_CANARY_USER_DIGEST ?? '',
   callback: import.meta.env.VITE_CANARY_CALLBACK_URL ?? ''
 };
-// The test identity has its own in-memory session and never replaces the site's normal Account session.
+// Consent has its own in-memory session and never replaces the site's normal Account session.
 const auth = createClient(__SITE_PUBLIC_CONFIG__.url, __SITE_PUBLIC_CONFIG__.publishableKey, {
   auth: { storageKey: 'recall-canary-consent', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 }).auth;
@@ -67,7 +67,7 @@ function Consent() {
           <button className="primary" type="button" disabled={busy} onClick={() => void run(() => respond('approve'))}>Allow</button>
         </div>
       </> : <form className="account-form" onSubmit={signIn}>
-        <p>Sign in with the dedicated canary account to review this request.</p>
+        <p>Sign in with the account authorized for this connection to review the request.</p>
         <label>Email<input name="email" type="email" autoComplete="username" required disabled={busy}/></label>
         <label>Password<input name="password" type="password" autoComplete="current-password" required disabled={busy}/></label>
         <button className="account-action" disabled={busy}>{busy ? 'Please wait…' : 'Continue'}</button>

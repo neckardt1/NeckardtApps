@@ -1,11 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export interface ConsentLimits { userId: string; clientId: string; callback: string }
+export interface ConsentLimits { userDigest: string; clientId: string; callback: string }
 type Auth = Pick<SupabaseClient['auth'], 'signInWithPassword' | 'oauth'>;
 type OAuth = Auth['oauth'];
 type Action = 'approve' | 'deny';
 
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+export const sha256Hex = /^[0-9a-f]{64}$/;
+
+export async function ownerDigest(userId: string) {
+  if (!uuid.test(userId)) throw new Error('Invalid account identifier.');
+  const input = new TextEncoder().encode('neckardtapps:recall-consent:owner:v1:' + userId.toLowerCase());
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
 
 // Supabase Auth generates the public request ID from 20 bytes using lowercase, unpadded base32.
 const authorizationId = /^[a-z2-7]{32}$/;
@@ -16,7 +24,7 @@ export function readAuthorizationId(search: string) {
 }
 
 export function configured(limits: ConsentLimits) {
-  if (!uuid.test(limits.userId) || !uuid.test(limits.clientId)) return false;
+  if (!sha256Hex.test(limits.userDigest) || !uuid.test(limits.clientId)) return false;
   const url = URL.parse(limits.callback);
   if (!url) return false;
   const loopback = url.protocol === 'http:' && url.hostname === '127.0.0.1' && !!url.port;
@@ -27,15 +35,17 @@ export function configured(limits: ConsentLimits) {
 export async function openRequest(auth: Auth, id: string, limits: ConsentLimits, email: string, password: string) {
   if (!authorizationId.test(id) || !configured(limits)) throw new Error('Start a new connection from ChatGPT.');
   const login = await auth.signInWithPassword({ email, password });
-  if (login.error || login.data.user?.id !== limits.userId)
-    throw new Error('Sign in with the dedicated canary account.');
+  const userId = login.data.user?.id;
+  if (login.error || !userId || await ownerDigest(userId) !== limits.userDigest)
+    throw new Error('Sign in with the account authorized for this connection.');
   const { data, error } = await auth.oauth.getAuthorizationDetails(id);
   if (error || !data) throw new Error('This request has expired or is unavailable. Reconnect from ChatGPT.');
   // Previous consent may return only a redirect. Without client details we cannot verify this request.
   if ('redirect_url' in data) throw new Error('This account has already granted access. Revoke its prior grant and reconnect.');
-  if (data.authorization_id !== id || data.user.id !== limits.userId ||
+  if (data.authorization_id !== id || data.user.id !== userId ||
       data.client.id !== limits.clientId || data.redirect_uri !== limits.callback)
     throw new Error('This request does not match the registered canary connection.');
+  if (data.scope !== 'openid') throw new Error('This connection supports only the openid scope.');
   return data;
 }
 

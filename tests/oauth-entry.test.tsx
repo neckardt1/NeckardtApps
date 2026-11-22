@@ -59,7 +59,7 @@ test('the actual canary entry signs in and approves without changing Account ide
   localStorage.setItem(roundKey, JSON.stringify(pending));
   sessionStorage.setItem('unrelated-browser-state', 'preserved');
   vi.stubGlobal('__SITE_PUBLIC_CONFIG__', config);
-  vi.stubEnv('VITE_CANARY_USER_ID', canary.id);
+  vi.stubEnv('VITE_CANARY_USER_DIGEST', '30ffc7cc343265aa0f8bf7c138b8d3d8752630a527e66c95eafbe261f1c48d06');
   vi.stubEnv('VITE_CANARY_CLIENT_ID', clientId);
   vi.stubEnv('VITE_CANARY_CALLBACK_URL', callback);
   history.replaceState({}, '', `/oauth/consent/?authorization_id=${authorizationId}`);
@@ -80,7 +80,7 @@ test('the actual canary entry signs in and approves without changing Account ide
     expect(bearer).toBe('Bearer synthetic-canary-access');
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}` && init?.method === 'GET') {
       return Response.json({ authorization_id: authorizationId, user: canary, client: { id: clientId, name: 'Synthetic canary' },
-        scope: 'openid email', redirect_uri: callback });
+        scope: 'openid', redirect_uri: callback });
     }
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}/consent` && init?.method === 'POST') {
       expect(body).toEqual({ action: 'approve' });
@@ -98,7 +98,7 @@ test('the actual canary entry signs in and approves without changing Account ide
   const host = document.createElement('main'); host.id = 'root'; document.body.append(host);
   await act(async () => { await import('../src/oauth/main'); });
   expect(host.textContent).toContain('Connect Recall canary');
-  expect(host.textContent).toContain('Sign in with the dedicated canary account');
+  expect(host.textContent).toContain('Sign in with the account authorized for this connection');
   const form = host.querySelector('form')!;
   form.querySelector<HTMLInputElement>('[name="email"]')!.value = canary.email;
   form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-canary-password';
