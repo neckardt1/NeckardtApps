@@ -27,11 +27,41 @@ export function rejectedHost(value: unknown): { callback_host?: string } {
   return {};
 }
 
-export function validateUrl(value: unknown, allowedHosts: ReadonlySet<string>): URL {
-  if (typeof value !== "string" || value.length > 4096) throw Error("Invalid URL");
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.username || url.password || url.hash || url.port ||
-      !allowedHosts.has(url.hostname)) throw Error("Unrecognized callback origin");
+type KnownHost = "chatgpt.com" | "api.openai.com" | "platform.openai.com";
+export type CallbackRejection =
+  | {rule:"type" | "length" | "unparseable" | "scheme" | "credentials" | "fragment" | "port"}
+  | {rule:"host", knownHost?:KnownHost};
+
+function knownHostLabel(host: string): KnownHost | undefined {
+  // These fixed public labels are solely for logging. They do not grant callback access.
+  switch (host) {
+    case "chatgpt.com": return "chatgpt.com";
+    case "api.openai.com": return "api.openai.com";
+    case "platform.openai.com": return "platform.openai.com";
+    default: return undefined;
+  }
+}
+
+export function validateUrl(value: unknown, allowedHosts: ReadonlySet<string>,
+  onReject?: (failure: CallbackRejection) => void): URL {
+  if (typeof value !== "string" || value.length > 4096) {
+    onReject?.({rule:typeof value !== "string" ? "type" : "length"});
+    throw Error("Invalid URL");
+  }
+  let url: URL;
+  try { url = new URL(value); }
+  catch (error) { onReject?.({rule:"unparseable"}); throw error; }
+
+  let failure: CallbackRejection | undefined;
+  if (url.protocol !== "https:") failure = {rule:"scheme"};
+  else if (url.username || url.password) failure = {rule:"credentials"};
+  else if (url.hash) failure = {rule:"fragment"};
+  else if (url.port) failure = {rule:"port"};
+  else if (!allowedHosts.has(url.hostname)) failure = {rule:"host", knownHost:knownHostLabel(url.hostname)};
+  if (failure) {
+    onReject?.(failure);
+    throw Error("Unrecognized callback origin");
+  }
   return url;
 }
 
