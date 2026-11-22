@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const build = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
 const fixture = {
@@ -35,7 +35,25 @@ function inertMaintenance(html) {
   assert.doesNotMatch(html, /http-equiv=["']refresh|https?:\/\/|supabase|sb_publishable_|localStorage|sessionStorage|indexedDB|serviceWorker/i);
   assert.match(html, /default-src 'none'/);
 }
-test("top-level multipage build serves the public shell and unchanged maintenance on both Pages bases", async () => {
+function assetReferences(html) {
+  assert.match(html, /<script\b[^>]*type="module"[^>]*src=/);
+  return [...html.matchAll(/(?:src|href)="([^"]+\.(?:css|js))"/g)].map(match => match[1]);
+}
+async function checkPageAssets(html, pageUrl, assetsUrl) {
+  const scripts = [];
+  for (const link of assetReferences(html)) {
+    const url = new URL(link, pageUrl);
+    assert.equal(new URL(".", url).href, assetsUrl);
+    const response = await fetch(url);
+    assert.equal(response.status, 200, url.href);
+    if (url.pathname.endsWith(".js")) scripts.push(await response.text());
+  }
+  const js = scripts.join("\n");
+  assert(js.includes(fixture.RECALL_SUPABASE_URL));
+  assert(js.includes(fixture.RECALL_SUPABASE_PUBLISHABLE_KEY));
+  assert.doesNotMatch(js, /recall-grade|recall_due|recall_record_action|recall\.round|recall\.live/);
+}
+test("Pages serves the Apps shell, OAuth consent route and unchanged maintenance at both bases", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "neckardtapps-shell-"));
   let files;
   try {
@@ -46,11 +64,12 @@ test("top-level multipage build serves the public shell and unchanged maintenanc
     const out = join(tmp, "site");
     const done = run(out, fixture);
     assert.equal(done.status, 0, done.stderr);
-    assert.deepEqual((await readdir(out)).sort(), ["assets", "index.html", "recall"]);
+    assert.deepEqual((await readdir(out)).sort(), ["assets", "index.html", "oauth", "recall"]);
+    assert.deepEqual(await readdir(join(out, "oauth")), ["consent"]);
+    assert.deepEqual(await readdir(join(out, "oauth", "consent")), ["index.html"]);
     assert.deepEqual(await readdir(join(out, "recall")), ["index.html"]);
     assert((await readFile(join(out, "recall", "index.html"))).equals(source), "Built maintenance HTML must match its source bytes");
     const assets = await readdir(join(out, "assets"));
-    assert.equal(assets.length, 2);
     assert(assets.every(name => /^[\w-]+\.(?:js|css)$/.test(name)));
     let origin;
     ({ files, origin } = await serve(out));
@@ -63,20 +82,15 @@ test("top-level multipage build serves the public shell and unchanged maintenanc
         const appHref = home.match(/href="([^"]+recall\/)"/)?.[1];
         assert(appHref);
         assert.equal(new URL(appHref, homeUrl).pathname, base + "recall/");
-        const links = [...home.matchAll(/(?:src|href)="(\.\/assets\/[\w-]+\.(?:css|js))"/g)].map(m => m[1]);
-        assert.equal(links.length, 2);
-        for (const link of links) {
-          const assetUrl = new URL(link, homeUrl);
-          assert(assetUrl.pathname.startsWith(base + "assets/"));
-          const asset = await fetch(assetUrl);
-          assert.equal(asset.status, 200);
-          const content = await asset.text();
-          if (link.endsWith(".js")) {
-            assert(content.includes(fixture.RECALL_SUPABASE_URL));
-            assert(content.includes(fixture.RECALL_SUPABASE_PUBLISHABLE_KEY));
-            assert.doesNotMatch(content, /recall-grade|recall_due|recall_record_action|recall\.round|recall\.live/);
-          }
-        }
+        await checkPageAssets(home, homeUrl, origin + base + "assets/");
+      }
+      for (const path of ["oauth/consent/", "oauth/consent/index.html"]) {
+        const url = new URL(base + path + "?authorization_id=synthetic", origin);
+        const response = await fetch(url);
+        assert.equal(response.status, 200);
+        const html = await response.text();
+        assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
+        await checkPageAssets(html, url, origin + base + "assets/");
       }
       for (const path of ["recall/", "recall/index.html"]) {
         const direct = new URL(base + path, origin);
@@ -91,7 +105,7 @@ test("top-level multipage build serves the public shell and unchanged maintenanc
         assert.equal(root.pathname, base);
         assert.equal((await fetch(root)).status, 200);
       }
-      for (const missing of ["recall/assets/index-BGcdV7RE.js","recall/src/main.tsx","public-config.json",
+      for (const missing of ["recall/assets/index-BGcdV7RE.js","recall/src/main.tsx","public-config.json","src/oauth/main.tsx",
         "recall/supabase/config.toml","shared/browser-auth.mts","apps/recall/index.html"]) {
         assert.equal((await fetch(origin + base + missing)).status, 404, missing);
       }
@@ -118,7 +132,9 @@ test("root build accepts public defaults and refuses partial, secret, or false-h
     const done = run(out);
     assert.equal(done.status, 0, done.stderr);
     const defaults = JSON.parse(await readFile(new URL("../public-config.json", import.meta.url), "utf8"));
-    const js = await readFile(join(out, "assets", (await readdir(join(out, "assets"))).find(name => name.endsWith(".js"))), "utf8");
+    const index = pathToFileURL(join(out, "index.html"));
+    const refs = assetReferences(await readFile(index, "utf8")).filter(link => link.endsWith(".js"));
+    const js = (await Promise.all(refs.map(link => readFile(new URL(link, index), "utf8")))).join("\n");
     assert(js.includes(defaults.url)); assert(js.includes(defaults.publishableKey));
   } finally { await rm(tmp, { recursive: true, force: true }); }
 });

@@ -1,0 +1,8 @@
+.consent { width: min(100%, 30rem); margin: clamp(2rem, 11vh, 6rem) auto; padding: 0 1.5rem; }
+.consent h1 { margin: 0; font: 400 clamp(2rem, 8vw, 3.2rem)/1.05 Georgia, serif; letter-spacing: -.035em; }
+.consent dl { margin: 2rem 0; }
+.consent dt { font-weight: 600; }
+.consent dd { margin: .25rem 0 1rem; overflow-wrap: anywhere; }
+.decisions { display: flex; gap: .65rem; }
+.decisions button { flex: 1; min-height: 2.75rem; border: 1px solid var(--green); border-radius: .45rem; color: var(--ink); background: var(--card); }
+.decisions .primary { color: white; background: var(--green); }

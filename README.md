@@ -23,8 +23,8 @@ also installs the pinned backend test dependencies under `apps/recall/`.
 tests, and the unchanged Edge/FSRS/SQL backend integration assertions.
 No live account, card, database, or review data is needed for these tests.
 
-The two real HTML entries are `index.html` and `recall/index.html`. They publish
-to `_site/index.html` and `_site/recall/index.html`. Navigation uses ordinary
+The real HTML entries are `index.html`, `recall/index.html`, and `oauth/consent/index.html`.
+They publish at matching paths within `_site/`. Navigation uses ordinary
 links and full page loads, with no router. Vite uses relative asset paths.
 The maintenance HTML was moved to its top-level entry without content changes
 and must remain byte-identical after building.
@@ -83,3 +83,30 @@ existing PR/branch is not changed by this work.
 Backend files under `apps/recall/supabase/` remain source-only, unchanged, and
 excluded from the site. Never rerun historical migrations on a provisioned
 database or commit live seeds, account credentials, cards, or review history.
+
+## OAuth consent for the Recall canary
+
+The registered ChatGPT client sends its OAuth request to Supabase. Supabase sends the browser to
+`/oauth/consent/?authorization_id=…`. Sign in with the dedicated synthetic project user to see the
+requesting app, scopes and return address. Allow or deny sends the decision to Supabase, which
+returns the callback URL for the browser. The page holds the test session in memory.
+
+1. Register the OAuth client manually in Supabase with its exact callback. For a local PKCE pilot,
+   use a `http://127.0.0.1:<port>/<path>` callback. For ChatGPT, copy its HTTPS callback from the
+   connection setup and update both the client registration and the build variable. Provision a
+   dedicated synthetic Auth user with an email and password. The MCP resource must independently
+   verify the token issuer, audience, client ID and synthetic user.
+2. Set the GitHub Actions repository variables `RECALL_CANARY_CLIENT_ID`, `RECALL_CANARY_USER_ID`
+   and `RECALL_CANARY_CALLBACK_URL`. These are public identifiers embedded in the Pages build.
+   Keep client secrets and user credentials in their respective private stores.
+3. Build and deploy Pages. Open `https://apps.neckardt.com/oauth/consent/` to check the route.
+   Set Supabase Auth Site URL to `https://apps.neckardt.com` and its OAuth Authorization Path to
+   `/oauth/consent/`. Changing Site URL also changes defaults for other Auth redirects.
+4. Start a fresh connection in ChatGPT. If Supabase reports previous consent, revoke the canary
+   user's existing grant and reconnect. A previous grant response omits the client ID needed to
+   verify the request. Rebuilding without the three variables disables the consent form.
+
+For a pre-merge test on the browser's own computer, build with `VITE_CANARY_CLIENT_ID`,
+`VITE_CANARY_USER_ID` and `VITE_CANARY_CALLBACK_URL` in the local environment, then serve
+`_site/` on `localhost:3000` and use that origin as the Supabase Site URL. Only use this method
+when the intended browser can reach this loopback address.
