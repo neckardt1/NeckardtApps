@@ -73,6 +73,8 @@ export async function prepareRound(worker) {
   await worker.page.goto(worker.origin);
   const card = await fixtureRpc(worker, "recall_reset_fixture");
   await worker.page.goto(worker.origin + "/recall/");
+  await worker.page.getByText("1 card in this round.", { exact: true }).waitFor();
+  assert.equal(await worker.page.getByText("Nothing due", { exact: true }).count(), 0);
   await worker.page.getByRole("button", { name: "Start review" }).click();
   await worker.page.getByRole("heading", { name: "Worker card " + worker.id, exact: true }).waitFor();
   return card;
@@ -92,6 +94,11 @@ export async function gradeRound(worker, card) {
   assert.equal(receipt.revision, 1);
   await page.getByRole("button", { name: "Finish" }).click();
   await page.getByRole("heading", { name: "Saved.", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  const nothingDue = page.getByText("Nothing due", { exact: true });
+  await nothingDue.waitFor();
+  await page.reload();
+  await nothingDue.waitFor();
 }
 
 export async function smoke(workers) {

@@ -214,6 +214,7 @@ test.each(['latest', 'open'] as const)('a missing %s RPC allows ordinary reviews
   const client = api({ due, grade, rounds });
   await remount(client);
   expect(due).toHaveBeenCalledTimes(1);
+  expect(target.textContent).not.toContain('Nothing due');
   await tap('Start review'); await tap('Reveal answer'); await tap('Good'); await tap('Finish');
   expect(grade).toHaveBeenCalledTimes(1);
   expect(rounds.finish).not.toHaveBeenCalled();
@@ -223,7 +224,9 @@ test.each(['latest', 'open'] as const)('a missing %s RPC allows ordinary reviews
   await tap('Done');
   expect(latest).toHaveBeenCalledTimes(2);
   expect(due).toHaveBeenCalledTimes(1);
-  expect(target.textContent).toContain('No cards due');
+  expect(target.textContent).toContain('Nothing due');
+  await remount(client);
+  expect(target.textContent).toContain('Nothing due');
 });
 
 test.each([new Error('offline'), new RecallApiError('Not authorized', 403)])('a failed round request never falls back on transport or authorization errors', async failure => {

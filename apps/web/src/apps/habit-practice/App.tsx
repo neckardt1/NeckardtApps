@@ -214,7 +214,7 @@ export function App({ api }: { api: RecallApi | null }) {
           </> : <div className="today-card">
             <h1>Today</h1>
             {loading ? <p role="status">Loading your review…</p> : round ? <>
-              <p>{hasWork ? [remainingHabits ? `${remainingHabits} ${remainingHabits === 1 ? 'habit check' : 'habit checks'}` : '', `${remainingCards} ${remainingCards === 1 ? 'card' : 'cards'}`].filter(Boolean).join(' and ') + (round.started ? ' left in this round.' : ' in this round.') : 'No cards due right now.'}</p>
+              <p>{hasWork ? [remainingHabits ? `${remainingHabits} ${remainingHabits === 1 ? 'habit check' : 'habit checks'}` : '', `${remainingCards} ${remainingCards === 1 ? 'card' : 'cards'}`].filter(Boolean).join(' and ') + (round.started ? ' left in this round.' : ' in this round.') : 'Nothing due'}</p>
               {round.started && <p className="muted">Pick up where you left off.</p>}
             </> : <p>Your review will appear here.</p>}
           </div>}

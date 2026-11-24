@@ -96,7 +96,7 @@ test('Check again fetches cards that became due after an initially empty round',
   const due = vi.fn(async () => ++loads === 1 ? [] : cards.slice(0, 1)); api.due = due;
   const target = document.createElement('div'); document.body.append(target); const root = createRoot(target);
   try {
-    await act(async () => root.render(<ReviewFixture sessionApi={makeSessionFixture('synthetic-owner').api} api={api} />)); expect(target.textContent).toContain('No cards due right now.');
+    await act(async () => root.render(<ReviewFixture sessionApi={makeSessionFixture('synthetic-owner').api} api={api} />)); expect(target.textContent).toContain('Nothing due');
     const check = [...target.querySelectorAll('button')].find(button => button.textContent === 'Check again');
     expect(check).toBeDefined(); await act(async () => check!.click());
     expect(due).toHaveBeenCalledTimes(2); expect(target.textContent).toContain('1 card');
