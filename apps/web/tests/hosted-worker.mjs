@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { readFixtureSettings } from "@neckardt/backend/fixture-settings";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
 import { loadPublicBuildConfig } from "../build-config.ts";
 
 export function hostedConfig(env) {
   const config = loadPublicBuildConfig(env);
-  if (!env.HABIT_FIXTURE_KEY) throw Error("Set the host-scoped HABIT_FIXTURE_KEY for provisioning.");
-  if (config.url !== `https://${env.HABIT_FIXTURE_PROJECT_REF?.trim()}.supabase.co`) {
-    throw Error("HABIT_FIXTURE_PROJECT_REF must match the app's configured Supabase project.");
+  const { projectRef, key } = readFixtureSettings(name => env[name]);
+  if (!key) throw Error("Set the host-scoped NECKARDT_APPS_FIXTURE_KEY for provisioning.");
+  if (config.url !== `https://${projectRef?.trim()}.supabase.co`) {
+    throw Error("NECKARDT_APPS_FIXTURE_PROJECT_REF must match the configured Supabase project.");
   }
-  return config;
+  return { config, fixtureKey: key };
 }
 
 export async function openWorker(browser, origin, config, createFixture) {
@@ -104,11 +106,11 @@ export async function smoke(workers) {
 async function main() {
   // Playwright API debug logs can include password-field input.
   if (process.env.DEBUG || process.env.PWDEBUG) throw Error("Disable debug logging before opening a fixture session.");
-  const config = hostedConfig(process.env);
+  const { config, fixtureKey } = hostedConfig(process.env);
   const provision = async password => {
     const response = await fetch(config.url + "/functions/v1/provision-worker", {
       method: "POST", redirect: "error", signal: AbortSignal.timeout(20_000),
-      headers: { "content-type": "application/json", "x-fixture-key": process.env.HABIT_FIXTURE_KEY },
+      headers: { "content-type": "application/json", "x-fixture-key": fixtureKey },
       body: JSON.stringify({ password })
     });
     if (response.status !== 201) throw Error(`Fixture provisioning returned HTTP ${response.status}.`);

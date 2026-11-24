@@ -82,11 +82,11 @@ test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in 
     const bearer = new Headers(init?.headers).get('authorization');
     calls.push({ path: url.pathname + url.search, body, bearer });
     if (url.pathname === '/auth/v1/token' && url.search === '?grant_type=password') {
-      expect(body).toMatchObject({ email: member.email, password: 'synthetic-canary-password' });
-      return Response.json({ access_token: 'synthetic-canary-access', refresh_token: 'synthetic-canary-refresh',
+      expect(body).toMatchObject({ email: member.email, password: 'synthetic-consent-password' });
+      return Response.json({ access_token: 'synthetic-consent-access', refresh_token: 'synthetic-consent-refresh',
         token_type: 'bearer', expires_in: 3600, user: member });
     }
-    expect(bearer).toBe('Bearer synthetic-canary-access');
+    expect(bearer).toBe('Bearer synthetic-consent-access');
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}` && init?.method === 'GET') {
       return Response.json({ authorization_id: authorizationId, user: member, client: { id: clientId, name: kind === 'suite' ? 'Neckardt Apps MCP' : 'Synthetic canary' },
         scope: 'openid', redirect_uri: callback });
@@ -110,7 +110,7 @@ test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in 
   expect(host.textContent).toContain('Sign in with your Neckardt Apps account');
   const form = host.querySelector('form')!;
   form.querySelector<HTMLInputElement>('[name="email"]')!.value = member.email;
-  form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-canary-password';
+  form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-consent-password';
   await act(async () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(calls).toHaveLength(2));
@@ -137,6 +137,6 @@ test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in 
   expect(snapshot(localStorage)).toEqual(localBefore);
   expect(snapshot(sessionStorage)).toEqual(sessionBefore);
   expect(JSON.parse(localStorage.getItem(roundKey)!)).toEqual(pending);
-  expect(writes.mock.calls.some(([key, value]) => key === 'recall-canary-consent'
-    || /synthetic-canary-(?:access|refresh|password)|canary@example\.invalid/.test(value))).toBe(false);
+  expect(writes.mock.calls.some(([key, value]) => key === 'neckardt-apps-oauth-consent'
+    || /synthetic-consent-(?:access|refresh|password)/.test(value) || value.includes(member.email))).toBe(false);
 });
