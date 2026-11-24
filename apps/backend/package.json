@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public-config": "./supabase/functions/_shared/public-config.json",
+    "./fixture-settings": "./supabase/functions/provision-worker/settings.ts",
     "./database": {
       "types": "./supabase/functions/_shared/database.types.ts"
     }

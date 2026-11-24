@@ -22,7 +22,7 @@ const connections: Connection[] = [
 ];
 // Consent has its own in-memory session and never replaces the site's normal Account session.
 const auth = createClient(__SITE_PUBLIC_CONFIG__.url, __SITE_PUBLIC_CONFIG__.publishableKey, {
-  auth: { storageKey: 'recall-canary-consent', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  auth: { storageKey: 'neckardt-apps-oauth-consent', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 }).auth;
 const id = readAuthorizationId(location.search);
 

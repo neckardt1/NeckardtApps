@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import defaults from "@neckardt/backend/public-config" with { type: "json" };
 import { checkBrowserRoutes } from "./pages-browser.mjs";
 import { checkPairedHabit } from "./paired-habit-browser.mjs";
 
@@ -17,8 +18,8 @@ const legacyCanaryId = "22222222-2222-4222-8222-222222222222";
 const expectedDigest = id => createHash("sha256")
   .update("neckardtapps:recall-consent:owner:v1:" + id.toLowerCase(), "utf8").digest("hex");
 const fixture = {
-  RECALL_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
-  RECALL_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_build_fixture",
+  NECKARDT_APPS_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+  NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_build_fixture",
   VITE_CANARY_CLIENT_ID: "11111111-1111-4111-8111-111111111111",
   VITE_CANARY_USER_DIGEST: expectedDigest(primaryOwnerId),
   RECALL_LEGACY_CANARY_USER_ID: legacyCanaryId,
@@ -30,6 +31,7 @@ const fixture = {
 const run = (out, vars = {}) => spawnSync(process.execPath, [build, out], {
   encoding: "utf8", env: {
     ...process.env,
+    NECKARDT_APPS_SUPABASE_URL: "", NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY: "",
     RECALL_SUPABASE_URL: "", RECALL_SUPABASE_PUBLISHABLE_KEY: "",
     VITE_CANARY_CLIENT_ID: "", VITE_CANARY_USER_DIGEST: "", RECALL_LEGACY_CANARY_USER_ID: "",
     VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "", VITE_SUITE_CLIENT_ID: "", VITE_SUITE_CALLBACK_URL: "",
@@ -131,7 +133,7 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     }, () => checkBrowserRoutes(origin));
     await t.test("A paired habit survives a lost answer receipt, duplicate Finish and a second browser", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
-    }, () => checkPairedHabit(origin, fixture.RECALL_SUPABASE_URL));
+    }, () => checkPairedHabit(origin, fixture.NECKARDT_APPS_SUPABASE_URL));
     for (const base of ["/", "/NeckardtApps/"]) {
       for (const path of ["", "index.html", "oauth/consent/", "oauth/consent/index.html"]) {
         const kind = path.startsWith("oauth/") ? "consent" : "apps";
@@ -146,19 +148,19 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
         const graph = await checkPageAssets(out, html, url, origin + base + "assets/");
         const js = graphText(graph);
         pages.push({ kind, graph });
-        assert(js.includes(fixture.RECALL_SUPABASE_URL));
-        assert(js.includes(fixture.RECALL_SUPABASE_PUBLISHABLE_KEY));
+        assert(js.includes(fixture.NECKARDT_APPS_SUPABASE_URL));
+        assert(js.includes(fixture.NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY));
         if (kind === "consent") {
           assert.doesNotMatch(js, recallCode);
           assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
-          assert(js.includes("recall-canary-consent"));
+          assert(js.includes("neckardt-apps-oauth-consent"));
           for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_DIGEST", "VITE_CANARY_CALLBACK_URL",
             "VITE_SUITE_CLIENT_ID", "VITE_SUITE_CALLBACK_URL"]) {
             assert(js.includes(fixture[key]), `OAuth graph must include synthetic ${key}`);
           }
         } else {
           assert.doesNotMatch(html, /user-scalable=no|maximum-scale/);
-          assert(!js.includes("recall-canary-consent"));
+          assert(!js.includes("neckardt-apps-oauth-consent"));
           const practice = [...graph].find(([, source]) => source.includes("recall_opportunities"));
           assert(practice, "SPA must be able to load Habit Practice");
           assert(!assetReferences(html).some(link => link.endsWith("/" + practice[0])),
@@ -222,18 +224,17 @@ test("root build accepts public defaults and refuses partial, secret, or false-h
   try {
     const out = join(tmp, "site");
     for (const bad of [
-      { RECALL_SUPABASE_URL: fixture.RECALL_SUPABASE_URL },
-      { RECALL_SUPABASE_PUBLISHABLE_KEY: fixture.RECALL_SUPABASE_PUBLISHABLE_KEY },
-      { ...fixture, RECALL_SUPABASE_PUBLISHABLE_KEY: "sb_secret_fake_must_not_ship" },
-      { ...fixture, RECALL_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co.invalid" },
-      { ...fixture, RECALL_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co/path" }
+      { NECKARDT_APPS_SUPABASE_URL: fixture.NECKARDT_APPS_SUPABASE_URL },
+      { NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY: fixture.NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY },
+      { ...fixture, NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY: "sb_secret_fake_must_not_ship" },
+      { ...fixture, NECKARDT_APPS_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co.invalid" },
+      { ...fixture, NECKARDT_APPS_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co/path" }
     ]) {
       assert.notEqual(run(out, bad).status, 0);
       assert.deepEqual(await readdir(tmp), []);
     }
     const done = run(out);
     assert.equal(done.status, 0, done.stderr);
-    const defaults = JSON.parse(await readFile(new URL("../public-config.json", import.meta.url), "utf8"));
     for (const path of ["index.html", "oauth/consent/index.html"]) {
       const js = graphText(await pageGraph(out, await readFile(join(out, path), "utf8")));
       assert(js.includes(defaults.url), path);

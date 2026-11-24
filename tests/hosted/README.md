@@ -8,8 +8,8 @@ Saved screen. A plain `npm run test:hosted` runs once and exits.
 
 Use `npm run test:hosted -- --pair` to verify isolation. It signs two users in concurrently, grades
 A’s card, reads B’s card back at revision zero, then grades B’s card. Each worker gets a real deck
-under its own Auth ID. Reset uses the signed-in ID. Only users marked by the provisioner with their
-matching generated address qualify for reset or expiry. Ordinary users have the usual app behavior.
+under its own Auth ID. The shared provisioner marks the current test accounts `habit-practice-v1`.
+Habit Practice uses that marker and the matching generated address to authorize deck reset and expiry.
 
 ## Enable a hosted target once
 
@@ -18,21 +18,24 @@ matching generated address qualify for reset or expiry. Ordinary users have the 
    Apply the reviewed multi-user enrollment migration and worker fixture migration in order and make
    sure `recall-grade` is deployed. Pages deployment only publishes the frontend. In SQL Editor run
    [expiry.sql](expiry.sql) as the database owner to remove workers older than 48 hours each hour.
-2. Set `HABIT_FIXTURE_PROJECT_REF` and a random `HABIT_FIXTURE_KEY` (at least 32 characters) under
-   Supabase Edge Functions → Secrets. Set the project reference in the deploy shell too. From
-   `apps/backend` run `supabase functions deploy provision-worker --remote="$HABIT_FIXTURE_PROJECT_REF"`
-   with Supabase CLI v3. Supabase provides the admin credential to the
-   function. The worker provides a fresh password and the function chooses the account ID and email.
-   Email/password sign-in must be enabled. Public signups may stay disabled.
-3. In the private Codex Cloud environment set the same `HABIT_FIXTURE_PROJECT_REF` as a regular
-   variable. Add `HABIT_FIXTURE_KEY` as an HTTP secret for exactly `<project-ref>.supabase.co`.
-   Allow task-time HTTPS GET, POST and OPTIONS to that host. Only the provision request uses the
-   secret placeholder. Chromium signs in with the disposable password. Install Node 24.5+, run
-   `npm ci` and provide Chrome during setup. Set `CHROME_BIN` if needed. Start a fresh task and run
-   the pair check. [Codex environment settings](https://learn.chatgpt.com/docs/environments/cloud-environments#configure-environment-variables-and-network-secrets)
+2. In Supabase Edge Functions → Secrets, set a random `NECKARDT_APPS_FIXTURE_KEY` of at least
+   32 characters. From `apps/backend`, run `supabase link` to select the shared project if needed.
+   Deploy with Supabase CLI v3 using `supabase functions deploy provision-worker`.
+   Supabase supplies the admin credential. The worker provides a fresh password. The function
+   chooses the account ID and email. Enable email/password sign-in. Public signups may stay disabled.
+3. In the private Codex Cloud environment, add the same `NECKARDT_APPS_FIXTURE_KEY` as an HTTP
+   secret for the exact hostname in the
+   [shared public config](../../apps/backend/supabase/functions/_shared/public-config.json).
+   Allow task-time HTTPS GET, POST and OPTIONS to that host. The provision request uses the
+   secret placeholder. Chromium signs in with the disposable password.
+   Install Node 24.5+, run `npm ci` and provide Chrome during setup. Set `CHROME_BIN` if needed.
+   Start a fresh task and run the pair check. [Codex environment settings](https://learn.chatgpt.com/docs/environments/cloud-environments#configure-environment-variables-and-network-secrets)
 
-The shared project uses the checked-in public app config. For a hosted rehearsal of an incompatible
-migration, Auth hook or Edge change, point both `RECALL_SUPABASE_URL` and
-`RECALL_SUPABASE_PUBLISHABLE_KEY` at the alternate target and bind its fixture ref and secret there.
-Vite picks up frontend edits immediately. Hosted tests exercise the backend version deployed to their
-target. A future outbound notification should skip fixture users before delivery.
+The shared project needs only the fixture key on each side. Existing installations can keep their
+`HABIT_FIXTURE_KEY` and `HABIT_FIXTURE_PROJECT_REF` pair until the updated function is deployed.
+
+For an alternate hosted project, set `NECKARDT_APPS_FIXTURE_PROJECT_REF` on both the Edge function
+and runner. Scope that project’s fixture secret to its exact hostname. Set the runner’s
+`NECKARDT_APPS_SUPABASE_URL` and `NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY` to its public values.
+Vite picks up frontend edits immediately. Hosted tests exercise the backend deployed to their target.
+A future outbound notification should skip fixture users before delivery.

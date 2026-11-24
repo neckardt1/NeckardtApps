@@ -37,6 +37,8 @@ The launcher and Habit Practice share a React Router entry. The Pages fallback
 preserves direct links on the custom domain and the `/NeckardtApps/` project path.
 OAuth consent has its own HTML entry and sign-in session.
 
-[Public config](apps/web/public-config.json) holds the browser-safe Supabase URL and
-publishable key. Set both `RECALL_SUPABASE_URL` and `RECALL_SUPABASE_PUBLISHABLE_KEY`
-to override them. Database migrations and Edge Functions deploy separately.
+The [shared public config](apps/backend/supabase/functions/_shared/public-config.json) holds the
+Supabase URL and publishable key for the web app and the default hosted test target. Set
+`NECKARDT_APPS_SUPABASE_URL` and `NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY` together to override
+them. Builds also accept the older `RECALL_SUPABASE_*` pair when both new
+settings are empty. Database migrations and Edge Functions deploy separately.
