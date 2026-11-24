@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import { legacyAnswerRow } from "./legacy-answer-row.mjs";
 
 const migration = "20261122013041_recall_opportunities.sql";
 async function fixture(imports, { beforeMigration = async () => undefined } = {}) {
@@ -163,7 +164,7 @@ test("legacy grading rejects unsupported pending cards at prepare and commit but
   const schedule = schedulerFor(fsrsLib);
   const handler = gradeHandler({
     getOwner: async () => owner,
-    prepare: async p => (await q(contextSQL,params(p)))[0].result,
+    prepare: async p => legacyAnswerRow((await q(contextSQL,params(p)))[0].result, p),
     commit: async p => (await q(commitSQL,[...params(p),p.p_due_at,p.p_state,p.p_log,p.p_scheduler_build,p.p_scheduler_config]))[0].result,
     schedule: (...args) => { scheduleCalls++; return schedule(...args); }
   });
@@ -186,7 +187,10 @@ test("legacy grading rejects unsupported pending cards at prepare and commit but
     const contender = makeEvent(4);
     const contenderParams = [owner,contender.review_id,contender.card_id,0,contender.grade,contender.reviewed_at];
     const context = (await q(contextSQL,contenderParams))[0].result;
-    const calculated = schedule(context,contender.grade,contender.reviewed_at);
+    const row = legacyAnswerRow(context, {
+      p_review_id: contender.review_id, p_card_id: contender.card_id, p_revision: contender.revision
+    });
+    const calculated = schedule(row,contender.grade,contender.reviewed_at);
     await db.exec("reset role");
     await q("update flashcards_private.notion_imports set kind='habit-action' where card_id in ($1,$2)",[cards[3].id,cards[4].id]);
     await role("service_role");
@@ -285,7 +289,7 @@ test("the compatibility upgrade preserves exact pre-migration grade receipts wit
   const fields = p => [p.p_owner,p.p_review_id,p.p_card_id,p.p_revision,p.p_grade,p.p_reviewed_at];
   const makeHandler = (q,owner,schedule) => gradeHandler({
     getOwner: async () => owner,
-    prepare: async p => (await q(contextSQL,fields(p)))[0].result,
+    prepare: async p => legacyAnswerRow((await q(contextSQL,fields(p)))[0].result, p),
     commit: async p => (await q(commitSQL,[...fields(p),p.p_due_at,p.p_state,p.p_log,p.p_scheduler_build,p.p_scheduler_config]))[0].result,
     schedule
   });
@@ -318,5 +322,28 @@ test("the compatibility upgrade preserves exact pre-migration grade receipts wit
     await db.exec("reset role");
     assert.deepEqual(await q("select * from flashcards_private.reviews"),before.reviews);
     assert.deepEqual((await q("select * from flashcards_private.cards where id=$1",[before.event.card_id]))[0],before.card);
+    // The next migration gives imported cards explicit kinds. Apply it with
+    // real scheduling history and then take the old import archive offline.
+    for (const file of ["20261124045149_enroll_multiple_habit_practice_owners.sql",
+      "20261124050000_paired_habit_answers.sql"]) {
+      await db.exec(await readFile(new URL("../supabase/migrations/" + file, import.meta.url), "utf8"));
+    }
+    await db.exec("alter table flashcards_private.notion_imports rename to archived_notion_imports");
+    const upgraded = (await q("select * from flashcards_private.cards where id=$1", [before.event.card_id]))[0];
+    for (const key of Object.keys(before.card)) assert.deepEqual(upgraded[key], before.card[key], key);
+    assert.equal(upgraded.kind, "habit-action");
+    assert.equal(upgraded.cue_card_id, null);
+    assert.deepEqual(await q("select * from flashcards_private.reviews"), before.reviews);
+    const kinds = await q(`select kind, flashcards_private.recall_card_supported(owner_id, id) as enabled
+      from flashcards_private.cards where owner_id=$1 and front = any($2::text[]) order by front`,
+      [owner, ["Synthetic question 1","Synthetic question 2","Synthetic question 3","Synthetic question 4","Synthetic question 5"]]);
+    assert.deepEqual(kinds, [
+      { kind: "habit-action", enabled: false }, { kind: "reflection", enabled: false },
+      { kind: "unsupported", enabled: false }, { kind: "habit-recall", enabled: true },
+      { kind: "fact", enabled: true }
+    ]);
+    await role("service_role");
+    assert.deepEqual(await (await post(handler, before.event)).json(), before.receipt);
+    assert.equal(scheduleCalls, 0);
   } finally { await db.close(); }
 });

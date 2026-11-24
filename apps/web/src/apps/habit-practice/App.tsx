@@ -6,7 +6,7 @@ import { useSiteSession } from '../../shell/session.tsx';
 import { FormattedText } from './FormattedText.tsx';
 
 const gradeLabels = ['Again', 'Hard', 'Good', 'Easy'];
-type Runtime = { active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
+type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
 export function App({ api }: { api: RecallApi | null }) {
   const session = useSiteSession();
   const sessionIsCurrent = session.isCurrent;
@@ -17,6 +17,8 @@ export function App({ api }: { api: RecallApi | null }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [legacyScope, setLegacyScope] = useState<string | null>(null);
+  const [storageGeneration, resetStorage] = useState(0);
   const runtime = useRef<Runtime | null>(null);
   const content = useRef<HTMLDivElement>(null);
   const focusNext = useRef(false);
@@ -45,11 +47,17 @@ export function App({ api }: { api: RecallApi | null }) {
     setMessage('');
     try {
       const existing = state.store.read();
-      if (existing && (existing.started || existing.cards.length || existing.opportunities.length || existing.saves.length)) {
+      if (state.server) {
+        if (existing) setSnapshot({ owner: state.owner, round: existing });
+        if (await state.store.syncRound() === 'use-legacy') {
+          if (isCurrent(state)) setLegacyScope(`${api.origin}.${state.owner}`);
+          return;
+        }
+      } else if (existing && (existing.started || existing.cards.length || existing.opportunities.length || existing.saves.length)) {
         if (!isCurrent(state)) return;
         setSnapshot({ owner: state.owner, round: existing });
       } else {
-        const [cards, opportunities] = await Promise.all([api.due(), api.opportunities?.() ?? Promise.resolve([])]);
+        const [cards, opportunities] = api.rounds && !state.fallback ? [[], []] : await Promise.all([api.due(), api.opportunities?.() ?? Promise.resolve([])]);
         if (!isCurrent(state) || generation !== state.request) return;
         await state.store.initialize(cards, opportunities, `recall.live.v1.${api.origin}.${state.owner}.`);
       }
@@ -63,8 +71,22 @@ export function App({ api }: { api: RecallApi | null }) {
     focusNext.current = false;
     setSnapshot(null); setScreen('today'); setMessage(''); setBusy(false); setLoading(false);
     if (!api || !owner) return;
-    const key = `recall.round.v2.${api.origin}.${owner}`;
-    const state: Runtime = { owner, active: true, request: 0, store: null!, sessionIsCurrent };
+    const legacyKey = `recall.round.v2.${api.origin}.${owner}`;
+    const legacyPrefix = `recall.live.v1.${api.origin}.${owner}.`;
+    const fallback = legacyScope === `${api.origin}.${owner}`;
+    let server = !!api.rounds && !fallback;
+    if (server) {
+      try {
+        const old = JSON.parse(window.localStorage.getItem(legacyKey) || 'null');
+        // A pre-upgrade browser round must send its original event IDs first.
+        const empty = old?.version === 2 && old.started === false && old.finished === false
+          && [old.cards, old.opportunities, old.saves].every(value => Array.isArray(value) && value.length === 0);
+        const hasOutbox = Object.keys(window.localStorage).some(name => name.startsWith(legacyPrefix));
+        if ((old !== null && !empty) || hasOutbox) server = false;
+      } catch { setMessage('Stored review needs recovery. Keep this browser data.'); return; }
+    }
+    const key = server ? `recall.round.v3.${api.origin}.${owner}` : legacyKey;
+    const state: Runtime = { fallback, server, owner, active: true, request: 0, store: null!, sessionIsCurrent };
     try {
       state.store = makeDurableSession({ storage: window.localStorage, key, api,
         active: () => isCurrent(state),
@@ -93,7 +115,7 @@ export function App({ api }: { api: RecallApi | null }) {
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('online', onOnline);
     };
-  }, [api, owner, sessionIsCurrent]);
+  }, [api, owner, sessionIsCurrent, storageGeneration, legacyScope]);
 
   async function mutate(operation: (store: DurableSession, state: Runtime) => Promise<unknown>, focus = true) {
     const state = runtime.current;
@@ -153,6 +175,10 @@ export function App({ api }: { api: RecallApi | null }) {
   const hasWork = !!round && !!(round.cards.length || round.opportunities.length || round.saves.length);
   const saveStatus = pending ? `Saving ${pending}…` : failed ? `${failed} ${failed === 1 ? 'save needs' : 'saves need'} a retry.`
     : conflict ? 'A card changed. This review needs reconciliation before it can finish.' : '';
+  const reviewedCount = round?.summary?.reviews ?? round?.cardIndex ?? 0;
+  const actionCount = round?.summary?.actions ?? round?.opportunityIndex ?? 0;
+  const superseded = round?.summary?.superseded ?? 0;
+  const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && screen === 'review' && !round.finished;
 
   return <section className="habit-practice" aria-label="Review session">
@@ -168,8 +194,8 @@ export function App({ api }: { api: RecallApi | null }) {
         <div ref={content} tabIndex={-1} className="screen-content">
           {round?.finished ? <div className="saved-screen">
             <h1>Saved.</h1>
-            <p>{round.opportunityIndex} {round.opportunityIndex === 1 ? 'habit check' : 'habit checks'} · {round.cardIndex} {round.cardIndex === 1 ? 'card reviewed' : 'cards reviewed'}</p>
-            <p className="muted">Every response has been saved.</p>
+            <p>{actionCount} {actionCount === 1 ? 'habit check' : 'habit checks'} · {reviewedCount} {reviewedCount === 1 ? 'card reviewed' : 'cards reviewed'}</p>
+            <p className="muted">{superseded ? `${superseded} ${superseded === 1 ? 'item was' : 'items were'} superseded before completion.` : 'Every response has been saved.'}</p>
             <a className="debrief-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Debrief with Dot</a>
             <p className="status">Optional. Open your chat and ask for a debrief.</p>
           </div> : showReview ? <>
@@ -193,18 +219,23 @@ export function App({ api }: { api: RecallApi | null }) {
             </> : <p>Your review will appear here.</p>}
           </div>}
         </div>
-        {(message || saveStatus) && <div className="save-messages" aria-live="polite">
+        {(message || saveStatus || otherDevice) && <div className="save-messages" aria-live="polite">
           {message && <p className="status error">{message}</p>}
           {saveStatus && <p className="status">{saveStatus}</p>}
           {(failed > 0 || (message && pending > 0)) && <button className="text-button" disabled={busy} onClick={() => void mutate(store => store.retry(), false)}>Retry save</button>}
+          {otherDevice && <p className="status">Another saved result took precedence over an answer on this device.</p>}
           {conflict > 0 && <p className="status">The unsaved response is preserved. Do not clear browser data.</p>}
+          {round?.server && conflict > 0 && <button className="text-button" disabled={busy} onClick={() => void mutate(store => store.syncRound(), false)}>Check saved answers</button>}
         </div>}
         <div className="action-dock">
           {round?.finished ? <button className="primary" disabled={busy} onClick={() => void mutate(async (store, state) => {
             await store.clearFinished(round.id);
             if (!isCurrent(state)) return;
             setScreen('today');
-            await load(state);
+            if (api.rounds && !state.server) {
+              setLegacyScope(null);
+              resetStorage(value => value + 1);
+            } else await load(state);
           })}>Done</button> : showReview ? opportunity ? <div className="choices">
             <button className="secondary" disabled={busy} onClick={() => answer('yes')}>Yes</button>
             <button className="secondary" disabled={busy} onClick={() => answer('no')}>No</button>
@@ -216,7 +247,8 @@ export function App({ api }: { api: RecallApi | null }) {
             : <button className="primary" disabled={busy || !verified(round)} onClick={() => void mutate(store => store.finish(round.id))}>Finish</button>
             : hasWork ? <button className="primary" disabled={busy || loading} onClick={start}>{round?.started ? 'Resume review' : 'Start review'}</button>
             : <button className="secondary" disabled={busy || loading} onClick={() => {
-              if (runtime.current) void load(runtime.current);
+              if (runtime.current?.fallback) setLegacyScope(null);
+              else if (runtime.current) void load(runtime.current);
             }}>Check again</button>}
         </div>
       </>}

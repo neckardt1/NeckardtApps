@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invoke: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({
   rpc: mocks.rpc, functions: { invoke: mocks.invoke }, auth: {}
 }) }));
-import { makeRecallApi, type ActionEvent } from "../../src/apps/habit-practice/recall-api.ts";
+import { makeRecallApi, MissingRoundRpc, type ActionEvent } from "../../src/apps/habit-practice/recall-api.ts";
 import type { ReviewEvent } from "../../src/apps/habit-practice/review-session.ts";
 const api = makeRecallApi({ url: "https://fixture.supabase.co", publishableKey: "fixture" });
 const event: ReviewEvent = { review_id: "review", card_id: "card", revision: 2, grade: "medium", reviewed_at: "2026-11-22T00:00:00.000Z" };
@@ -69,5 +69,20 @@ describe("verified action saves", () => {
     { ...action, answered_at: "invalid" }])("rejects an unrelated or malformed receipt", async data => {
     mocks.rpc.mockResolvedValue({ data, error: null });
     await expect(api.action!(action)).rejects.toMatchObject({ status: undefined });
+  });
+});
+
+describe('initial round capability detection', () => {
+  it.each([
+    { code: 'PGRST202', message: 'RPC absent from schema cache' },
+    { code: '42883', message: 'function public.recall_latest_round() does not exist' }
+  ])('recognizes an absent entry point', async error => {
+    mocks.rpc.mockResolvedValue({ data: null, error });
+    await expect(api.rounds!.latest()).rejects.toBeInstanceOf(MissingRoundRpc);
+  });
+
+  it('reports a broken SQL dependency even if it also returns undefined_function', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: '42883', message: 'function dependency() does not exist' } });
+    await expect(api.rounds!.latest()).rejects.toThrow('Unable to load the saved round');
   });
 });

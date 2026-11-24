@@ -1,10 +1,14 @@
 import { grades, type DueCard, type Grade, type ReviewEvent } from './review-session.ts';
-import type { ActionEvent, Opportunity, RecallApi } from './recall-api.ts';
+import { restoreRound } from './server-round.ts';
+import { MissingRoundRpc, type ActionEvent, type Opportunity, type RecallApi, type RoundItem } from './recall-api.ts';
 
-export type Save = { kind: 'review'; event: ReviewEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' }
-  | { kind: 'action'; event: ActionEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' };
+export type Save = { kind: 'review'; event: ReviewEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' | 'superseded' }
+  | { kind: 'action'; event: ActionEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' | 'superseded' };
 export type Round = {
-  version: 2; id: string; cards: DueCard[]; opportunities: Opportunity[];
+  version: 2; id: string; server?: boolean;
+  cards: (DueCard & { event_id?: string })[];
+  opportunities: (Opportunity & { event_id?: string; paired?: boolean })[];
+  summary?: { reviews: number; actions: number; superseded: number };
   cardIndex: number; opportunityIndex: number; revealed: boolean;
   started: boolean; finished: boolean; saves: Save[];
 };
@@ -17,7 +21,7 @@ export const browserLock: Lock = (name, run) => {
 export function allAnswered(round: Round) {
   return round.cardIndex === round.cards.length && round.opportunityIndex === round.opportunities.length;
 }
-export function verified(round: Round) { return round.saves.every(save => save.status === 'saved'); }
+export function verified(round: Round) { return round.saves.every(save => save.status === 'saved' || save.status === 'superseded'); }
 export function currentKey(round: Round) {
   return round.opportunities[round.opportunityIndex]?.opportunity_id ?? round.cards[round.cardIndex]?.card_id ?? null;
 }
@@ -30,7 +34,9 @@ function valid(value: unknown): value is Round {
     && typeof r.revealed === 'boolean' && typeof r.started === 'boolean' && typeof r.finished === 'boolean'
     && r.cards.every(c => typeof c.card_id === 'string' && typeof c.front === 'string' && typeof c.back === 'string' && Number.isInteger(c.revision))
     && r.opportunities.every(o => typeof o.opportunity_id === 'string' && typeof o.card_id === 'string' && typeof o.prompt === 'string' && Number.isInteger(o.revision))
-    && r.saves.every(s => s && ['review', 'action'].includes(s.kind) && ['pending', 'failed', 'conflict', 'saved'].includes(s.status) && s.event && typeof s.event.card_id === 'string')
+    && r.saves.every(s => s && ['review', 'action'].includes(s.kind) && ['pending', 'failed', 'conflict', 'saved', 'superseded'].includes(s.status) && s.event && typeof s.event.card_id === 'string')
+    && (!r.server || (r.cards.every(c => typeof c.event_id === 'string')
+      && r.opportunities.every(o => typeof o.event_id === 'string' && typeof o.paired === 'boolean')))
     && (!r.finished || (allAnswered(r) && verified(r)));
 }
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -64,6 +70,36 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
   }
   return {
     read,
+    async syncRound() {
+      const remote = api.rounds;
+      if (!remote) throw new Error('Round service unavailable.');
+      return lock(key + '.network', async () => {
+        if (!active()) return;
+        const before = read();
+        const dismissed = storage.getItem(key + '.dismissed');
+        let established = !!before?.server || !!dismissed;
+        let rows: RoundItem[];
+        try {
+          rows = before?.server ? await remote.open(before.id) : await remote.latest();
+          if (!active()) return;
+          established ||= rows.length > 0;
+          if (!before?.server && (!rows.length || (rows[0].finished_at && dismissed === rows[0].round_id))) {
+            rows = await remote.open(crypto.randomUUID());
+          }
+        } catch (error) {
+          if (!established && error instanceof MissingRoundRpc && !read()?.server) return 'use-legacy' as const;
+          throw error;
+        }
+        if (!active()) return;
+        await update(r => {
+          if (r?.id !== before?.id) return r;
+          if (rows.length) return restoreRound(rows, r);
+          if (r?.server) throw new Error('Could not restore this round.');
+          return { version: 2, id: crypto.randomUUID(), cards: [], opportunities: [], cardIndex: 0,
+            opportunityIndex: 0, started: false, finished: false, revealed: false, saves: [] };
+        });
+      });
+    },
     async initialize(cards: DueCard[], opportunities: Opportunity[], legacyPrefix?: string) {
       const legacy: Save[] = [];
       const oldKeys: string[] = [];
@@ -98,7 +134,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
       return update(r => {
         if (!matches(r, id, expected) || !r.revealed || !grades.includes(grade)) return r;
         const card = r.cards[r.cardIndex];
-        r.saves.push({ kind: 'review', status: 'pending', event: { review_id: crypto.randomUUID(), card_id: card.card_id,
+        r.saves.push({ kind: 'review', status: 'pending', event: { review_id: card.event_id ?? crypto.randomUUID(), card_id: card.card_id,
           revision: card.revision, grade, reviewed_at: new Date().toISOString() } });
         r.cardIndex++; r.revealed = false;
         return r;
@@ -109,13 +145,20 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         if (!matches(r, id, expected) || !['yes', 'no', 'no_opportunity', 'skip'].includes(outcome)) return r;
         const opportunity = r.opportunities[r.opportunityIndex];
         if (!opportunity || !api.action) throw new Error('Habit check-ins are not available yet.');
-        r.saves.push({ kind: 'action', status: 'pending', event: { action_id: crypto.randomUUID(), opportunity_id: opportunity.opportunity_id,
+        r.saves.push({ kind: 'action', status: 'pending', event: { action_id: opportunity.event_id ?? crypto.randomUUID(), opportunity_id: opportunity.opportunity_id,
           card_id: opportunity.card_id, revision: opportunity.revision, outcome, answered_at: new Date().toISOString() } });
         r.opportunityIndex++;
         return r;
       });
     },
-    finish(id: string) {
+    async finish(id: string) {
+      const round = read();
+      if (!round || round.id !== id || !round.started || !allAnswered(round) || !verified(round)) return;
+      if (round.server) {
+        if (!api.rounds || !active()) return;
+        const rows = await api.rounds.finish(id);
+        return update(r => r?.id === id ? restoreRound(rows, r) : r);
+      }
       return update(r => { if (r?.id === id && r.started && allAnswered(r) && verified(r)) r.finished = true; return r; });
     },
     async clearFinished(id: string) {
@@ -123,6 +166,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         if (!active()) return;
         const r = read();
         if (r?.id !== id || !r.finished || !verified(r)) return;
+        if (r.server) storage.setItem(key + '.dismissed', r.id);
         storage.removeItem(key);
         onChange(null);
       });
@@ -142,7 +186,9 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
             if (save.kind === 'review') await api.grade(save.event);
             else {
               if (!api.action) throw new Error('Habit check-ins are unavailable.');
-              await api.action(save.event);
+              const opportunity = round.opportunities.find(item => item.opportunity_id === save.event.opportunity_id);
+              if (opportunity?.paired) await api.action(save.event, true);
+              else await api.action(save.event);
             }
           } catch (error) {
             const code = error instanceof Error && 'status' in error ? Number(error.status) : 0;
@@ -152,7 +198,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
           await update(r => {
             if (r?.id === round.id) {
               const current = r.saves.find(s => saveId(s) === saveId(save));
-              if (current && current.status !== 'saved') current.status = status;
+              if (current && current.status !== 'saved' && current.status !== 'superseded') current.status = status;
             }
             return r;
           });

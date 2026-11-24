@@ -5,6 +5,7 @@ import {readFile} from "node:fs/promises";
 import * as fsrsLib from "ts-fsrs";
 import {PGlite} from "@electric-sql/pglite";
 import {gradeHandler,schedulerFor} from "../supabase/functions/recall-grade/grade.mjs";
+import {legacyAnswerRow} from "./legacy-answer-row.mjs";
 import {makeOutbox,makeReviewSession} from "../../web/src/apps/habit-practice/review-session.ts";
 
 test("actual Edge handler and FSRS-6 with the legacy and multi-user schemas",async (t)=>{
@@ -61,11 +62,13 @@ test("actual Edge handler and FSRS-6 with the legacy and multi-user schemas",asy
   contenderParams[1]=randomUUID();
   const snapshot=(await q(contextSQL,contenderParams))[0].answer;
   assert.equal(snapshot.kind,"card");
-  const contenderCalc=testSchedule(snapshot,"medium",fields.reviewed_at);
+  const contenderCalc=testSchedule(legacyAnswerRow(snapshot, {
+    p_review_id:contenderParams[1],p_card_id:fields.card_id,p_revision:fields.revision
+  }),"medium",fields.reviewed_at);
   const subjects = new Map([["owner-token", owner], ["other-token", other], ["unenrolled-token", unenrolled]]);
   const handler=gradeHandler({
     getOwner:async token=>subjects.get(token) ?? null,
-    prepare:async p=>(await q(contextSQL,getParams(p)))[0].answer,
+    prepare:async p=>legacyAnswerRow((await q(contextSQL,getParams(p)))[0].answer, p),
     commit:async p=>(await q(commitSQL,[...getParams(p),p.p_due_at,p.p_state,p.p_log,p.p_scheduler_build,p.p_scheduler_config]))[0].answer,
     schedule:testSchedule
   });

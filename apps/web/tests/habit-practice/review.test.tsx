@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ReviewFixture, makeSessionFixture } from './site-fixture.tsx';
 import { FormattedText } from '../../src/apps/habit-practice/FormattedText.tsx';
 import { makeDurableSession, type Lock } from '../../src/apps/habit-practice/durable-session.ts';
-import type { RecallApi, Opportunity, ActionEvent } from '../../src/apps/habit-practice/recall-api.ts';
+import { MissingRoundRpc, RecallApiError, type RoundItem, type RecallApi, type Opportunity, type ActionEvent } from '../../src/apps/habit-practice/recall-api.ts';
 import type { DueCard, ReviewEvent } from '../../src/apps/habit-practice/review-session.ts';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -200,4 +200,52 @@ test('safe formatted answers never execute HTML or fetch embedded images', async
   expect(target.querySelector('strong')?.textContent).toBe('Bold'); expect(target.querySelectorAll('li')).toHaveLength(2);
   expect(target.querySelector('script,img,iframe')).toBeNull();
   expect(target.querySelector('a[href^="javascript:"]')).toBeNull();
+});
+
+test.each(['latest', 'open'] as const)('a missing %s RPC allows ordinary reviews and probes again after completion', async missing => {
+  const latest = vi.fn(async (): Promise<RoundItem[]> => {
+    if (missing === 'latest') throw new MissingRoundRpc();
+    return [];
+  });
+  const open = vi.fn(async (): Promise<RoundItem[]> => { throw new MissingRoundRpc(); });
+  const due = vi.fn(async () => cards().slice(0, 1));
+  const grade = vi.fn(async () => {});
+  const rounds = { latest, open, finish: vi.fn(async () => []) };
+  const client = api({ due, grade, rounds });
+  await remount(client);
+  expect(due).toHaveBeenCalledTimes(1);
+  await tap('Start review'); await tap('Reveal answer'); await tap('Good'); await tap('Finish');
+  expect(grade).toHaveBeenCalledTimes(1);
+  expect(rounds.finish).not.toHaveBeenCalled();
+  // The hosted backend acquires the new RPCs while this legacy round is open.
+  latest.mockResolvedValue([]);
+  open.mockResolvedValue([]);
+  await tap('Done');
+  expect(latest).toHaveBeenCalledTimes(2);
+  expect(due).toHaveBeenCalledTimes(1);
+  expect(target.textContent).toContain('No cards due');
+});
+
+test.each([new Error('offline'), new RecallApiError('Not authorized', 403)])('a failed round request never falls back on transport or authorization errors', async failure => {
+  const due = vi.fn(async () => cards());
+  await remount(api({ due, rounds: {
+    latest: async () => { throw failure; }, open: async () => [], finish: async () => []
+  } }));
+  expect(due).not.toHaveBeenCalled();
+  expect(button('Start review')).toBeUndefined();
+});
+
+test('a cached server round keeps its server event IDs when the backend becomes unavailable', async () => {
+  const remote: RoundItem = { round_id: 'server-round', event_id: 'server-event', item_kind: 'review',
+    card_id: 'server-card', revision: 0, front: 'Server prompt', back: 'Answer', paired_action: false,
+    position: 0, opportunity_id: null, answer: null, answered_at: null, due_at: null, finished_at: null };
+  const due = vi.fn(async () => cards());
+  const open = vi.fn(async (): Promise<RoundItem[]> => { throw new MissingRoundRpc(); });
+  const client = api({ due, rounds: { latest: async () => [remote], open, finish: async () => [] } });
+  await remount(client);
+  await remount(client);
+  expect(open).toHaveBeenCalledWith('server-round');
+  expect(due).not.toHaveBeenCalled();
+  const saved = JSON.parse(localStorage.getItem('recall.round.v3.https://fixture.invalid.owner')!);
+  expect(saved.cards[0].event_id).toBe('server-event');
 });
