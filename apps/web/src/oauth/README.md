@@ -1,11 +1,25 @@
-# Canary OAuth consent
+# OAuth consent
 
+The page at `/oauth/consent/` asks Supabase for the request details after sign-in. It matches the
+registered client ID, exact callback, signed-in account and `openid` scope before showing Allow
+and Deny. Its session is held in memory, separate from the site's Account session.
 
-The registered ChatGPT client sends its OAuth request to Supabase. Supabase sends the browser to
-`/oauth/consent/?authorization_id=…`. Sign in with the authorized project account to see the
-requesting app, scopes and return address. Allow or deny sends the decision to Supabase, which
-returns the callback URL for the browser. The page holds this session in memory, separately from
-the site's Account session.
+## Neckardt Apps MCP
+
+Any signed-in, non-anonymous project user can authorize the Habit Practice link tool. The token
+hook keeps that user's subject on issue and refresh and binds the token to the suite MCP endpoint.
+The connector can return the link regardless of the user's separate Habit Practice enrollment.
+
+For rollout, apply the reviewed `authorize_neckardt_apps_mcp` migration. Set the public
+`NECKARDT_APPS_OAUTH_CLIENT_ID` to the registered suite client ID in the MCP function's environment
+and in GitHub Actions repository variables. Set the Actions variable `NECKARDT_APPS_OAUTH_CALLBACK_URL`
+to the exact redirect shown on the ChatGPT suite connection and registered in Supabase. Deploy Pages,
+then start a fresh connection from ChatGPT and call `get_habit_practice_link`. The migration pins the
+production issuer and public client ID. Registering a replacement requires updating that policy.
+
+## Recall canary
+
+The canary additionally checks the bound account on the consent page and in the token hook.
 
 Before binding an account that owns application data, deploy the reviewed `recall-grade` function
 with the project's existing gateway JWT setting. Verify first-party grading authorization and
