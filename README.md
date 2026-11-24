@@ -24,9 +24,11 @@ generated output before rebuilding, or pass a fresh directory to
 
 ## Deployment
 
-PR checks do not publish. A push to `main` runs checks, builds the three page
-entries, and deploys `_site/` to GitHub Pages. Links work on the custom domain
-and the `/NeckardtApps/` project path without a client-side router.
+PR checks do not publish. A push to `main` runs checks and deploys `_site/`
+to GitHub Pages. The launcher and Habit Practice share a React Router entry.
+On a direct app link or refresh, `404.html` hands the URL back to that entry
+on either the custom domain or the `/NeckardtApps/` project path.
+`/oauth/consent/` is served directly as its own HTML page.
 
 `public-config.json` contains the browser-safe Supabase URL and publishable key.
 Optional build overrides are `RECALL_SUPABASE_URL` and

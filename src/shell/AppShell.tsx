@@ -1,9 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { appHref, apps, type AppsHref } from "./apps.ts";
+import { Link, useLocation } from "react-router";
+import { apps } from "./apps.ts";
 
 type Popover = "apps" | "account";
 type Props = {
-  appsHref: AppsHref;
   account: ReactNode;
   accountIdentity: string | null;
   children: ReactNode;
@@ -25,13 +25,24 @@ function Chevron() {
 }
 
 /** Shared page chrome; session and feature behavior remain outside this component. */
-export function AppShell({ appsHref, account: accountContent, accountIdentity, children }: Props) {
+export function AppShell({ account: accountContent, accountIdentity, children }: Props) {
   const [open, setOpen] = useState<Popover | null>(null);
   const appsButton = useRef<HTMLButtonElement>(null);
   const accountButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const previousIdentity = useRef(accountIdentity);
+  const { pathname } = useLocation();
+  const previousPath = useRef(pathname);
+  const main = useRef<HTMLElement>(null);
   const id = useId();
+
+  useLayoutEffect(() => {
+    if (previousPath.current !== pathname) {
+      previousPath.current = pathname;
+      setOpen(null);
+      main.current?.focus();
+    }
+  }, [pathname]);
 
   useLayoutEffect(() => {
     if (open) (panel.current?.querySelector<HTMLElement>("a,button:not(:disabled),input:not(:disabled)") ?? panel.current)?.focus();
@@ -85,15 +96,15 @@ export function AppShell({ appsHref, account: accountContent, accountIdentity, c
           onClick={() => setOpen(open === "account" ? null : "account")}><AccountIcon /><span>Account</span><Chevron /></button>
         {open && <div ref={panel} id={`${id}-${open}`} className={`chrome-popover ${open}`} role="dialog"
           aria-label={open === "apps" ? "Apps" : "Account"} tabIndex={-1} data-popover-open="true">
-          {open === "apps" ? <nav aria-label="Apps">
-            <a className="popover-link" href={appsHref}>All apps</a>
-            {apps.map(app => <a className="popover-link app-menu-link" key={app.id} href={appHref(appsHref, app)}>
+          {open === "apps" ? <nav aria-label="Apps" onClick={() => setOpen(null)}>
+            <Link className="popover-link" to="/">All apps</Link>
+            {apps.map(app => <Link className="popover-link app-menu-link" key={app.id} to={app.path}>
               <span>{app.name}</span><span className="menu-status">Open</span>
-            </a>)}
+            </Link>)}
           </nav> : accountContent}
         </div>}
       </div>
     </header>
-    <main className="site-main" id="main-content" tabIndex={-1}>{children}</main>
+    <main ref={main} className="site-main" id="main-content" tabIndex={-1}>{children}</main>
   </div>;
 }

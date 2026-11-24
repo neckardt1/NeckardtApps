@@ -1,5 +1,5 @@
-import { getSiteClient } from "../../../shared/site-client";
-import { type PublicSupabaseConfig } from "../../../shared/browser-auth.mts";
+import { getSiteClient } from "../../shell/site-client";
+import { type PublicSupabaseConfig } from "../../shell/browser-auth.mts";
 import type { DueCard, ReviewEvent } from "./review-session.ts";
 
 export const actionOutcomes = ["yes", "no", "no_opportunity", "skip"] as const;

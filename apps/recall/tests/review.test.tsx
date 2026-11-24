@@ -2,10 +2,10 @@ import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ReviewFixture, makeSessionFixture } from './site-fixture.tsx';
-import { FormattedText } from '../src/FormattedText.tsx';
-import { makeDurableSession, type Lock } from '../src/durable-session.ts';
-import type { RecallApi, Opportunity, ActionEvent } from '../src/recall-api.ts';
-import type { DueCard, ReviewEvent } from '../src/review-session.ts';
+import { FormattedText } from '../../../src/apps/habit-practice/FormattedText.tsx';
+import { makeDurableSession, type Lock } from '../../../src/apps/habit-practice/durable-session.ts';
+import type { RecallApi, Opportunity, ActionEvent } from '../../../src/apps/habit-practice/recall-api.ts';
+import type { DueCard, ReviewEvent } from '../../../src/apps/habit-practice/review-session.ts';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root, target: HTMLElement;
@@ -50,7 +50,7 @@ test.each(['signed-out', 'loading', 'unavailable'] as const)('shared %s session 
   expect(target.textContent).not.toContain('Question A');
   expect(button('Account')).toBeDefined();
   await tap('Apps');
-  expect(target.querySelector('a[href="../"]')).not.toBeNull();
+  expect(target.querySelector('a[href="/"]')).not.toBeNull();
   await key('Escape');
   if (status === 'signed-out') {
     expect(target.textContent).toContain('Open Account to sign in');

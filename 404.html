@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Page not found</title>
+  <script>
+    // Pages serves this document at the requested URL. Send app routes to the real
+    // entry; the fragment carries the path, original query and hash across the hop.
+    const base = location.pathname.startsWith("/NeckardtApps/") ? "/NeckardtApps/" : "/";
+    const route = location.pathname.slice(base.length);
+    const leaf = route.split("/").pop();
+    if (route && !/^oauth(?:\/|$)/.test(route) && (!leaf.includes(".") || leaf === "index.html")) {
+      location.replace(base + "#pages:" + location.pathname + location.search + location.hash);
+    }
+  </script>
+</head>
+<body><h1>Page not found</h1></body>
+</html>

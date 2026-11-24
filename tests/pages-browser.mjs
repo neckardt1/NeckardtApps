@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { chromium } from "playwright-core";
+
+export async function checkBrowserRoutes(origin) {
+  const browser = await chromium.launch(process.env.CHROME_BIN
+    ? { executablePath: process.env.CHROME_BIN }
+    : { channel: "chrome" });
+  try {
+    const page = await browser.newPage();
+    await page.route("**/*", route => new URL(route.request().url()).origin === origin
+      ? route.continue() : route.abort());
+    const practice = page.getByRole("heading", { name: "Welcome back." });
+    const checkPractice = async url => {
+      await practice.waitFor();
+      assert.equal(page.url(), url);
+      assert.equal(await page.title(), "Habit Practice");
+    };
+    const documents = [];
+    page.on("request", request => {
+      if (request.isNavigationRequest()) documents.push(request.url());
+    });
+    for (const base of ["/", "/NeckardtApps/"]) {
+      const root = origin + base;
+      const deep = root + "recall/?tag=a%2Bb&tag=x%26y#saved%23detail";
+      await page.goto(deep, { waitUntil: "commit" });
+      await checkPractice(deep);
+      await page.reload({ waitUntil: "commit" });
+      await checkPractice(deep);
+
+      const before = documents.length;
+      await page.getByRole("button", { name: "Apps", exact: true }).click();
+      await page.getByRole("link", { name: "All apps" }).click();
+      await page.getByRole("heading", { name: "Your apps" }).waitFor();
+      assert.equal(page.url(), root);
+      await page.goBack();
+      await checkPractice(deep);
+      assert.equal(documents.length, before, "In-app navigation keeps the same document");
+
+      const alias = root + "recall/index.html";
+      await page.goto(alias, { waitUntil: "commit" });
+      await checkPractice(alias);
+      const consent = root + "oauth/consent/?authorization_id=t6iubjdnqfkp4d4odxwleypuhprekmuh#return";
+      assert.equal((await page.goto(consent)).status(), 200);
+      await page.getByRole("button", { name: "Continue" }).waitFor();
+      assert.equal(page.url(), consent);
+      assert.equal(await page.getByRole("button", { name: "Account" }).count(), 0);
+    }
+  } finally {
+    await browser.close();
+  }
+}

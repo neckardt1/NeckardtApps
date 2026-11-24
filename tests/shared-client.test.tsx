@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PublicSupabaseConfig } from '../shared/browser-auth.mts';
-import type { SessionUser } from '../shared/session';
+import type { PublicSupabaseConfig } from '../src/shell/browser-auth.mts';
+import type { SessionUser } from '../src/shell/session';
 
 const sdkFactory = vi.hoisted(() => vi.fn());
 vi.mock('@supabase/supabase-js', () => ({ createClient: (...args: unknown[]) => sdkFactory(...args) }));
@@ -49,7 +49,7 @@ function syntheticSdk(url: string, storage: Map<string, string>) {
 }
 async function pageModules() {
   const [client, session, feature] = await Promise.all([
-    import('../shared/site-client'), import('../shared/session'), import('../apps/recall/src/recall-api')
+    import('../src/shell/site-client'), import('../src/shell/session'), import('../src/apps/habit-practice/recall-api')
   ]);
   return { ...client, ...session, ...feature };
 }

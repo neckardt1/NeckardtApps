@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { makeSiteClientGetter, type PublicSupabaseConfig } from "../../../../shared/browser-auth.mts";
-import type { DueCard, ReviewEvent } from "../../src/review-session.ts";
+import { makeSiteClientGetter, type PublicSupabaseConfig } from "../../../../src/shell/browser-auth.mts";
+import type { DueCard, ReviewEvent } from "../../../../src/apps/habit-practice/review-session.ts";
 
 export interface RecallApi {
   readonly origin: string;

@@ -15,9 +15,9 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({
   rpc: transport.rpc, functions: { invoke: transport.invoke }, auth: {}
 }) }));
 import { makeRecallApi as makeLegacyApi } from './fixtures/main-4985c9a-recall-api.ts';
-import { makeRecallApi } from '../src/recall-api.ts';
-import { makeDurableSession, type Lock } from '../src/durable-session.ts';
-import { makeOutbox, makeReviewSession, type ReviewEvent } from '../src/review-session.ts';
+import { makeRecallApi } from '../../../src/apps/habit-practice/recall-api.ts';
+import { makeDurableSession, type Lock } from '../../../src/apps/habit-practice/durable-session.ts';
+import { makeOutbox, makeReviewSession, type ReviewEvent } from '../../../src/apps/habit-practice/review-session.ts';
 // @ts-expect-error The production Edge handler is JavaScript, exercised directly here.
 import { gradeHandler, schedulerFor } from '../supabase/functions/recall-grade/grade.mjs';
 
@@ -26,11 +26,11 @@ const gitBlob = (source: string) => createHash('sha1').update(`blob ${Buffer.byt
 
 test(`legacy client fixture matches public main ${baseline} except relocated imports`, async () => {
   const fixture = await readFile(new URL('./fixtures/main-4985c9a-recall-api.ts', import.meta.url), 'utf8');
-  const original = fixture.replace('"../../../../shared/browser-auth.mts"', '"../../../shared/browser-auth.mts"')
-    .replace('"../../src/review-session.ts"', '"./review-session.ts"');
+  const original = fixture.replace('"../../../../src/shell/browser-auth.mts"', '"../../../shared/browser-auth.mts"')
+    .replace('"../../../../src/apps/habit-practice/review-session.ts"', '"./review-session.ts"');
   expect(gitBlob(original)).toBe('708f5114b896326633a35dc6b817b7fd041790c6');
   // The existing production session/outbox is the exact V1 implementation, too.
-  expect(gitBlob(await readFile(new URL('../src/review-session.ts', import.meta.url), 'utf8')))
+  expect(gitBlob(await readFile(new URL('../../../src/apps/habit-practice/review-session.ts', import.meta.url), 'utf8')))
     .toBe('92097c5daca051585c4472720a66afecf8e6cd70');
 });
 

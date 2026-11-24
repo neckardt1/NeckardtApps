@@ -1,9 +1,9 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import type { PublicSupabaseConfig } from '../../shared/browser-auth.mts';
+import type { PublicSupabaseConfig } from '../shell/browser-auth.mts';
 import { configured, decide, openRequest, readAuthorizationId, type ConsentLimits } from './flow';
-import '../../shared/shell.css';
+import '../shell/shell.css';
 import './consent.css';
 
 declare const __SITE_PUBLIC_CONFIG__: PublicSupabaseConfig;

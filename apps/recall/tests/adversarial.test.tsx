@@ -2,9 +2,9 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, test, vi } from 'vitest';
 import { ReviewFixture, makeSessionFixture } from './site-fixture.tsx';
-import { makeDurableSession, type Lock } from '../src/durable-session.ts';
-import { RecallApiError, type RecallApi } from '../src/recall-api.ts';
-import type { DueCard, ReviewEvent } from '../src/review-session.ts';
+import { makeDurableSession, type Lock } from '../../../src/apps/habit-practice/durable-session.ts';
+import { RecallApiError, type RecallApi } from '../../../src/apps/habit-practice/recall-api.ts';
+import type { DueCard, ReviewEvent } from '../../../src/apps/habit-practice/review-session.ts';
 const cards: DueCard[] = ['a', 'b'].map(card_id => ({ card_id, front: `Synthetic question ${card_id}`, back: `Synthetic answer ${card_id}`, revision: 0 }));
 function memory() {
   const entries = new Map<string, string>();

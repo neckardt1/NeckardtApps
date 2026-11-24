@@ -1,6 +1,5 @@
 import { type FormEvent, type ReactNode } from "react";
 import { AppShell } from "./AppShell.tsx";
-import { type AppsHref } from "./apps.ts";
 import { SessionProvider, useSiteSession, type SessionApi } from "./session.tsx";
 import "./shell.css";
 
@@ -35,11 +34,11 @@ function AccountPanel() {
   </div>;
 }
 
-function SessionShell({ appsHref, children }: { appsHref: AppsHref; children: ReactNode }) {
+function SessionShell({ children }: { children: ReactNode }) {
   const session = useSiteSession();
-  return <AppShell appsHref={appsHref} accountIdentity={session.user?.id ?? null} account={<AccountPanel />}>{children}</AppShell>;
+  return <AppShell accountIdentity={session.user?.id ?? null} account={<AccountPanel />}>{children}</AppShell>;
 }
 
-export function SiteRoot({ api, appsHref, children }: { api: SessionApi | null; appsHref: AppsHref; children: ReactNode }) {
-  return <SessionProvider api={api}><SessionShell appsHref={appsHref}>{children}</SessionShell></SessionProvider>;
+export function SiteRoot({ api, children }: { api: SessionApi | null; children: ReactNode }) {
+  return <SessionProvider api={api}><SessionShell>{children}</SessionShell></SessionProvider>;
 }

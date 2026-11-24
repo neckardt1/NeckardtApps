@@ -1,7 +1,8 @@
-import { SiteRoot } from '../../../shared/SiteRoot.tsx';
-import type { SessionApi, SessionUser } from '../../../shared/session.tsx';
-import { App } from '../src/App.tsx';
-import type { RecallApi } from '../src/recall-api.ts';
+import { MemoryRouter } from "react-router";
+import { SiteRoot } from '../../../src/shell/SiteRoot.tsx';
+import type { SessionApi, SessionUser } from '../../../src/shell/session.tsx';
+import { App } from '../../../src/apps/habit-practice/App.tsx';
+import type { RecallApi } from '../../../src/apps/habit-practice/recall-api.ts';
 
 // Synthetic observer-backed auth for the real shared shell; no SDK or network.
 export function makeSessionFixture(initialOwner: string | null | undefined = 'owner') {
@@ -24,5 +25,7 @@ export function makeSessionFixture(initialOwner: string | null | undefined = 'ow
 }
 
 export function ReviewFixture({ api, sessionApi }: { api: RecallApi | null; sessionApi: SessionApi | null }) {
-  return <SiteRoot api={sessionApi} appsHref="../"><App api={api} /></SiteRoot>;
+  return <MemoryRouter initialEntries={["/recall/"]}>
+    <SiteRoot api={sessionApi}><App api={api} /></SiteRoot>
+  </MemoryRouter>;
 }

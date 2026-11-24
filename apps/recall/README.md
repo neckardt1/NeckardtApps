@@ -1,7 +1,7 @@
 # Habit Practice
 
-The app lives at `/recall/`. Review UI and durable response handling live in
-`src/`; shared navigation and sign-in live in the root `shared/` directory.
+The app lives at `/recall/`. The [review UI](../../src/apps/habit-practice/) owns rounds
+and responses. The [shared shell](../../src/shell/) owns navigation and sign-in.
 
 ## Saved rounds and recovery
 
