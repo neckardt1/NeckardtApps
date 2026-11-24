@@ -11,6 +11,25 @@ A’s card, reads B’s card back at revision zero, then grades B’s card. Each
 under its own Auth ID. The shared provisioner marks the current test accounts `habit-practice-v1`.
 Habit Practice uses that marker and the matching generated address to authorize deck reset and expiry.
 
+## Run in the saved NeckardtApps Cloud environment
+
+In a fresh worktree, run `npm ci --cache /tmp/neckardt-fixture-npm-cache` from the checkout root.
+Run the pair check from the same directory with the following Codex command arguments.
+
+```json
+{
+  "cmd": "CHROME_BIN=/usr/bin/chromium npm run test:hosted -- --pair",
+  "sandbox_permissions": "with_additional_permissions",
+  "additional_permissions": {
+    "file_system": { "write": ["/home/agent/.pki/nssdb"] }
+  }
+}
+```
+
+Use the same permission for `--watch`. Chromium opens its NSS certificate database read/write to
+use the Cloud proxy's trusted CA. When the sandbox makes that directory read-only, provisioning
+can succeed while Chromium's sign-in POST fails with `net::ERR_CERT_AUTHORITY_INVALID`.
+
 ## Enable a hosted target once
 
 1. In the existing Supabase project, check the live migration ledger using the

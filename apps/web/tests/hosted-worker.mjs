@@ -32,8 +32,14 @@ export async function openWorker(browser, origin, config, createFixture) {
         page.waitForResponse(r => r.request().method() === "POST" && r.url().startsWith(config.url + "/auth/v1/token?")),
         page.getByRole("button", { name: "Sign in", exact: true }).click()
       ]);
-      if (!login.ok() || (await login.json()).user?.id !== id) throw Error();
-      await page.getByRole("button", { name: "Sign in", exact: true }).waitFor({ state: "detached" });
+      if (!login.ok()) throw Error();
+      await page.getByLabel("Password", { exact: true }).waitFor({ state: "detached" });
+      const assigned = await page.evaluate(async ({ config, id }) => {
+        const { getSiteClient } = await import("/src/shell/site-client.ts");
+        const { data } = await getSiteClient(config).auth.getSession();
+        return data.session?.user.id === id;
+      }, { config, id });
+      if (!assigned) throw Error();
     } catch {
       throw Error("The app's password sign-in did not establish the assigned fixture identity.");
     }

@@ -13,5 +13,6 @@ that owns them.
 
 For Habit Practice UI work, use [hosted fixture users](tests/hosted/README.md) on the app’s existing
 Supabase project. Run `npm run test:hosted -- --watch` while editing and `--pair` to check worker
-isolation. Exercise candidate migrations locally. Use a separate hosted target when a change needs
+isolation. In the saved Cloud environment, use the [documented Chromium filesystem permission](tests/hosted/README.md#run-in-the-saved-neckardtapps-cloud-environment)
+for both modes. Exercise candidate migrations locally. Use a separate hosted target when a change needs
 a hosted backend rehearsal.
