@@ -3,7 +3,7 @@
   "mcpServers": {
     "neckardt-apps": {
       "type": "streamable-http",
-      "url": "{{SUITE_MCP_URL}}",
+      "url": "https://jjgepkhpvslqwzkquqaf.supabase.co/functions/v1/neckardt-apps-mcp",
       "extensions": {
         "com.openai": {
           "auth": {
