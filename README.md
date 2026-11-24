@@ -27,6 +27,9 @@ their tests, including builds of the Pages site in temporary directories.
 `npm run build` produces a deployable site in `_site/`. Pass a fresh output directory
 with `npm run build -- <directory>` to keep earlier builds.
 
+To test Habit Practice while editing with a disposable Supabase user, see the
+[hosted test setup](tests/hosted/README.md).
+
 ## Deployment
 
 A push to `main` runs the checks and deploys the web workspace to GitHub Pages.
