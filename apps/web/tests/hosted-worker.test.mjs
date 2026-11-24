@@ -3,13 +3,14 @@ import { test } from "node:test";
 import { loadPublicBuildConfig } from "../build-config.ts";
 import { hostedConfig } from "./hosted-worker.mjs";
 
-test("hosted workers use the app's public config and require an explicitly matching target", () => {
+test("the fixture key defaults to the checked-in project and binds explicitly to an alternate", () => {
   const shared = loadPublicBuildConfig({});
   const sharedRef = new URL(shared.url).hostname.split(".")[0];
-  const settings = { NECKARDT_APPS_FIXTURE_PROJECT_REF: sharedRef, NECKARDT_APPS_FIXTURE_KEY: "test-placeholder" };
-  assert.deepEqual(hostedConfig(settings), { config: shared, fixtureKey: "test-placeholder" });
-  assert.throws(() => hostedConfig({ NECKARDT_APPS_FIXTURE_PROJECT_REF: sharedRef }), /NECKARDT_APPS_FIXTURE_KEY/);
-  assert.throws(() => hostedConfig({ NECKARDT_APPS_FIXTURE_KEY: "test-placeholder" }), /NECKARDT_APPS_FIXTURE_PROJECT_REF/);
+  const settings = { NECKARDT_APPS_FIXTURE_KEY: "test-placeholder" };
+  const expected = { config: shared, fixtureKey: "test-placeholder" };
+  assert.deepEqual(hostedConfig(settings), expected);
+  assert.deepEqual(hostedConfig({ ...settings, NECKARDT_APPS_FIXTURE_PROJECT_REF: sharedRef }), expected);
+  assert.throws(() => hostedConfig({}), /NECKARDT_APPS_FIXTURE_KEY/);
 
   const otherRef = "a".repeat(20);
   const alternate = {
@@ -18,6 +19,7 @@ test("hosted workers use the app's public config and require an explicitly match
   };
   assert.throws(() => hostedConfig({ ...settings, NECKARDT_APPS_SUPABASE_URL: alternate.NECKARDT_APPS_SUPABASE_URL }), /Set both/);
   assert.throws(() => hostedConfig({ ...settings, ...alternate }), /NECKARDT_APPS_FIXTURE_PROJECT_REF/);
+  assert.throws(() => hostedConfig({ ...settings, ...alternate, NECKARDT_APPS_FIXTURE_PROJECT_REF: sharedRef }), /NECKARDT_APPS_FIXTURE_PROJECT_REF/);
   assert.equal(hostedConfig({ ...settings, ...alternate, NECKARDT_APPS_FIXTURE_PROJECT_REF: otherRef }).config.url,
     alternate.NECKARDT_APPS_SUPABASE_URL);
 });

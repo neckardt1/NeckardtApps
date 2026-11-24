@@ -1,12 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFixtureSettings } from "./settings.ts";
 
-const { projectRef: ref, key } = readFixtureSettings(name => Deno.env.get(name));
-const url = Deno.env.get("SUPABASE_URL");
-if (!ref || !/^[a-z0-9]{20}$/.test(ref) || !url || url !== `https://${ref}.supabase.co`
-    || !key || key.length < 32) {
-  throw new Error("Set NECKARDT_APPS_FIXTURE_KEY and bind NECKARDT_APPS_FIXTURE_PROJECT_REF to this project.");
-}
+const { url, key } = readFixtureSettings(Deno.env.get("SUPABASE_URL"), name => Deno.env.get(name));
+if (key.length < 32) throw new Error("NECKARDT_APPS_FIXTURE_KEY must be at least 32 characters.");
 const adminKey = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default
   ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 if (!adminKey) throw new Error("Supabase managed credentials unavailable.");

@@ -9,11 +9,7 @@ import { loadPublicBuildConfig } from "../build-config.ts";
 
 export function hostedConfig(env) {
   const config = loadPublicBuildConfig(env);
-  const { projectRef, key } = readFixtureSettings(name => env[name]);
-  if (!key) throw Error("Set the host-scoped NECKARDT_APPS_FIXTURE_KEY for provisioning.");
-  if (config.url !== `https://${projectRef?.trim()}.supabase.co`) {
-    throw Error("NECKARDT_APPS_FIXTURE_PROJECT_REF must match the configured Supabase project.");
-  }
+  const { key } = readFixtureSettings(config.url, name => env[name]);
   return { config, fixtureKey: key };
 }
 
