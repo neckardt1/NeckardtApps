@@ -3,6 +3,13 @@
 The app lives at `/recall/`. The [review UI](./) owns rounds
 and responses. The [shared shell](../../shell/) owns navigation and sign-in.
 
+## Deck enrollment
+
+A database administrator enrolls an existing Supabase Auth user by inserting
+their UUID into `flashcards_private.app_owner(owner_id)`. Each enrolled user
+gets one private deck. Set `cards.owner_id` to that user's UUID and let
+`cards.id` generate a new UUID for each card.
+
 ## Saved rounds and recovery
 
 The browser keeps an owner-scoped record of the round, original event IDs,
