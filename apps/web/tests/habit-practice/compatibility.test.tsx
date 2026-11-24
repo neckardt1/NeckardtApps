@@ -5,7 +5,7 @@
 // This is adapter/session compatibility, not browser UI coverage. The SDK
 // transport seam is mocked; SQL, the Edge handler, and FSRS are production code.
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import * as fsrsLib from 'ts-fsrs';
 import { expect, test, vi } from 'vitest';
@@ -18,8 +18,8 @@ import { makeRecallApi as makeLegacyApi } from './fixtures/main-4985c9a-recall-a
 import { makeRecallApi } from '../../src/apps/habit-practice/recall-api.ts';
 import { makeDurableSession, type Lock } from '../../src/apps/habit-practice/durable-session.ts';
 import { makeOutbox, makeReviewSession, type ReviewEvent } from '../../src/apps/habit-practice/review-session.ts';
-// @ts-expect-error The production Edge handler is JavaScript, exercised directly here.
-import { gradeHandler, schedulerFor } from '../../../backend/supabase/functions/recall-grade/grade.mjs';
+import { gradeHandler, schedulerFor } from '../../../backend/supabase/functions/recall-grade/grade.ts';
+import type { AnswerRow, CommitRow, PrepareArgs } from '../../../backend/supabase/functions/recall-grade/rpc-args.ts';
 
 const baseline = '4985c9aeadc20712a1d3f4eff3517596060a10e7';
 const gitBlob = (source: string) => createHash('sha1').update(`blob ${Buffer.byteLength(source)}\0`).update(source).digest('hex');
@@ -66,7 +66,7 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
   };
   let forbidFetch: ReturnType<typeof vi.spyOn> | undefined;
   try {
-    await db.exec(`create role anon nologin; create role authenticated nologin; create role service_role nologin;
+    await db.exec(`create role anon nologin; create role authenticated nologin; create role service_role nologin; create role supabase_auth_admin nologin;
       create schema auth; create table auth.users(id uuid primary key);
       create function auth.uid() returns uuid stable language sql as $$
         select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
@@ -94,12 +94,15 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
       try { return { data: await q('select * from public.' + name + '($1)', [params.p_limit]), error: null }; }
       catch (error) { return { data: null, error }; }
     });
-    type Params = Record<string, unknown>;
-    const args = (p: Params) => [p.p_owner,p.p_review_id,p.p_card_id,p.p_revision,p.p_grade,p.p_reviewed_at];
+    const args = (p: PrepareArgs) => [p.p_owner,p.p_review_id,p.p_card_id,p.p_revision,p.p_grade,p.p_reviewed_at];
     const handler = gradeHandler({
       getOwner: async () => owner,
-      prepare: async (p: Params) => (await q<{ value: unknown }>('select public.recall_grade_context($1,$2,$3,$4,$5,$6) value', args(p)))[0].value,
-      commit: async (p: Params) => (await q<{ value: unknown }>('select public.recall_commit_review($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) value',
+      // PostgREST serializes typed rows (including timestamps) to JSON on the wire.
+      prepare: async p => (await q<{ value: AnswerRow }>(
+        'select to_jsonb(answer) as value from public.recall_prepare_answer($1,$2,$3,$4,$5,$6) as answer',
+        args(p)))[0].value,
+      commit: async p => (await q<{ value: CommitRow }>(
+        'select to_jsonb(answer) as value from public.recall_commit_answer($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) as answer',
         [...args(p),p.p_due_at,p.p_state,p.p_log,p.p_scheduler_build,p.p_scheduler_config]))[0].value,
       schedule: schedulerFor(fsrsLib)
     });
@@ -127,7 +130,10 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
 
     // An already-open old client still has the unsupported card and original
     // pending event when the guarded migration becomes active.
-    await migration('20261122013041_recall_opportunities');
+    const migrations = new URL('../../../backend/supabase/migrations/', import.meta.url);
+    for (const name of (await readdir(migrations)).filter(name => name.endsWith('.sql')).sort()) {
+      if (name > '20261121000100_recall_fsrs_synthetic.sql') await migration(name.slice(0, -4));
+    }
     await oldBox.flush();
     expect(statuses.at(-1)).toBe(422);
     expect(oldBox.entries()).toEqual([{ status: 'conflict', event: original }]);

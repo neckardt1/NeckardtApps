@@ -9,6 +9,7 @@ import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { checkBrowserRoutes } from "./pages-browser.mjs";
+import { checkPairedHabit } from "./paired-habit-browser.mjs";
 
 const build = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
 const primaryOwnerId = "deafcafe-deaf-4ace-8123-abcd1234abcd";
@@ -126,6 +127,9 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     await t.test("Chrome opens and refreshes deep links on the built site", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
     }, () => checkBrowserRoutes(origin));
+    await t.test("A paired habit survives a lost answer receipt, duplicate Finish and a second browser", {
+      skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
+    }, () => checkPairedHabit(origin, fixture.RECALL_SUPABASE_URL));
     for (const base of ["/", "/NeckardtApps/"]) {
       for (const path of ["", "index.html", "oauth/consent/", "oauth/consent/index.html"]) {
         const kind = path.startsWith("oauth/") ? "consent" : "apps";

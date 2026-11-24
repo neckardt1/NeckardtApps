@@ -38,9 +38,17 @@ function fixture({userId=owner,userStatus=200}={}) {
   });
   const handle=gradeHandler({
     getOwner:jwt=>firstPartyOwner(auth,issuer,jwt),
-    prepare:async params=>{database.push(["prepare",params.p_owner]); return {kind:"card"};},
+    prepare:async params=>{
+      database.push(["prepare",params.p_owner]);
+      return {kind:"new_card",card_id:params.p_card_id,review_id:params.p_review_id,
+        revision:params.p_revision,due_at:body.reviewed_at,scheduler_state:null};
+    },
     schedule:()=>({}),
-    commit:async params=>{database.push(["commit",params.p_owner]); return {revision:1};},
+    commit:async params=>{
+      database.push(["commit",params.p_owner]);
+      return {kind:"saved",card_id:params.p_card_id,review_id:params.p_review_id,
+        revision:params.p_revision+1,due_at:new Date(Date.parse(body.reviewed_at)+60000).toISOString()};
+    },
   });
   const post=jwt=>handle(new Request(project+"/functions/v1/recall-grade",{
     method:"POST",headers:{authorization:"Bearer "+jwt},body:JSON.stringify(body),
