@@ -12,6 +12,8 @@
     "typecheck": "npm run db:types && npm run typecheck --workspaces",
     "test": "npm test --workspaces",
     "check": "npm run typecheck && npm test",
-    "build": "npm run db:types && npm run build --workspace @neckardt/web --"
+    "build": "npm run db:types && npm run build --workspace @neckardt/web --",
+    "test:hosted": "npm run test:hosted --workspace @neckardt/web --",
+    "test:staging": "npm run test:hosted --"
   }
 }
