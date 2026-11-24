@@ -9,5 +9,6 @@ coverage/
 *.pem
 *.key
 .auth/
-supabase/.temp/
-supabase/.branches/
+/apps/backend/supabase/.temp/
+/apps/backend/supabase/.branches/
+/apps/backend/supabase/functions/_shared/database.types.ts

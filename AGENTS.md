@@ -5,3 +5,5 @@
 - Rebase-merge only after a formal GitHub approval or an explicit merge instruction from verified `NickEckardt` on the exact current head. Check for later conflicting feedback and guard the merge with the expected head SHA.
 
 This is primarily a single-user personal app. Favor fast development over perfection: accept small, reversible failures and prefer actionable logging and easy recovery to defensive code for every edge case. Preserve baseline auth and data integrity.
+
+Treat the committed SQL migrations as the source of truth for the database schema. Generate TypeScript database types locally and keep them out of Git. A clean build must work without hosted Supabase credentials.

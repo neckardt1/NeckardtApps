@@ -20,7 +20,4 @@ jobs:
       - name: Install site and backend test dependencies
         run: npm ci
       - name: Typecheck, test, and build
-        run: |
-          npm run typecheck
-          npm test
-          node scripts/build-pages.mjs
+        run: npm run check
