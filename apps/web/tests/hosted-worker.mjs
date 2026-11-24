@@ -91,7 +91,16 @@ export async function gradeRound(worker, card) {
   assert.equal(receipt.card_id, card);
   assert.equal(receipt.revision, 1);
   await page.getByRole("button", { name: "Finish" }).click();
-  await page.getByRole("heading", { name: "Saved.", exact: true }).waitFor();
+  const saved = page.getByRole("heading", { name: "Saved.", exact: true });
+  await saved.waitFor();
+  const time = page.locator(".habit-practice time");
+  const finishedAt = await time.getAttribute("datetime");
+  const displayed = await time.textContent();
+  assert.ok(Number.isFinite(Date.parse(finishedAt)) && displayed);
+  await page.reload();
+  await saved.waitFor();
+  assert.equal(await time.getAttribute("datetime"), finishedAt);
+  assert.equal(await time.textContent(), displayed);
 }
 
 export async function smoke(workers) {

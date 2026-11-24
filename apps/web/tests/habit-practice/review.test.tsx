@@ -80,8 +80,18 @@ test('exact revealed card resumes while an earlier original grade is pending; fi
   expect(calls.filter(c => c.card_id === 'A').every(c => c.review_id === originalId)).toBe(true);
   await tap('Hard'); await tap('Reveal answer'); await tap('Easy');
   expect(target.textContent).toContain('Ready to finish.'); expect(target.textContent).not.toContain('Saved.');
-  await tap('Finish'); expect(target.textContent).toContain('Saved.'); expect(saved.size).toBe(3);
-  await remount(client); expect(target.textContent).toContain('Saved.');
+  const finishTime = new Date('2026-01-10T03:15:00Z');
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(finishTime);
+    await tap('Finish'); expect(target.textContent).toContain('Saved.'); expect(saved.size).toBe(3);
+    const displayed = finishTime.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    expect(target.querySelector('time')?.textContent).toBe(displayed);
+    vi.setSystemTime(new Date('2026-01-12T12:30:00Z'));
+    await remount(client);
+    expect(target.querySelector('time')?.dateTime).toBe(finishTime.toISOString());
+    expect(target.querySelector('time')?.textContent).toBe(displayed);
+  } finally { vi.useRealTimers(); }
 });
 
 test('uncertain final save retries the same event, blocks Finish, and never auto-completes', async () => {

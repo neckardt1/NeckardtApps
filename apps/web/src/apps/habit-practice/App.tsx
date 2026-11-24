@@ -194,6 +194,9 @@ export function App({ api }: { api: RecallApi | null }) {
         <div ref={content} tabIndex={-1} className="screen-content">
           {round?.finished ? <div className="saved-screen">
             <h1>Saved.</h1>
+            {round.finishedAt && <p>Finished <time dateTime={round.finishedAt}>{new Date(round.finishedAt).toLocaleString(undefined, {
+              dateStyle: 'medium', timeStyle: 'short'
+            })}</time></p>}
             <p>{actionCount} {actionCount === 1 ? 'habit check' : 'habit checks'} · {reviewedCount} {reviewedCount === 1 ? 'card reviewed' : 'cards reviewed'}</p>
             <p className="muted">{superseded ? `${superseded} ${superseded === 1 ? 'item was' : 'items were'} superseded before completion.` : 'Every response has been saved.'}</p>
             <a className="debrief-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Debrief with Dot</a>

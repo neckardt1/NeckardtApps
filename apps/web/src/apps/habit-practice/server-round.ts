@@ -49,7 +49,7 @@ export function restoreRound(items: RoundItem[], cached: Round | null): Round {
     })),
     cardIndex: recall.index, opportunityIndex: action.index,
     started: !!local?.started || items.some(item => item.answer !== null),
-    finished: header.finished_at !== null, saves,
+    finished: header.finished_at !== null, finishedAt: header.finished_at ?? undefined, saves,
     revealed: !!local?.revealed && !!current && local.cards[local.cardIndex]?.event_id === current.event_id,
     summary: {
       reviews: recall.rows.filter(item => item.answer !== null && item.answer !== 'superseded').length,

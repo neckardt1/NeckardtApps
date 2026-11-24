@@ -10,7 +10,7 @@ export type Round = {
   opportunities: (Opportunity & { event_id?: string; paired?: boolean })[];
   summary?: { reviews: number; actions: number; superseded: number };
   cardIndex: number; opportunityIndex: number; revealed: boolean;
-  started: boolean; finished: boolean; saves: Save[];
+  started: boolean; finished: boolean; finishedAt?: string; saves: Save[];
 };
 type StoragePort = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'length' | 'key'>;
 export type Lock = <T>(name: string, run: () => Promise<T>) => Promise<T>;
@@ -159,7 +159,13 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         const rows = await api.rounds.finish(id);
         return update(r => r?.id === id ? restoreRound(rows, r) : r);
       }
-      return update(r => { if (r?.id === id && r.started && allAnswered(r) && verified(r)) r.finished = true; return r; });
+      return update(r => {
+        if (r?.id === id && r.started && !r.finished && allAnswered(r) && verified(r)) {
+          r.finishedAt = new Date().toISOString();
+          r.finished = true;
+        }
+        return r;
+      });
     },
     async clearFinished(id: string) {
       return lock(key, async () => {

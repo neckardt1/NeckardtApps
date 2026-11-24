@@ -42,5 +42,6 @@ test('another device can finish a round and preserve a conflicting local answer 
   expect(verified(resumed)).toBe(true);
   const fresh = restoreRound([finished], null);
   expect(fresh.finished).toBe(true);
+  expect(fresh.finishedAt).toBe(finished.finished_at);
   expect(fresh.summary).toEqual({ actions: 1, reviews: 0, superseded: 0 });
 });
