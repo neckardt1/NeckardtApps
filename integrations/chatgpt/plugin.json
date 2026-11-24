@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "neckardt-apps-mcp",
+  "version": "0.1.0",
+  "description": "Connect ChatGPT to the Neckardt Apps MCP server.",
+  "homepage": "https://apps.neckardt.com",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Neckardt Apps MCP",
+        "shortDescription": "Connect to Neckardt Apps"
+      }
+    }
+  }
+}

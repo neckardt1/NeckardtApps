@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "neckardt-apps": {
+      "type": "streamable-http",
+      "url": "{{SUITE_MCP_URL}}",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "provided",
+              "clientId": "{{SUPABASE_OAUTH_CLIENT_ID}}",
+              "tokenEndpointAuthMethod": "none"
+            },
+            "baseScopes": [
+              "openid"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
