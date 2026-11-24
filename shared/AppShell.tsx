@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { appHref, apps, appStatusLabels, type AppsHref } from "./apps.ts";
+import { appHref, apps, type AppsHref } from "./apps.ts";
 
 type Popover = "apps" | "account";
 type Props = {
@@ -88,7 +88,7 @@ export function AppShell({ appsHref, account: accountContent, accountIdentity, c
           {open === "apps" ? <nav aria-label="Apps">
             <a className="popover-link" href={appsHref}>All apps</a>
             {apps.map(app => <a className="popover-link app-menu-link" key={app.id} href={appHref(appsHref, app)}>
-              <span>{app.name}</span><span className="menu-status">{appStatusLabels[app.status]}</span>
+              <span>{app.name}</span><span className="menu-status">Open</span>
             </a>)}
           </nav> : accountContent}
         </div>}

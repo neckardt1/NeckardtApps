@@ -146,7 +146,7 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
 });
 
 test("the shared registry and explicit relative app base support both ordinary page depths", async () => {
-  expect(apps).toEqual([{ id: "recall", name: "Habit Practice", path: "recall/", status: "available", description: "A little practice, every day." }]);
+  expect(apps).toEqual([{ id: "recall", name: "Habit Practice", path: "recall/", description: "A little practice, every day." }]);
   for (const appsHref of ["./", "../"] as const) {
     await mount(null, appsHref);
     await tap("Apps");

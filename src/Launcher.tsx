@@ -1,4 +1,4 @@
-import { appHref, apps, appStatusLabels, type AppsHref } from "../shared/apps.ts";
+import { appHref, apps, type AppsHref } from "../shared/apps.ts";
 
 export function Launcher({ appsHref = "./" }: { appsHref?: AppsHref }) {
   return <section className="launcher" aria-labelledby="launcher-title">
@@ -11,7 +11,7 @@ export function Launcher({ appsHref = "./" }: { appsHref?: AppsHref }) {
             <rect x="6" y="4" width="13" height="16" rx="2.4" /><path d="M3 7v12a4 4 0 0 0 4 4h9M9.5 9h6M9.5 13h4" />
           </svg></span>
           <span className="app-copy"><span className="app-name">{app.name}</span><span className="app-description">{app.description}</span></span>
-          <span className="app-status">{appStatusLabels[app.status]}</span>
+          <span className="app-status">Open</span>
         </a>
       </li>)}
     </ul>
