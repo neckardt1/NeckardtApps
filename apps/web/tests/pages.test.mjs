@@ -23,14 +23,16 @@ const fixture = {
   VITE_CANARY_USER_DIGEST: expectedDigest(primaryOwnerId),
   RECALL_LEGACY_CANARY_USER_ID: legacyCanaryId,
   VITE_CANARY_USER_ID: primaryOwnerId, // The retired public variable must never leak into a build.
-  VITE_CANARY_CALLBACK_URL: "https://consent.example.invalid/callback"
+  VITE_CANARY_CALLBACK_URL: "https://consent.example.invalid/callback",
+  VITE_SUITE_CLIENT_ID: "55555555-5555-4555-8555-555555555555",
+  VITE_SUITE_CALLBACK_URL: "https://consent.example.invalid/suite"
 };
 const run = (out, vars = {}) => spawnSync(process.execPath, [build, out], {
   encoding: "utf8", env: {
     ...process.env,
     RECALL_SUPABASE_URL: "", RECALL_SUPABASE_PUBLISHABLE_KEY: "",
     VITE_CANARY_CLIENT_ID: "", VITE_CANARY_USER_DIGEST: "", RECALL_LEGACY_CANARY_USER_ID: "",
-    VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "",
+    VITE_CANARY_USER_ID: "", VITE_CANARY_CALLBACK_URL: "", VITE_SUITE_CLIENT_ID: "", VITE_SUITE_CALLBACK_URL: "",
     ...vars
   }
 });
@@ -150,7 +152,8 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
           assert.doesNotMatch(js, recallCode);
           assert.match(html, /<title>[^<]*(?:consent|authoriz|connect)[^<]*<\/title>/i);
           assert(js.includes("recall-canary-consent"));
-          for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_DIGEST", "VITE_CANARY_CALLBACK_URL"]) {
+          for (const key of ["VITE_CANARY_CLIENT_ID", "VITE_CANARY_USER_DIGEST", "VITE_CANARY_CALLBACK_URL",
+            "VITE_SUITE_CLIENT_ID", "VITE_SUITE_CALLBACK_URL"]) {
             assert(js.includes(fixture[key]), `OAuth graph must include synthetic ${key}`);
           }
         } else {

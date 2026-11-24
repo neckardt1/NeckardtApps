@@ -4,9 +4,14 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-const migration = new URL(
+const guardMigration = new URL(
   "../supabase/migrations/20261124041055_deny_unrecognized_oauth_clients.sql", import.meta.url
 );
+const suiteMigration = new URL(
+  "../supabase/migrations/20261124054823_authorize_neckardt_apps_mcp.sql", import.meta.url
+);
+const suiteId = "99658a13-b445-411d-bcc8-6a01bc5358ff";
+const suiteOrigin = "https://jjgepkhpvslqwzkquqaf.supabase.co";
 const grant = "oauth_provider/authorization_code";
 
 test("shared access-token hook", async (t) => {
@@ -16,7 +21,8 @@ test("shared access-token hook", async (t) => {
     create role anon; create role authenticated;
     create role service_role; create role supabase_auth_admin;
   `);
-  await db.exec(await readFile(migration, "utf8"));
+  await db.exec(await readFile(guardMigration, "utf8"));
+  await db.exec(await readFile(suiteMigration, "utf8"));
   const owner = randomUUID();
   const canary = randomUUID();
   const unknown = randomUUID();
@@ -67,6 +73,33 @@ test("shared access-token hook", async (t) => {
     assertDenied(await issue(grant, ordinary));
     assertDenied(await issue("token_refresh", { ...ordinary, amr: [{ method: grant }] }));
     assertDenied(await issue(grant, bound, { client_id: unknown }));
+  });
+
+  const suiteClaims = { ...ordinary, client_id: suiteId, iss: suiteOrigin + "/auth/v1", scope: "openid",
+    email: "fixture@example.invalid", phone: "fixture-phone", user_metadata: { name: "fixture" },
+    app_metadata: { provider: "email" } };
+  await t.test("each suite user gets only the link audience on issue and refresh", async () => {
+    for (const userId of [owner, randomUUID()]) {
+      for (const method of [grant, "token_refresh"]) {
+        const sessionId = randomUUID();
+        const { claims } = await issue(method, { ...suiteClaims, sub: userId, session_id: sessionId }, { user_id: userId });
+        assert.deepEqual(claims, { ...ordinary, sub: userId, session_id: sessionId, client_id: suiteId,
+          iss: suiteClaims.iss, scope: "openid", aud: suiteOrigin + "/functions/v1/neckardt-apps-mcp",
+          role: "neckardt_apps_oauth", email: "", phone: "" });
+      }
+    }
+  });
+
+  await t.test("suite grants reject other identities, scopes, issuers and anonymous sessions", async () => {
+    for (const method of [grant, "token_refresh"]) {
+      for (const change of [{ sub: randomUUID() }, { scope: "openid email" }, { scope: undefined },
+        { iss: "https://other.example/auth/v1" }, { role: "service_role" }, { is_anonymous: true }]) {
+        assertDenied(await issue(method, { ...suiteClaims, ...change }));
+      }
+      assertDenied(await issue(method, suiteClaims, { client_id: canary }));
+      assertDenied(await issue(method, { ...suiteClaims, sub: undefined }, { user_id: undefined }));
+    }
+    assertDenied(await issue("password", suiteClaims));
   });
 
   await t.test("the existing canary keeps its audience, role and owner restriction", async () => {

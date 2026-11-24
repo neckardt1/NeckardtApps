@@ -2,16 +2,24 @@ import { useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import type { PublicSupabaseConfig } from '../shell/browser-auth.mts';
-import { configured, decide, openRequest, readAuthorizationId, type ConsentLimits } from './flow';
+import { configured, decide, openRequest, readAuthorizationId, type Connection } from './flow';
 import '../shell/shell.css';
 import './consent.css';
 
 declare const __SITE_PUBLIC_CONFIG__: PublicSupabaseConfig;
-const limits: ConsentLimits = {
-  clientId: import.meta.env.VITE_CANARY_CLIENT_ID ?? '',
-  userDigest: import.meta.env.VITE_CANARY_USER_DIGEST ?? '',
-  callback: import.meta.env.VITE_CANARY_CALLBACK_URL ?? ''
-};
+const connections: Connection[] = [
+  {
+    kind: 'suite',
+    clientId: import.meta.env.VITE_SUITE_CLIENT_ID ?? '',
+    callback: import.meta.env.VITE_SUITE_CALLBACK_URL ?? ''
+  },
+  {
+    kind: 'canary',
+    clientId: import.meta.env.VITE_CANARY_CLIENT_ID ?? '',
+    userDigest: import.meta.env.VITE_CANARY_USER_DIGEST ?? '',
+    callback: import.meta.env.VITE_CANARY_CALLBACK_URL ?? ''
+  }
+];
 // Consent has its own in-memory session and never replaces the site's normal Account session.
 const auth = createClient(__SITE_PUBLIC_CONFIG__.url, __SITE_PUBLIC_CONFIG__.publishableKey, {
   auth: { storageKey: 'recall-canary-consent', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -40,7 +48,7 @@ function Consent() {
     const fields = new FormData(form);
     form.reset();
     void run(async () => {
-      setRequest(await openRequest(auth, id!, limits, String(fields.get('email')), String(fields.get('password'))));
+      setRequest(await openRequest(auth, id!, connections, String(fields.get('email')), String(fields.get('password'))));
     });
   }
 
@@ -48,18 +56,20 @@ function Consent() {
     if (!request) return;
     // Require a fresh request after an ambiguous response rather than submitting the decision twice.
     setRequest(null);
-    const returnTo = await decide(auth.oauth, request.authorization_id, limits.callback, action);
+    const returnTo = await decide(auth.oauth, request.authorization_id, request.redirect_uri, action);
     window.location.replace(returnTo);
   }
 
   return <section className="consent">
-    <h1>{request ? 'Allow access?' : 'Connect Recall canary'}</h1>
+    <h1>{request ? 'Allow access?' : 'Connect to Neckardt Apps'}</h1>
     {!id ? <p>Start the connection from ChatGPT to review its request.</p>
-      : !configured(limits) ? <p>This canary connection has not been configured.</p>
+      : !connections.some(configured) ? <p>OAuth connections have not been configured.</p>
       : request ? <>
         <p><strong>{request.client.name}</strong> is requesting access as {request.user.email}.</p>
         <dl>
-          <dt>Requested permissions</dt><dd>{request.scope.trim() || 'No scopes requested'}</dd>
+          <dt>Requested permissions</dt><dd>{request.kind === 'suite'
+            ? 'Identify your account and get the link to Habit Practice.'
+            : request.scope}</dd>
           <dt>Return address</dt><dd>{request.redirect_uri}</dd>
         </dl>
         <div className="decisions">
@@ -67,7 +77,7 @@ function Consent() {
           <button className="primary" type="button" disabled={busy} onClick={() => void run(() => respond('approve'))}>Allow</button>
         </div>
       </> : <form className="account-form" onSubmit={signIn}>
-        <p>Sign in with the account authorized for this connection to review the request.</p>
+        <p>Sign in with your Neckardt Apps account to review the request.</p>
         <label>Email<input name="email" type="email" autoComplete="username" required disabled={busy}/></label>
         <label>Password<input name="password" type="password" autoComplete="current-password" required disabled={busy}/></label>
         <button className="account-action" disabled={busy}>{busy ? 'Please wait…' : 'Continue'}</button>
