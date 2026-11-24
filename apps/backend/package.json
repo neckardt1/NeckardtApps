@@ -14,7 +14,9 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@supabase/supabase-js": "2.119.2",
+    "jose": "6.2.18",
     "ts-fsrs": "5.4.2"
   },
   "devDependencies": {
