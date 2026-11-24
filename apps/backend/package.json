@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./fixture-settings": "./supabase/functions/provision-worker/settings.ts",
     "./database": {
       "types": "./supabase/functions/_shared/database.types.ts"
     }

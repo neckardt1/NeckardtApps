@@ -1,3 +1,4 @@
+# Keep the existing local CLI stack ID so upgrades reuse its Docker volumes.
 project_id = "recall-synthetic"
 
 [functions.recall-grade]

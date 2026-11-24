@@ -38,5 +38,6 @@ preserves direct links on the custom domain and the `/NeckardtApps/` project pat
 OAuth consent has its own HTML entry and sign-in session.
 
 [Public config](apps/web/public-config.json) holds the browser-safe Supabase URL and
-publishable key. Set both `RECALL_SUPABASE_URL` and `RECALL_SUPABASE_PUBLISHABLE_KEY`
-to override them. Database migrations and Edge Functions deploy separately.
+publishable key. Set `NECKARDT_APPS_SUPABASE_URL` and `NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY`
+together to override them. Builds also accept the older `RECALL_SUPABASE_*` pair when both new
+settings are empty. Database migrations and Edge Functions deploy separately.
