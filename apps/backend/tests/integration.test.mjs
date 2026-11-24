@@ -7,24 +7,28 @@ import {PGlite} from "@electric-sql/pglite";
 import {gradeHandler,schedulerFor} from "../supabase/functions/recall-grade/grade.mjs";
 import {makeOutbox,makeReviewSession} from "../../web/src/apps/habit-practice/review-session.ts";
 
-test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
+test("actual Edge handler and FSRS-6 with the legacy and multi-user schemas",async (t)=>{
  const db=new PGlite();
- const owner=randomUUID(), other=randomUUID();
+ const owner=randomUUID(), other=randomUUID(), unenrolled=randomUUID();
  const q=async (sql,params=[]) => (await db.query(sql,params)).rows;
+ const migrate = async name => {
+   const file = new URL("../supabase/migrations/" + name + ".sql", import.meta.url);
+   await db.exec(await readFile(file, "utf8"));
+ };
  const role=async (name,id="")=>{
    await db.exec("reset role; set role "+name);
    await q("select set_config('request.jwt.claim.sub',$1,false)",[id]);
  };
  try{
   await db.exec(`create role anon nologin; create role authenticated nologin; create role service_role nologin;
+  create role supabase_auth_admin nologin;
   create schema auth; create table auth.users(id uuid primary key);
   create function auth.uid() returns uuid stable language sql as $$
     select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
   $$; grant usage on schema auth to anon,authenticated,service_role;`);
-  for(const name of ["20261121000000_demo_flashcards","20261121000100_recall_fsrs_synthetic"]) {
-    await db.exec(await readFile(new URL("../supabase/migrations/"+name+".sql",import.meta.url),"utf8"));
-  }
-  await q("insert into auth.users values ($1),($2)",[owner,other]);
+  await migrate("20261121000000_demo_flashcards");
+  await migrate("20261121000100_recall_fsrs_synthetic");
+  await q("insert into auth.users values ($1),($2),($3)",[owner,other,unenrolled]);
   await q("insert into flashcards_private.app_owner(owner_id) values($1)",[owner]);
   await q(`insert into flashcards_private.cards(owner_id,front,back,due_at)
     select $1,'Question '||i,'Answer '||i,now()+(i-7)*interval '1 second'
@@ -58,8 +62,9 @@ test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
   const snapshot=(await q(contextSQL,contenderParams))[0].answer;
   assert.equal(snapshot.kind,"card");
   const contenderCalc=testSchedule(snapshot,"medium",fields.reviewed_at);
+  const subjects = new Map([["owner-token", owner], ["other-token", other], ["unenrolled-token", unenrolled]]);
   const handler=gradeHandler({
-    getOwner:async token=>token==="owner-token"?owner:token==="other-token"?other:null,
+    getOwner:async token=>subjects.get(token) ?? null,
     prepare:async p=>(await q(contextSQL,getParams(p)))[0].answer,
     commit:async p=>(await q(commitSQL,[...getParams(p),p.p_due_at,p.p_state,p.p_log,p.p_scheduler_build,p.p_scheduler_config]))[0].answer,
     schedule:testSchedule
@@ -105,6 +110,80 @@ test("actual Edge handler + FSRS-6 + both SQL migrations",async ()=>{
   assert.equal(reviews.length,2);
   assert.equal(reviews[1].fsrs_log.rating,2);
   assert.equal(reviews[1].after_state.reps,2);
+
+  await t.test("the legacy deck survives enrollment and both decks stay private", async () => {
+    await migrate("20261122013041_recall_opportunities");
+    await migrate("20261124041055_deny_unrecognized_oauth_clients");
+    const enroll = id => q("insert into flashcards_private.app_owner(owner_id) values ($1)", [id]);
+    await assert.rejects(enroll(other), { code: "23505" });
+    const allCards = () => q("select * from flashcards_private.cards order by id");
+    const legacyCards = await allCards();
+
+    await migrate("20261124045149_enroll_multiple_habit_practice_owners");
+    assert.deepEqual(await q("select owner_id from flashcards_private.app_owner"), [{ owner_id: owner }]);
+    assert.deepEqual(await allCards(), legacyCards);
+    assert.deepEqual(await q("select * from flashcards_private.reviews order by card_revision"), reviews);
+    await role("service_role");
+    assert.deepEqual(await (await post("owner-token", fields)).json(), saved);
+
+    await db.exec("reset role");
+    await enroll(other);
+    await assert.rejects(enroll(other), { code: "23505" });
+    await assert.rejects(q(`insert into flashcards_private.cards(id, owner_id, front, back)
+      values ($1, $2, 'Duplicate card', 'Duplicate answer')`, [cards[1].card_id, other]), { code: "23505" });
+    const [otherCard] = await q(`insert into flashcards_private.cards(owner_id, front, back)
+      values ($1, 'Second question', 'Second answer') returning id`, [other]);
+    const addOpportunity = async (id, cardId) => (await q(`insert into
+      flashcards_private.action_opportunities(owner_id, card_id, prompt)
+      values ($1, $2, 'Synthetic occasion') returning opportunity_id`, [id, cardId]))[0].opportunity_id;
+    const legacy = { owner, token: "owner-token", card: cards[1].card_id };
+    const second = { owner: other, token: "other-token", card: otherCard.id };
+    legacy.cardIds = new Set(legacyCards.map(row => row.id));
+    second.cardIds = new Set([second.card]);
+    legacy.opportunity = await addOpportunity(legacy.owner, legacy.card);
+    second.opportunity = await addOpportunity(second.owner, second.card);
+    const action = (opportunity, card) => q(
+      "select public.recall_record_action($1,$2,$3,0,'yes',now()) result",
+      [randomUUID(), opportunity, card]
+    );
+    // Reusing a review ID across owners exercises the per-deck replay key.
+    const event = { ...fields, review_id: randomUUID(), revision: 0, reviewed_at: new Date().toISOString() };
+    for (const [user, peer] of [[legacy, second], [second, legacy]]) {
+      await role("authenticated", user.owner);
+      assert.deepEqual(await q("select owner_id from flashcards_private.app_owner"), [{ owner_id: user.owner }]);
+      for (const sql of ["select card_id from public.recall_due()", "select card_id from public.demo_flashcards_due()"]) {
+        const due = (await q(sql)).map(row => row.card_id);
+        assert(due.includes(user.card));
+        assert(due.every(id => user.cardIds.has(id)));
+      }
+      const visible = await q("select id from flashcards_private.cards");
+      assert.deepEqual(new Set(visible.map(row => row.id)), user.cardIds);
+      assert.deepEqual(await q("select opportunity_id from public.recall_opportunities()"),
+        [{ opportunity_id: user.opportunity }]);
+      await assert.rejects(action(peer.opportunity, peer.card), { code: "PT404" });
+      assert.equal((await action(user.opportunity, user.card))[0].result.card_id, user.card);
+
+      await role("service_role");
+      assert.equal((await post(user.token, { ...event, card_id: peer.card })).status, 404);
+      const ownGrade = await post(user.token, { ...event, card_id: user.card });
+      assert.equal(ownGrade.status, 200);
+      assert.equal((await ownGrade.json()).card_id, user.card);
+    }
+
+    await role("authenticated", unenrolled);
+    assert.deepEqual(await q("select id from flashcards_private.cards"), []);
+    await assert.rejects(enroll(unenrolled), { code: "42501" });
+    await assert.rejects(q("select * from public.recall_due()"), { code: "42501" });
+    await assert.rejects(q("select * from public.recall_opportunities()"), { code: "42501" });
+    await assert.rejects(action(legacy.opportunity, legacy.card), { code: "42501" });
+    await role("service_role");
+    assert.equal((await post("unenrolled-token", { ...event, card_id: legacy.card })).status, 403);
+    await db.exec("reset role");
+    const receipts = await q("select owner_id, card_id from flashcards_private.reviews where review_id=$1",
+      [event.review_id]);
+    assert.deepEqual(new Map(receipts.map(row => [row.owner_id, row.card_id])),
+      new Map([[legacy.owner, legacy.card], [second.owner, second.card]]));
+  });
  } finally {await db.close();}
 });
 
