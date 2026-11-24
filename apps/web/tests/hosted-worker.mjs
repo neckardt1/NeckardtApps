@@ -55,7 +55,12 @@ async function fixtureRpc(worker, name) {
     if (session?.user.id !== id) throw Error("The browser session changed.");
     const { data, error } = await client.rpc(name);
     if (error) throw Error(`Fixture RPC ${name} failed (${error.code}).`);
-    if (name === "recall_reset_fixture") localStorage.removeItem(`recall.round.v2.${config.url}.${id}`);
+    if (name === "recall_reset_fixture") {
+      const scope = `${config.url}.${id}`;
+      localStorage.removeItem(`recall.round.v2.${scope}`);
+      localStorage.removeItem(`recall.round.v3.${scope}`);
+      localStorage.removeItem(`recall.round.v3.${scope}.dismissed`);
+    }
     return data;
   }, { config: worker.config, id: worker.id, name });
 }

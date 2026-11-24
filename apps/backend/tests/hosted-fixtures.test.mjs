@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import * as fsrs from "ts-fsrs";
-import { schedulerFor } from "../supabase/functions/recall-grade/grade.mjs";
+import { schedulerFor } from "../supabase/functions/recall-grade/grade.ts";
 
 test("only disposable users can reset and expire, preserving other owners and their review history", async () => {
   const db = new PGlite();
@@ -16,17 +16,33 @@ test("only disposable users can reset and expire, preserving other owners and th
   const reset = async () => (await query("select public.recall_reset_fixture() as card"))[0].card;
   const snapshot = async owner => {
     const result = {};
-    for (const table of ["app_owner", "cards", "reviews", "action_opportunities", "action_responses"]) {
+    for (const table of ["app_owner", "cards", "reviews", "action_opportunities", "action_responses",
+      "practice_rounds", "round_items", "round_completions"]) {
       result[table] = await query(`select * from flashcards_private.${table} where owner_id = $1`, [owner]);
     }
     result.auth = await query("select * from auth.users where id = $1", [owner]);
     return result;
   };
-  const grade = async (owner, card) => {
+  const schedule = schedulerFor(fsrs);
+  const gradeRound = async (owner, card) => {
+    await asUser(owner);
+    const items = await query("select * from public.recall_open_round($1)", [randomUUID()]);
+    assert.equal(items.length, 1);
+    const [item] = items;
+    assert.equal(item.card_id, card);
     const when = new Date().toISOString();
-    const next = schedulerFor(fsrs)({ state: null, due_at: when }, "medium", when);
-    await query("select public.recall_commit_review($1,$2,$3,0,'medium',$4,$5,$6,$7,$8,$9)",
-      [owner, randomUUID(), card, when, next.dueAt, next.state, next.log, next.build, next.config]);
+    const args = [owner, item.event_id, card, item.revision, "medium", when];
+    await db.exec("reset role; set role service_role");
+    const [{ snapshot }] = await query(
+      "select to_jsonb(r) as snapshot from public.recall_prepare_answer($1,$2,$3,$4,$5,$6) r", args);
+    const next = schedule(snapshot, "medium", when);
+    const [receipt] = await query("select * from public.recall_commit_answer($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+      [...args, next.dueAt, next.state, next.log, next.build, next.config]);
+    assert.equal(receipt.review_id, item.event_id);
+    await asUser(owner);
+    const [finished] = await query("select * from public.recall_finish_round($1)", [item.round_id]);
+    assert.ok(finished.finished_at);
+    await db.exec("reset role");
   };
   try {
     await db.exec(`create role anon; create role authenticated; create role service_role; create role supabase_auth_admin;
@@ -55,7 +71,7 @@ test("only disposable users can reset and expire, preserving other owners and th
     await query("insert into flashcards_private.app_owner(owner_id) values ($1)", [ordinary]);
     const [{ id: originalCard }] = await query(`insert into flashcards_private.cards(owner_id, front, back)
       values ($1, 'Personal card', 'Personal answer') returning id`, [ordinary]);
-    await grade(ordinary, originalCard);
+    await gradeRound(ordinary, originalCard);
     const [{ opportunity_id: opportunity }] = await query(`insert into flashcards_private.action_opportunities(owner_id,card_id,prompt)
       values ($1,$2,'Did it happen?') returning opportunity_id`, [ordinary, originalCard]);
     await query(`insert into flashcards_private.action_responses(owner_id,action_id,opportunity_id,card_id,revision,outcome,answered_at)
@@ -75,7 +91,7 @@ test("only disposable users can reset and expire, preserving other owners and th
     await asUser(workerA);
     const first = await reset();
     await db.exec("reset role");
-    await grade(workerA, first);
+    await gradeRound(workerA, first);
     await asUser(workerA);
     const second = await reset();
     assert.notEqual(first, second);
@@ -84,8 +100,11 @@ test("only disposable users can reset and expire, preserving other owners and th
     await assert.rejects(query("select flashcards_private.expire_habit_fixtures()"), { code: "42501" });
 
     await db.exec("reset role");
-    assert.deepEqual((await snapshot(workerA)).reviews, []);
-    await grade(workerA, second);
+    const fresh = await snapshot(workerA);
+    for (const table of ["reviews", "practice_rounds", "round_items", "round_completions"]) {
+      assert.deepEqual(fresh[table], [], table);
+    }
+    await gradeRound(workerA, second);
     // The hosted cron job calls this same owner-only function.
     await query("select flashcards_private.expire_habit_fixtures()");
     assert.ok(Object.values(await snapshot(workerA)).every(rows => rows.length === 0));
