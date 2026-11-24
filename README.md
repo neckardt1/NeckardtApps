@@ -1,37 +1,39 @@
 # NeckardtApps
 
 Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
-React, TypeScript, and Vite provide a public launcher and shared Apps/Account
-navigation and sign-in. Each app owns its behavior and backend access checks.
 
-- [Habit Practice](apps/recall/README.md) — cards and habit check-ins at `/recall/`.
-- [Canary OAuth consent](src/oauth/README.md) — the MCP experiment's sign-in page
-  at `/oauth/consent/`, with a separate session from the apps.
+- [Web](apps/web/) contains the React/Vite launcher, [Habit Practice](apps/web/src/apps/habit-practice/README.md)
+  at `/recall/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
+- [Backend](apps/backend/supabase/) contains the SQL migrations and Supabase Edge Functions.
+  Generate types with `npm run db:types` at the root before checking or deploying an Edge
+  Function. Run Supabase CLI commands from `apps/backend/`.
 
 ## Local development
 
-Use Node.js 24, then run:
+From the repo root with Node.js 24:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Before a PR: `npm run typecheck`, `npm test`, and `npm run build`.
-The build writes `_site/` and refuses an existing output directory; remove only
-generated output before rebuilding, or pass a fresh directory to
-`node scripts/build-pages.mjs <directory>`.
+Vite generates database types at startup and after migration edits. To regenerate them
+on their own, run `npm run db:types`. The generator applies the migrations to a fresh
+in-memory PostgreSQL database (PGlite) and uses Supabase typegen. Both workspaces
+consume the result. No hosted credentials or Docker daemon are required.
+
+Run `npm run check` before a PR. It generates types, checks both workspaces, and runs
+their tests, including builds of the Pages site in temporary directories.
+`npm run build` produces a deployable site in `_site/`. Pass a fresh output directory
+with `npm run build -- <directory>` to keep earlier builds.
 
 ## Deployment
 
-PR checks do not publish. A push to `main` runs checks and deploys `_site/`
-to GitHub Pages. The launcher and Habit Practice share a React Router entry.
-On a direct app link or refresh, `404.html` hands the URL back to that entry
-on either the custom domain or the `/NeckardtApps/` project path.
-`/oauth/consent/` is served directly as its own HTML page.
+A push to `main` runs the checks and deploys the web workspace to GitHub Pages.
+The launcher and Habit Practice share a React Router entry. The Pages fallback
+preserves direct links on the custom domain and the `/NeckardtApps/` project path.
+OAuth consent has its own HTML entry and sign-in session.
 
-`public-config.json` contains the browser-safe Supabase URL and publishable key.
-Optional build overrides are `RECALL_SUPABASE_URL` and
-`RECALL_SUPABASE_PUBLISHABLE_KEY` (set both). Keep credentials and private data
-out of this public repo. Database migrations and Edge Functions deploy
-separately; see the app's notes before backend-dependent releases.
+[Public config](apps/web/public-config.json) holds the browser-safe Supabase URL and
+publishable key. Set both `RECALL_SUPABASE_URL` and `RECALL_SUPABASE_PUBLISHABLE_KEY`
+to override them. Database migrations and Edge Functions deploy separately.

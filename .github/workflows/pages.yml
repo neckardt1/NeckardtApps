@@ -30,9 +30,7 @@ jobs:
       - name: Install site and backend test dependencies
         run: npm ci
       - name: Test app and Pages routes
-        run: |
-          npm run typecheck
-          npm test
+        run: npm run check
       - name: Build public site
         env:
           VITE_CANARY_USER_DIGEST: ${{ vars.RECALL_CANARY_USER_DIGEST }}
@@ -41,7 +39,7 @@ jobs:
           VITE_CANARY_CALLBACK_URL: ${{ vars.RECALL_CANARY_CALLBACK_URL }}
           RECALL_SUPABASE_URL: ${{ vars.RECALL_SUPABASE_URL }}
           RECALL_SUPABASE_PUBLISHABLE_KEY: ${{ vars.RECALL_SUPABASE_PUBLISHABLE_KEY }}
-        run: node scripts/build-pages.mjs
+        run: npm run build --workspace @neckardt/web
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

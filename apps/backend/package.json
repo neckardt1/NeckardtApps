@@ -1,0 +1,26 @@
+{
+  "name": "@neckardt/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./database": {
+      "types": "./supabase/functions/_shared/database.types.ts"
+    }
+  },
+  "scripts": {
+    "db:types": "node scripts/generate-types.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.2",
+    "ts-fsrs": "5.4.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.17",
+    "@supabase/typegen": "0.2.2",
+    "@types/deno": "2.7.0",
+    "typescript": "7.0.2"
+  }
+}
