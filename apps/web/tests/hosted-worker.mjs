@@ -90,8 +90,13 @@ export async function gradeRound(worker, card) {
   const receipt = await response.json();
   assert.equal(receipt.card_id, card);
   assert.equal(receipt.revision, 1);
-  await page.getByRole("button", { name: "Finish" }).click();
-  await page.getByRole("heading", { name: "Saved.", exact: true }).waitFor();
+  await page.close();
+  worker.page = await worker.context.newPage();
+  await worker.page.goto(worker.origin + "/recall/");
+  await worker.page.getByText("1 of 1 answered", { exact: true }).waitFor();
+  await worker.page.getByRole("button", { name: "Resume review" }).click();
+  await worker.page.getByRole("button", { name: "Finish" }).click();
+  await worker.page.getByRole("heading", { name: "Saved.", exact: true }).waitFor();
 }
 
 export async function smoke(workers) {

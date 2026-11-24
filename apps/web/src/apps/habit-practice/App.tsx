@@ -215,7 +215,7 @@ export function App({ api }: { api: RecallApi | null }) {
             <h1>Today</h1>
             {loading ? <p role="status">Loading your review…</p> : round ? <>
               <p>{hasWork ? [remainingHabits ? `${remainingHabits} ${remainingHabits === 1 ? 'habit check' : 'habit checks'}` : '', `${remainingCards} ${remainingCards === 1 ? 'card' : 'cards'}`].filter(Boolean).join(' and ') + (round.started ? ' left in this round.' : ' in this round.') : 'No cards due right now.'}</p>
-              {round.started && <p className="muted">Pick up where you left off.</p>}
+              {round.started && <p className="muted">{round.cardIndex + round.opportunityIndex - superseded} of {round.cards.length + round.opportunities.length} answered</p>}
             </> : <p>Your review will appear here.</p>}
           </div>}
         </div>

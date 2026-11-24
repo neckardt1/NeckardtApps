@@ -73,7 +73,9 @@ test('exact revealed card resumes while an earlier original grade is pending; fi
   await tap('Good'); expect(target.textContent).toContain('Question B'); expect(saved.size).toBe(0);
   await tap('Reveal answer'); expect(target.textContent).toContain('Answer B');
   const originalId = calls[0].review_id;
-  await remount(client); await tap('Resume review');
+  await remount(client);
+  expect(target.textContent).toContain('1 of 3 answered');
+  await tap('Resume review');
   expect(target.textContent).toContain('Question B'); expect(target.textContent).toContain('Answer B');
   expect(target.textContent).not.toContain('Question A');
   await act(async () => hold.finish());
