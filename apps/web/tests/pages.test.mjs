@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import defaults from "@neckardt/backend/public-config" with { type: "json" };
 import { checkBrowserRoutes } from "./pages-browser.mjs";
 import { checkPairedHabit } from "./paired-habit-browser.mjs";
 
@@ -234,7 +235,6 @@ test("root build accepts public defaults and refuses partial, secret, or false-h
     }
     const done = run(out);
     assert.equal(done.status, 0, done.stderr);
-    const defaults = JSON.parse(await readFile(new URL("../public-config.json", import.meta.url), "utf8"));
     for (const path of ["index.html", "oauth/consent/index.html"]) {
       const js = graphText(await pageGraph(out, await readFile(join(out, path), "utf8")));
       assert(js.includes(defaults.url), path);
