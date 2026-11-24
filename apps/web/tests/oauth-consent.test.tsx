@@ -64,7 +64,7 @@ describe('canary authorization', () => {
     expect(await decide(auth.oauth, id, callback, action)).toBe(callback + '?state=fake&code=fixture');
     expect(calls.at(-1)).toEqual({ path: endpoint + '/consent', body: { action } });
   });
-  it.each(['openid email', 'profile', ''])('refuses consent for unsupported scopes', async scope => {
+  it.each(['openid email offline_access', 'openid email', 'profile', ''])('refuses consent for unsupported scopes', async scope => {
     const { auth, calls } = fixture({ authorization: { ...details, scope } });
     await expect(openRequest(auth, id, [limits], user.email, 'fixture')).rejects.toThrow('openid');
     expect(calls.map(call => call.path)).toEqual(['/auth/v1/token?grant_type=password', endpoint]);
@@ -130,6 +130,13 @@ function suiteDetails(subject: string) {
 }
 
 describe('suite authorization', () => {
+  it('recognizes the ChatGPT identity scopes in any order', async () => {
+    const authorization = { ...suiteDetails(userId), scope: 'offline_access openid email' };
+    const { auth, calls } = fixture({ authorization });
+    expect((await openRequest(auth, id, [suite], user.email, 'fixture')).kind).toBe('suite');
+    expect(calls).toHaveLength(2);
+  });
+
   it.each([userId, otherUser])('accepts an explicit decision by signed-in user %s', async subject => {
     const { auth, calls } = fixture({ loginId: subject, authorization: suiteDetails(subject) });
     const request = await openRequest(auth, id, [limits, suite], user.email, 'fixture');
@@ -155,6 +162,10 @@ describe('suite authorization', () => {
   it.each([
     { ...suiteDetails(userId), user: { id: otherUser } },
     { ...suiteDetails(userId), scope: 'openid profile' },
+    { ...suiteDetails(userId), scope: 'openid email offline_access profile' },
+    { ...suiteDetails(userId), scope: 'openid email' },
+    { ...suiteDetails(userId), scope: 'openid offline_access' },
+    { ...suiteDetails(userId), scope: 'openid email email' },
     { ...suiteDetails(userId), redirect_uri: 'https://elsewhere.example/return' },
     { ...suiteDetails(userId), client: { id: otherUser, name: 'Neckardt Apps MCP' } }
   ])('declines mismatched suite requests before consent', async authorization => {

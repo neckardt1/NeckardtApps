@@ -23,6 +23,9 @@ test("shared access-token hook", async (t) => {
   `);
   await db.exec(await readFile(guardMigration, "utf8"));
   await db.exec(await readFile(suiteMigration, "utf8"));
+  await db.exec(await readFile(new URL(
+    "../supabase/migrations/20261124163535_allow_suite_chatgpt_identity_scopes.sql", import.meta.url
+  ), "utf8"));
   const owner = randomUUID();
   const canary = randomUUID();
   const unknown = randomUUID();
@@ -90,9 +93,22 @@ test("shared access-token hook", async (t) => {
     }
   });
 
+  await t.test("the ChatGPT identity grant and its refresh retain the link-only role and audience", async () => {
+    for (const [method, scope] of [[grant, "openid email offline_access"], ["token_refresh", "offline_access openid email"]]) {
+      const { claims } = await issue(method, { ...suiteClaims, scope });
+      assert.equal(claims?.role, "neckardt_apps_oauth");
+      assert.equal(claims.aud, suiteOrigin + "/functions/v1/neckardt-apps-mcp");
+      assert.equal(claims.sub, owner);
+      assert.equal(claims.email, "");
+      assert.equal(claims.phone, "");
+      assert.equal(Object.hasOwn(claims, "user_metadata"), false);
+    }
+  });
+
   await t.test("suite grants reject other identities, scopes, issuers and anonymous sessions", async () => {
     for (const method of [grant, "token_refresh"]) {
       for (const change of [{ sub: randomUUID() }, { scope: "openid email" }, { scope: undefined },
+        { scope: "openid offline_access" }, { scope: "openid email email" }, { scope: "openid email offline_access phone" },
         { iss: "https://other.example/auth/v1" }, { role: "service_role" }, { is_anonymous: true }]) {
         assertDenied(await issue(method, { ...suiteClaims, ...change }));
       }

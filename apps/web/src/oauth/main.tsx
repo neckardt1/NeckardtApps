@@ -67,9 +67,12 @@ function Consent() {
       : request ? <>
         <p><strong>{request.client.name}</strong> is requesting access as {request.user.email}.</p>
         <dl>
-          <dt>Requested permissions</dt><dd>{request.kind === 'suite'
-            ? 'Identify your account and get the link to Habit Practice.'
-            : request.scope}</dd>
+          <dt>Requested permissions</dt>
+          <dd>
+            {request.kind === 'suite' ? 'Identify your account and get the link to Habit Practice.' : request.scope}
+            {request.kind === 'suite' && request.scope !== 'openid' &&
+              <p>ChatGPT can read your email address and its verification status, and refresh this connection while you’re away.</p>}
+          </dd>
           <dt>Return address</dt><dd>{request.redirect_uri}</dd>
         </dl>
         <div className="decisions">
