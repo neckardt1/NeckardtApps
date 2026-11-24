@@ -1,13 +1,14 @@
 import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { SiteRoot } from '../shared/SiteRoot.tsx';
-import type { SessionApi, SessionUser } from '../shared/session.tsx';
-import { Launcher } from '../src/Launcher.tsx';
-import { App } from '../apps/recall/src/App.tsx';
-import type { RecallApi } from '../apps/recall/src/recall-api.ts';
-import type { DueCard, ReviewEvent } from '../apps/recall/src/review-session.ts';
-import type { Lock, Round } from '../apps/recall/src/durable-session.ts';
+import { SiteRoot } from '../src/shell/SiteRoot.tsx';
+import type { SessionApi, SessionUser } from '../src/shell/session.tsx';
+import { BrowserRouter } from 'react-router';
+import { AppRoutes } from '../src/AppRoutes.tsx';
+import { App } from '../src/apps/habit-practice/App.tsx';
+import type { RecallApi } from '../src/apps/habit-practice/recall-api.ts';
+import type { DueCard, ReviewEvent } from '../src/apps/habit-practice/review-session.ts';
+import type { Lock, Round } from '../src/apps/habit-practice/durable-session.ts';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const origin = 'https://cross-app.synthetic.invalid';
@@ -92,26 +93,23 @@ function fixture({ count = 2, send, due }: {
 }
 async function mount(page: 'launcher' | 'recall', auth: SessionApi, api: RecallApi, base = '/') {
   if (root) await act(async () => root!.unmount());
-  // Model the two real HTML documents: dispose the entire React tree, retain
-  // browser storage and the observed same-origin session, then mount the next.
   window.history.replaceState(null, '', `${base}${page === 'recall' ? 'recall/' : ''}`);
   root = createRoot(host);
   await act(async () => root!.render(<StrictMode>
-    <SiteRoot api={auth} appsHref={page === 'launcher' ? './' : '../'}>
-      {page === 'launcher' ? <Launcher /> : <App api={api} />}
-    </SiteRoot>
+    <BrowserRouter basename={base}><SiteRoot api={auth}>
+      <AppRoutes practice={<App api={api} />} />
+    </SiteRoot></BrowserRouter>
   </StrictMode>));
 }
-async function follow(page: 'launcher' | 'recall', auth: SessionApi, api: RecallApi, base = '/') {
+async function follow(page: 'launcher' | 'recall', base = '/') {
   const link = page === 'launcher'
     ? [...host.querySelectorAll<HTMLAnchorElement>('a')].find(el => el.textContent?.trim() === 'All apps')
     : host.querySelector<HTMLAnchorElement>('a.app-card');
   expect(link).toBeDefined();
   expect(link).not.toBeNull();
   expect(new URL(link!.href).pathname).toBe(`${base}${page === 'recall' ? 'recall/' : ''}`);
-  link!.addEventListener('click', event => event.preventDefault(), { once: true });
   await act(async () => link!.click());
-  await mount(page, auth, api, base);
+  expect(window.location.pathname).toBe(new URL(link!.href).pathname);
 }
 
 beforeEach(() => {
@@ -140,11 +138,11 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(before.saves).toHaveLength(1);
   expect(before.saves[0].status).toBe('pending');
   expect(f.calls).toHaveLength(1);
-  await tap('Apps'); await follow('launcher', f.auth.api, f.api, base);
+  await tap('Apps'); await follow('launcher', base);
   expect(host.textContent).toContain('Your apps');
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(before);
-  await follow('recall', f.auth.api, f.api, base);
+  await follow('recall', base);
   expect(f.auth.listeners.size).toBe(1);
   expect(button('Resume review')).toBeDefined();
   expect(host.textContent).not.toContain(`${firstOwner.id} answer 2`);
@@ -167,7 +165,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   await mount('recall', f.auth.api, f.api);
   await tap('Start review'); await tap('Reveal answer'); await tap('Hard'); await tap('Reveal answer');
   const original = stored()!;
-  await tap('Apps'); await follow('launcher', f.auth.api, f.api);
+  await tap('Apps'); await follow('launcher');
   expect(button('Sign out')).toBeUndefined();
   await tap('Account'); await tap('Sign out');
   expect(f.auth.api.signOut).toHaveBeenCalledTimes(1);
@@ -180,7 +178,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(stored()).toEqual(original);
 
   await signIn(otherOwner);
-  await follow('recall', f.auth.api, f.api);
+  await follow('recall');
   expect(button('Start review')).toBeDefined();
   expect(button('Resume review')).toBeUndefined();
   await tap('Start review'); await tap('Reveal answer');
@@ -249,8 +247,8 @@ test('unverified final save survives navigation, retries one original event, and
   await act(async () => hold.resolve());
   expect(stored()?.saves[0].status).toBe('failed');
   expect(button('Finish')?.disabled).toBe(true);
-  await tap('Apps'); await follow('launcher', f.auth.api, f.api);
-  await follow('recall', f.auth.api, f.api); await tap('Resume review');
+  await tap('Apps'); await follow('launcher');
+  await follow('recall'); await tap('Resume review');
   expect(stored()?.finished).toBe(false);
   expect(button('Finish')?.disabled).toBe(true);
   await tap('Retry save');
@@ -264,8 +262,8 @@ test('unverified final save survives navigation, retries one original event, and
   await tap('Finish');
   expect(host.textContent).toContain('Saved.');
   expect(stored()?.finished).toBe(true);
-  await tap('Apps'); await follow('launcher', f.auth.api, f.api);
-  await follow('recall', f.auth.api, f.api);
+  await tap('Apps'); await follow('launcher');
+  await follow('recall');
   expect(host.textContent).toContain('Saved.');
   expect(button('Resume review')).toBeUndefined();
   expect(f.calls).toHaveLength(2);

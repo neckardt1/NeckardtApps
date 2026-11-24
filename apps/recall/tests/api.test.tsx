@@ -3,8 +3,8 @@ const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invoke: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({
   rpc: mocks.rpc, functions: { invoke: mocks.invoke }, auth: {}
 }) }));
-import { makeRecallApi, type ActionEvent } from "../src/recall-api.ts";
-import type { ReviewEvent } from "../src/review-session.ts";
+import { makeRecallApi, type ActionEvent } from "../../../src/apps/habit-practice/recall-api.ts";
+import type { ReviewEvent } from "../../../src/apps/habit-practice/review-session.ts";
 const api = makeRecallApi({ url: "https://fixture.supabase.co", publishableKey: "fixture" });
 const event: ReviewEvent = { review_id: "review", card_id: "card", revision: 2, grade: "medium", reviewed_at: "2026-11-22T00:00:00.000Z" };
 const saved = { review_id: "review", card_id: "card", revision: 3, due_at: "2026-11-22T00:10:00.000Z" };

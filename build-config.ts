@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { readPublicSupabaseConfig } from "./shared/browser-auth.mts";
+import { readPublicSupabaseConfig } from "./src/shell/browser-auth.mts";
 
 export function loadPublicBuildConfig() {
   const defaults: unknown = JSON.parse(readFileSync(new URL("./public-config.json", import.meta.url), "utf8"));

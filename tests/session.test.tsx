@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sdkFactory = vi.hoisted(() => vi.fn());
 vi.mock('@supabase/supabase-js', () => ({ createClient: (...args: unknown[]) => sdkFactory(...args) }));
-import { makeSiteSessionApi, SessionProvider, useSiteSession, type SessionApi, type SessionUser, type SiteSession } from '../shared/session';
+import { makeSiteSessionApi, SessionProvider, useSiteSession, type SessionApi, type SessionUser, type SiteSession } from '../src/shell/session';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 function deferred<T>() {

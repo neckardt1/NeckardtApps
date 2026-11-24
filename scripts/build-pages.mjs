@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,4 +25,5 @@ if (env.VITE_CANARY_USER_DIGEST && !sha256Hex.test(env.VITE_CANARY_USER_DIGEST))
 }
 await mkdir(out);
 execFileSync(process.execPath, [vite, "build", "--emptyOutDir", "--outDir", out], { cwd: repo, stdio: "inherit", env });
-console.log("Built Apps and Habit Practice page entries.");
+await copyFile(join(repo, "404.html"), join(out, "404.html"));
+console.log("Built the apps SPA, GitHub Pages fallback, and OAuth consent page.");

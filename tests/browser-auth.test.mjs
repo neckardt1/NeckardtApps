@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeSiteClientGetter, readPublicSupabaseConfig } from "../shared/browser-auth.mts";
+import { makeSiteClientGetter, readPublicSupabaseConfig } from "../src/shell/browser-auth.mts";
 
 // Retained from the removed Recall UI suite: shared auth is still available
 // for future apps, but neither offline HTML entry loads it.

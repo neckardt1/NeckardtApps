@@ -1,10 +1,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { SiteRoot } from "../shared/SiteRoot.tsx";
-import { Launcher } from "../src/Launcher.tsx";
-import { apps, type AppsHref } from "../shared/apps.ts";
-import type { SessionApi, SessionUser } from "../shared/session.tsx";
+import { SiteRoot } from "../src/shell/SiteRoot.tsx";
+import { Launcher } from "../src/shell/Launcher.tsx";
+import { MemoryRouter } from "react-router";
+import type { SessionApi, SessionUser } from "../src/shell/session.tsx";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let target: HTMLDivElement;
@@ -34,8 +34,10 @@ function session(initial?: SessionUser | null) {
   };
   return { api, emit: (user: SessionUser | null) => change(user), fail: (error: unknown) => failure(error) };
 }
-async function mount(api: SessionApi | null, appsHref: AppsHref = "./") {
-  await act(async () => root.render(<SiteRoot api={api} appsHref={appsHref}><Launcher appsHref={appsHref} /></SiteRoot>));
+async function mount(api: SessionApi | null, base = "/") {
+  await act(async () => root.render(<MemoryRouter key={base} basename={base} initialEntries={[base]}>
+    <SiteRoot api={api}><Launcher /></SiteRoot>
+  </MemoryRouter>));
 }
 function button(name: string) {
   const result = [...target.querySelectorAll("button")].find(element => element.textContent === name);
@@ -52,7 +54,7 @@ function assertPublicLauncher() {
   expect(target.querySelector("h1")?.textContent).toBe("Your apps");
   expect(target.querySelector(".app-name")?.textContent).toBe("Habit Practice");
   expect(target.querySelector(".app-status")?.textContent).toBe("Open");
-  expect(target.querySelector(".app-card")?.getAttribute("href")).toBe("./recall/");
+  expect(target.querySelector(".app-card")?.getAttribute("href")).toBe("/recall/");
 }
 
 test("the launcher remains public while account loading, signed out, failed, or unavailable", async () => {
@@ -145,18 +147,9 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
   assertPublicLauncher();
 });
 
-test("the shared registry and explicit relative app base support both ordinary page depths", async () => {
-  expect(apps).toEqual([{ id: "recall", name: "Habit Practice", path: "recall/", description: "A little practice, every day." }]);
-  for (const appsHref of ["./", "../"] as const) {
-    await mount(null, appsHref);
-    await tap("Apps");
-    const all = target.querySelector<HTMLAnchorElement>(".popover-link")!;
-    const item = target.querySelector<HTMLAnchorElement>(".app-menu-link")!;
-    for (const prefix of ["/", "/NeckardtApps/"]) {
-      const location = `https://example.invalid${prefix}${appsHref === "../" ? "future/" : ""}index.html`;
-      expect(new URL(all.getAttribute("href")!, location).pathname).toBe(prefix);
-      expect(new URL(item.getAttribute("href")!, location).pathname).toBe(prefix + "recall/");
-    }
-    await escape();
-  }
+test.each(["/", "/NeckardtApps/"])("the Apps menu links stay inside the site at %s", async base => {
+  await mount(null, base);
+  await tap("Apps");
+  expect(target.querySelector(".popover-link")?.getAttribute("href")).toBe(base);
+  expect(target.querySelector(".app-menu-link")?.getAttribute("href")).toBe(base + "recall/");
 });

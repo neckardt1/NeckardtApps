@@ -14,6 +14,6 @@
     "types": []
   },
   "include": [
-    "../../shared/browser-auth.mts"
+    "../../src/shell/browser-auth.mts"
   ]
 }

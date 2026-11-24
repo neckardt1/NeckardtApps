@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { grades, type Grade } from './review-session.ts';
 import { RecallApiError, type ActionEvent, type RecallApi } from './recall-api.ts';
 import { allAnswered, currentKey, makeDurableSession, verified, type DurableSession, type Round } from './durable-session.ts';
-import { useSiteSession } from '../../../shared/session.tsx';
+import { useSiteSession } from '../../shell/session.tsx';
 import { FormattedText } from './FormattedText.tsx';
 
 const gradeLabels = ['Again', 'Hard', 'Good', 'Easy'];

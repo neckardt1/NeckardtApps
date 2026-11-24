@@ -11,8 +11,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         apps: fileURLToPath(new URL("./index.html", import.meta.url)),
-        consent: fileURLToPath(new URL("./oauth/consent/index.html", import.meta.url)),
-        recall: fileURLToPath(new URL("./recall/index.html", import.meta.url))
+        consent: fileURLToPath(new URL("./oauth/consent/index.html", import.meta.url))
       }
     }
   }

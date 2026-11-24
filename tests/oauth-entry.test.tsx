@@ -2,7 +2,7 @@ import { act } from 'react';
 import type { Root } from 'react-dom/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, expect, test, vi } from 'vitest';
-import type { Round } from '../apps/recall/src/durable-session.ts';
+import type { Round } from '../src/apps/habit-practice/durable-session.ts';
 
 const captured = vi.hoisted(() => ({ clients: [] as SupabaseClient[], roots: [] as Root[] }));
 // Capture cleanup handles, but run the actual SDK and actual React entry.
@@ -18,8 +18,8 @@ vi.mock('react-dom/client', async importOriginal => {
     const root = original.createRoot(...args); captured.roots.push(root); return root;
   } };
 });
-import { getSiteClient } from '../shared/site-client';
-import { makeSiteSessionApi } from '../shared/session';
+import { getSiteClient } from '../src/shell/site-client';
+import { makeSiteSessionApi } from '../src/shell/session';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let stopAccount = () => {};
