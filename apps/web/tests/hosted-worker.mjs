@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { readdir } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { readFixtureSettings } from "@neckardt/backend/fixture-settings";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
@@ -105,9 +107,29 @@ export async function smoke(workers) {
   }
 }
 
+export async function loadScenario(name) {
+  const directory = new URL("./hosted-scenarios/", import.meta.url);
+  const files = await readdir(directory);
+  if (!files.includes(name + ".mjs")) {
+    const names = files.filter(file => file.endsWith(".mjs")).map(file => file.slice(0, -4));
+    throw Error(`Unknown hosted scenario "${name}". Available: ${names.join(", ")}.`);
+  }
+  const module = await import(new URL(encodeURIComponent(name) + ".mjs", directory));
+  if (typeof module.default !== "function") throw Error(`Hosted scenario "${name}" must export a default function.`);
+  return module.default;
+}
+
 async function main() {
   // Playwright API debug logs can include password-field input.
   if (process.env.DEBUG || process.env.PWDEBUG) throw Error("Disable debug logging before opening a fixture session.");
+  const { values: { pair, watch, scenario } } = parseArgs({
+    options: {
+      pair: { type: "boolean" },
+      watch: { type: "boolean" },
+      scenario: { type: "string" }
+    }
+  });
+  const featureCheck = scenario === undefined ? undefined : await loadScenario(scenario);
   const { config, fixtureKey } = hostedConfig(process.env);
   const provision = async password => {
     const response = await fetch(config.url + "/functions/v1/provision-worker", {
@@ -133,15 +155,16 @@ async function main() {
         username: decodeURIComponent(address.username), password: decodeURIComponent(address.password) };
     }
     browser = await chromium.launch(launch);
-    const count = process.argv.includes("--pair") ? 2 : 1;
+    const count = pair ? 2 : 1;
     const workers = await Promise.all(Array.from({ length: count }, () => openWorker(browser, origin, config, provision)));
     console.log(`${count} fixture session(s) ready in ${Math.round(performance.now() - started)} ms.`);
     async function run() {
       const start = performance.now();
-      await smoke(workers);
-      console.log(`Saved and verified in ${Math.round(performance.now() - start)} ms.`);
+      if (pair || !featureCheck) await smoke(workers);
+      if (featureCheck) await featureCheck(workers[0]);
+      console.log(`${scenario ?? "Smoke"} passed in ${Math.round(performance.now() - start)} ms.`);
     }
-    if (process.argv.includes("--watch")) {
+    if (watch) {
       const input = createInterface({ input: process.stdin });
       try {
         const check = () => run().catch(error => console.error(error.message));

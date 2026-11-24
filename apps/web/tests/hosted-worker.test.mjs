@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadPublicBuildConfig } from "../build-config.ts";
-import { hostedConfig } from "./hosted-worker.mjs";
+import { hostedConfig, loadScenario } from "./hosted-worker.mjs";
 
 test("the fixture key defaults to the checked-in project and binds explicitly to an alternate", () => {
   const shared = loadPublicBuildConfig({});
@@ -50,4 +50,10 @@ test("existing environments can migrate each settings pair without mixing projec
   assert.throws(() => hostedConfig({ ...legacy, NECKARDT_APPS_SUPABASE_URL: current.NECKARDT_APPS_SUPABASE_URL }), /Set both/);
   assert.throws(() => hostedConfig({ ...legacy, NECKARDT_APPS_FIXTURE_PROJECT_REF: oldRef }), /NECKARDT_APPS_FIXTURE_KEY/);
   assert.throws(() => hostedConfig({ ...legacy, NECKARDT_APPS_FIXTURE_KEY: "new-placeholder" }), /NECKARDT_APPS_FIXTURE_PROJECT_REF/);
+});
+
+test("select a named hosted check without falling back to smoke on a typo", async () => {
+  const example = await import("./hosted-scenarios/reveal-answer.mjs");
+  assert.equal(await loadScenario("reveal-answer"), example.default);
+  await assert.rejects(loadScenario("missing-check"), /Unknown hosted scenario.*reveal-answer/);
 });
