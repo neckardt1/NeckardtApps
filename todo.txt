@@ -1,0 +1,12 @@
+TODO: One NeckardtApps OAuth connection for ChatGPT
+Status: planned; do not start yet.
+
+Keep the existing Supabase sign-in and separate OAuth consent page. Start with
+Habit Practice completion summaries only. New apps and tools grant no access
+by default.
+
+Test first with a separate staging client and synthetic data. Verify that the
+client can subscribe to completions, but cannot read cards or submit grades.
+For production, ask for fresh consent before sharing real review summaries.
+Keep the synthetic canary available for rollback until the first live debrief
+works.
