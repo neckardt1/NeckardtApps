@@ -35,7 +35,11 @@ const snapshot = (storage: Storage) => Object.fromEntries(
   Array.from({ length: storage.length }, (_, index) => storage.key(index)!).sort().map(key => [key, storage.getItem(key)])
 );
 
-test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in user and preserves Account identity', async kind => {
+test.each([
+  { kind: 'canary', scope: 'openid' },
+  { kind: 'suite', scope: 'openid' },
+  { kind: 'suite', scope: 'openid email offline_access' }
+])('the $kind entry explains and approves $scope while preserving Account identity', async ({ kind, scope }) => {
   vi.resetModules();
   const { getSiteClient } = await import('../src/shell/site-client');
   const { makeSiteSessionApi } = await import('../src/shell/session');
@@ -89,7 +93,7 @@ test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in 
     expect(bearer).toBe('Bearer synthetic-consent-access');
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}` && init?.method === 'GET') {
       return Response.json({ authorization_id: authorizationId, user: member, client: { id: clientId, name: kind === 'suite' ? 'Neckardt Apps MCP' : 'Synthetic canary' },
-        scope: 'openid', redirect_uri: callback });
+        scope, redirect_uri: callback });
     }
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}/consent` && init?.method === 'POST') {
       expect(body).toEqual({ action: 'approve' });
@@ -118,6 +122,8 @@ test.each(['canary', 'suite'] as const)('the %s entry approves as the signed-in 
   expect(host.textContent).toContain('Allow access?');
   expect(host.textContent).toContain(member.email);
   if (kind === 'suite') expect(host.textContent).toContain('get the link to Habit Practice');
+  expect(host.textContent?.includes('email address and its verification status')).toBe(scope.includes('email'));
+  expect(host.textContent?.includes('refresh this connection')).toBe(scope.includes('offline_access'));
   expect(calls.map(call => call.path)).toEqual([
     '/auth/v1/token?grant_type=password', `/auth/v1/oauth/authorizations/${authorizationId}`
   ]);

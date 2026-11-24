@@ -53,7 +53,12 @@ export async function openRequest(auth: Auth, id: string, connections: readonly 
     throw new Error('This request does not match a registered connection.');
   if (connection.kind === 'canary' && await ownerDigest(user.id) !== connection.userDigest)
     throw new Error('Sign in with the account authorized for the Recall canary.');
-  if (data.scope !== 'openid') throw new Error('This connection supports only the openid scope.');
+  if (data.scope !== 'openid') {
+    if (connection.kind === 'canary') throw new Error('This connection supports only the openid scope.');
+    // ChatGPT can add identity and refresh scopes to the suite's base openid request.
+    if (typeof data.scope !== 'string' || data.scope.split(' ').sort().join(' ') !== 'email offline_access openid')
+      throw new Error('Neckardt Apps does not support the permissions in this request.');
+  }
   return { ...data, kind: connection.kind };
 }
 

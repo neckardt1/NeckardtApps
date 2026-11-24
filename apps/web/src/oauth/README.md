@@ -1,7 +1,7 @@
 # OAuth consent
 
 The page at `/oauth/consent/` asks Supabase for the request details after sign-in. It matches the
-registered client ID, exact callback, signed-in account and `openid` scope before showing Allow
+registered client ID, exact callback, signed-in account and permitted scopes before showing Allow
 and Deny. Its session is held in memory, separate from the site's Account session.
 
 ## Neckardt Apps MCP
@@ -10,7 +10,13 @@ Any signed-in, non-anonymous project user can authorize the Habit Practice link 
 hook keeps that user's subject on issue and refresh and binds the token to the suite MCP endpoint.
 The connector can return the link regardless of the user's separate Habit Practice enrollment.
 
-For rollout, apply the reviewed `authorize_neckardt_apps_mcp` migration. Set the public
+The suite accepts `openid` alone or the exact set `openid email offline_access` that ChatGPT
+requests. For the latter, consent covers access to email and verification status through Supabase
+OIDC and permission to refresh the connection. The MCP access token retains its link-only role and
+audience. The canary consent page accepts only `openid`.
+
+For rollout, apply the reviewed `authorize_neckardt_apps_mcp` and
+`allow_suite_chatgpt_identity_scopes` migrations. Set the public
 `NECKARDT_APPS_OAUTH_CLIENT_ID` to the registered suite client ID in the MCP function's environment
 and in GitHub Actions repository variables. Set the Actions variable `NECKARDT_APPS_OAUTH_CALLBACK_URL`
 to the exact redirect shown on the ChatGPT suite connection and registered in Supabase. Deploy Pages,
