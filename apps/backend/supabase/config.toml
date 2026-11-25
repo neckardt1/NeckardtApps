@@ -9,3 +9,7 @@ verify_jwt = false
 [functions.provision-worker]
 # The provisioning credential is checked before any Auth admin operation.
 verify_jwt = false
+
+[functions.neckardt-apps-mcp]
+# The function verifies the OAuth token on protected tool calls.
+verify_jwt = false
