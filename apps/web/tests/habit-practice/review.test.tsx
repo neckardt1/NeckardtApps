@@ -249,3 +249,33 @@ test('a cached server round keeps its server event IDs when the backend becomes 
   const saved = JSON.parse(localStorage.getItem('recall.round.v3.https://fixture.invalid.owner')!);
   expect(saved.cards[0].event_id).toBe('server-event');
 });
+
+test.each([false, true])('one-round debrief requires an explicit click from a Dot link (fromDot=%s)', async fromDot => {
+  const item: RoundItem = {
+    round_id: 'round-A', event_id: 'event-A', item_kind: 'review', paired_action: false,
+    position: 0, card_id: 'A', revision: 0, front: 'Question', back: 'Answer',
+    opportunity_id: null, due_at: null, answer: null, answered_at: null, finished_at: null
+  };
+  const armDebrief = vi.fn(async (_id: string) => {});
+  const client = api({ armDebrief, rounds: {
+    latest: async () => [item], open: async () => [item], finish: async () => []
+  } });
+  await act(async () => root.render(<ReviewFixture api={client} sessionApi={session.api}
+    entry={fromDot ? '/recall/?dot=1' : '/recall/'} />));
+  expect(armDebrief).not.toHaveBeenCalled();
+  if (fromDot) {
+    armDebrief.mockRejectedValueOnce(new Error('No listener'));
+    await tap('Request Dot debrief');
+    expect(target.textContent).toContain('Could not confirm');
+    expect(button('Start review')?.disabled).toBe(false);
+    await tap('Request Dot debrief');
+    expect(armDebrief.mock.calls).toEqual([['round-A'], ['round-A']]);
+    expect(button('Request Dot debrief')).toBeUndefined();
+    expect(target.textContent).toContain('Debrief requested for this round.');
+  } else {
+    expect(button('Request Dot debrief')).toBeUndefined();
+  }
+  await tap('Start review');
+  expect(target.textContent).toContain('Question');
+  expect(armDebrief).toHaveBeenCalledTimes(fromDot ? 2 : 0);
+});

@@ -24,8 +24,8 @@ export function makeSessionFixture(initialOwner: string | null | undefined = 'ow
   return { api, emit, fail() { for (const observer of observers) observer.error?.(new Error('Synthetic session failure')); } };
 }
 
-export function ReviewFixture({ api, sessionApi }: { api: RecallApi | null; sessionApi: SessionApi | null }) {
-  return <MemoryRouter initialEntries={["/recall/"]}>
+export function ReviewFixture({ api, sessionApi, entry = "/recall/" }: { entry?: string; api: RecallApi | null; sessionApi: SessionApi | null }) {
+  return <MemoryRouter initialEntries={[entry]}>
     <SiteRoot api={sessionApi}><App api={api} /></SiteRoot>
   </MemoryRouter>;
 }
