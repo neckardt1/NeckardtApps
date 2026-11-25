@@ -256,14 +256,17 @@ test.each([false, true])('one-round debrief requires an explicit click from a Do
     position: 0, card_id: 'A', revision: 0, front: 'Question', back: 'Answer',
     opportunity_id: null, due_at: null, answer: null, answered_at: null, finished_at: null
   };
+  const receipt = { ...item, answer: "medium", answered_at: new Date().toISOString() };
   const armDebrief = vi.fn(async (_id: string) => {});
   const client = api({ armDebrief, rounds: {
-    latest: async () => [item], open: async () => [item], finish: async () => []
+    latest: async () => [item], open: async () => [item],
+    finish: async () => [{ ...receipt, finished_at: new Date().toISOString() }]
   } });
   await act(async () => root.render(<ReviewFixture api={client} sessionApi={session.api}
     entry={fromDot ? '/recall/?dot=1' : '/recall/'} />));
   expect(armDebrief).not.toHaveBeenCalled();
   if (fromDot) {
+    expect(target.textContent).toContain("card prompts, answers, grades, review times and due dates");
     armDebrief.mockRejectedValueOnce(new Error('No listener'));
     await tap('Request Dot debrief');
     expect(target.textContent).toContain('Could not confirm');
@@ -277,5 +280,7 @@ test.each([false, true])('one-round debrief requires an explicit click from a Do
   }
   await tap('Start review');
   expect(target.textContent).toContain('Question');
+  await tap('Reveal answer'); await tap('Good'); await tap('Finish');
+  expect(target.textContent).toContain('Saved.');
   expect(armDebrief).toHaveBeenCalledTimes(fromDot ? 2 : 0);
 });

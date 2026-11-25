@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { chromium } from "playwright-core";
 import * as fsrs from "ts-fsrs";
 import { gradeHandler, schedulerFor } from "../../backend/supabase/functions/recall-grade/grade.ts";
 
+import { createEvents } from "../../backend/supabase/functions/neckardt-apps-mcp/apps/habit-practice/events.ts";
+import { getHabitPracticeLink } from "../../backend/supabase/functions/neckardt-apps-mcp/apps/habit-practice/tools.ts";
+
 const migrations = new URL("../../backend/supabase/migrations/", import.meta.url);
-const userRpcs = new Set(["recall_latest_round", "recall_open_round", "recall_finish_round",
+const userRpcs = new Set(["habit_notify_arm", "recall_latest_round", "recall_open_round", "recall_finish_round",
   "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
 
 async function bootstrap(db) {
@@ -19,6 +22,13 @@ async function bootstrap(db) {
       select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
     $$;
     grant usage on schema auth to anon,authenticated,service_role;
+    create schema vault; create table vault.decrypted_secrets(name text, decrypted_secret text);
+    insert into vault.decrypted_secrets values
+      ('habit_notify_dispatch_url','https://fixture.supabase.co/functions/v1/neckardt-apps-mcp/deliver'),
+      ('habit_notify_dispatch_secret',repeat('x',32));
+    create schema net; create table net.requests(body jsonb);
+    create function net.http_post(url text, body jsonb, headers jsonb, timeout_milliseconds integer)
+      returns bigint language sql as $$ insert into net.requests values(body); select 1::bigint $$;
   `);
   for (const file of (await readdir(migrations)).filter(f => f.endsWith(".sql")).sort()) {
     await db.exec(await readFile(new URL(file, migrations), "utf8"));
@@ -29,14 +39,16 @@ async function bootstrap(db) {
 // the grading handler, FSRS and the compiled UI all run their production code.
 async function rpc(db, owner, name, args = {}) {
   const columns = Object.keys(args);
-  assert(columns.every(k => /^p_[a-z_]+$/.test(k)));
+  assert(columns.every(k => /^p_[a-z_]+$/.test(k) ||
+    name === "habit_notify_arm" && ["round_id","share_items"].includes(k)));
   const signature = columns.map((c, i) => c + " => $" + (i + 1)).join(",");
   const sql = "select * from public." + name + "(" + signature + ")";
   const rows = await db.transaction(async tx => {
     if (owner) {
       assert(userRpcs.has(name));
       await tx.exec("set local role authenticated");
-      await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [owner]);
+      await tx.query("select set_config('request.jwt.claim.sub',$1,true), set_config('request.jwt.claims',$2,true)",
+        [owner, JSON.stringify({ sub:owner, role:"authenticated", aud:"authenticated", is_anonymous:false })]);
     } else {
       assert(["recall_prepare_answer", "recall_commit_answer"].includes(name));
       await tx.exec("set local role service_role");
@@ -141,7 +153,7 @@ async function openBrowser(browser, origin, remote, db, owner, fault = {}) {
         fault.finished = args.p_round_id;
       }
       let result = rows;
-      if (name === "recall_record_action") result = rows[0].recall_record_action;
+      if (["recall_record_action","habit_notify_arm"].includes(name)) result = rows[0][name];
       if (req.headers().accept?.includes("vnd.pgrst.object")) {
         assert.equal(rows.length, 1);
         result = rows[0];
@@ -154,8 +166,36 @@ async function openBrowser(browser, origin, remote, db, owner, fault = {}) {
   });
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
-  await page.goto(origin + "/recall/");
+  const link = new URL(getHabitPracticeLink(fault.fromDot).structuredContent.url);
+  await page.goto(origin + link.pathname + link.search);
   return { context, page };
+}
+
+async function subscribeToDebrief(db, owner) {
+  const messages = [];
+  const dispatch = "x".repeat(32);
+  const events = createEvents(async (action, payload) => db.transaction(async tx => {
+    await tx.exec("set local role service_role");
+    const { rows: [row] } = await tx.query("select public.habit_notify_rpc($1,$2) as value", [action,payload]);
+    return row.value;
+  }), dispatch, async (_url, post) => {
+    const message = JSON.parse(post.body);
+    if (message.type === "verification") return {status:200,body:JSON.stringify({challenge:message.challenge})};
+    messages.push(message);
+    return {status:200,body:""};
+  });
+  await events.handle("events/subscribe", {name:"habit.practice.round.completed", arguments:{},
+    delivery:{mode:"webhook", url:"https://connectors.api.openai.com/fixture",
+      secret:"whsec_" + randomBytes(32).toString("base64")}}, owner);
+  return async () => {
+    const { rows } = await db.query("select body from net.requests");
+    assert.equal(rows.length, 1);
+    const result = await events.deliver(new Request("https://fixture.invalid/deliver", {method:"POST",
+      headers:{Authorization:"Bearer " + dispatch}, body:JSON.stringify(rows[0].body)}));
+    assert.equal(result.status, 204);
+    assert.equal(messages.length, 1);
+    return messages[0].data;
+  };
 }
 
 export async function checkPairedHabit(origin, remote) {
@@ -170,10 +210,15 @@ export async function checkPairedHabit(origin, remote) {
     for (const outcome of ["Yes", "No", "No opportunity"]) {
       const checkRetry = outcome === "Yes";
       const { owner, cue, action } = await seed(db, checkRetry);
-      const fault = { errors: [], duplicateFinish: true, actionAttempts: checkRetry ? [] : undefined };
+      const collectDebrief = checkRetry ? await subscribeToDebrief(db, owner) : null;
+      const fault = { errors: [], fromDot:checkRetry, duplicateFinish: true, actionAttempts: checkRetry ? [] : undefined };
       const { page, context } = await openBrowser(browser, origin, remote, db, owner, fault);
       const click = label => page.getByRole("button", { name: label, exact: true }).click();
       try {
+        if (collectDebrief) {
+          await click("Request Dot debrief");
+          await page.getByText("Debrief requested for this round.", {exact:true}).waitFor();
+        }
         await click("Start review");
         await click(outcome);
         if (checkRetry) {
@@ -220,6 +265,13 @@ export async function checkPairedHabit(origin, remote) {
       assert.equal(events[0].review_count, checkRetry ? 1 : 0);
       assert.equal(events[0].action_count, 1);
       if (checkRetry) {
+        const data = await collectDebrief();
+        assert.equal(data.round_id, fault.finished);
+        assert.deepEqual(data.items.map(i => [i.card_name,i.front,i.back,i.answer,i.grade]), [
+          ["Did it happen?","Did you do it this time?",null,"yes","medium"],
+          ["What follows the cue?","What follows the cue?","Practice the habit.","medium","medium"]
+        ]);
+        assert.equal(Date.parse(data.items[0].next_due_at), reviews[0].due_at.getTime());
         const second = await openBrowser(browser, origin, remote, db, owner);
         await second.page.getByRole("heading", { name: "Saved." }).waitFor();
         assert.match(await second.page.locator("body").innerText(), /1 habit check.*1 card reviewed/);

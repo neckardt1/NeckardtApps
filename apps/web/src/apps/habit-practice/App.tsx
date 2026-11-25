@@ -239,7 +239,7 @@ export function App({ api }: { api: RecallApi | null }) {
         {fromDot && !loading && round?.server && !round.finished && hasWork && api.armDebrief &&
           (screen === 'today' || allAnswered(round)) && <div className="save-messages">
             {armed ? <p className="status" role="status">Debrief requested for this round.</p> : <>
-              <p className="status">Share only this round’s counts with your connected Dot when you finish.</p>
+              <p className="status">Share this round’s card prompts, answers, grades, review times and due dates with your connected Dot when you finish.</p>
               <button className="text-button" disabled={busy} onClick={() => void armDebrief()}>Request Dot debrief</button>
             </>}
           </div>}

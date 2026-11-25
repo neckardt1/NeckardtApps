@@ -105,7 +105,12 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.deepEqual((await call("initialize",{protocolVersion:"2025-11-25",capabilities:{},
       clientInfo:{name:"fixture",version:"1"}})).result.capabilities.events,{});
     assert.ok((await call("server/discover",{})).result.capabilities.events);
-    assert.equal((await call("events/list",{})).result.events[0].name,name);
+    const [definition] = (await call("events/list", {})).result.events;
+    assert.equal(definition.name, name);
+    const item = definition.payloadSchema.properties.items.items;
+    assert.deepEqual(item.required.sort(), ["answer","answered_at","back","card_id","card_name","due_at",
+      "front","grade","item_kind","next_due_at","position"].sort());
+    assert.equal(definition.payloadSchema.required.includes("items"), false);
     const debriefLink = await call("tools/call",{name:"get_habit_practice_link",arguments:{debrief:true}},auth);
     assert.equal(debriefLink.result.structuredContent.url,"https://apps.neckardt.com/recall/?dot=1");
     const params = {name,arguments:{},delivery:{mode:"webhook",url,secret}};

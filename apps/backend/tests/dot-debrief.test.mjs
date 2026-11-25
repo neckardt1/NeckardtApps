@@ -1,18 +1,20 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-test("only a first-party opted-in round can deliver its numeric summary, once", async () => {
+import { createEvents } from "../supabase/functions/neckardt-apps-mcp/apps/habit-practice/events.ts";
+
+test("only an authorized round delivers the requested detail level, once", async t => {
   const db = new PGlite();
   const query = async (sql, args = []) => (await db.query(sql, args)).rows;
   const scalar = async (sql, args = []) => Object.values((await query(sql, args))[0])[0];
   const owner = randomUUID();
   const other = randomUUID();
   const round = randomUUID();
-  const secret = "synthetic webhook secret";
-  const subscription = { owner_id: owner, id: "test-sub", url: "https://example.test/callback",
+  const secret = "whsec_" + randomBytes(32).toString("base64");
+  const subscription = { owner_id: owner, id: "test-sub", url: "https://connectors.api.openai.com/fixture",
     secret, expires_at: new Date(Date.now() + 600000).toISOString() };
   const rpc = (action, payload) => scalar("select public.habit_notify_rpc($1,$2)", [action, payload]);
   const admin = () => db.exec("reset role");
@@ -46,7 +48,10 @@ test("only a first-party opted-in round can deliver its numeric summary, once", 
           insert into net.requests values(body); return 1;
         end $$;`);
     const migrations = new URL("../supabase/migrations/", import.meta.url);
-    for (const name of (await readdir(migrations)).filter(name => name.endsWith(".sql")).sort()) {
+    const files = (await readdir(migrations)).filter(name => name.endsWith(".sql")).sort();
+    const detailMigration = files.findIndex(name => name.endsWith("_round_debrief_items.sql"));
+    assert.ok(detailMigration > 0);
+    for (const name of files.slice(0, detailMigration)) {
       await db.exec(await readFile(new URL(name, migrations), "utf8"));
     }
     for (const who of [owner, other]) {
@@ -72,6 +77,10 @@ test("only a first-party opted-in round can deliver its numeric summary, once", 
     await finish(round);
     await assert.rejects(arm(round), { code:"42501" });
     await admin();
+    // An already-queued delivery must keep the promise made by the older UI.
+    for (const name of files.slice(detailMigration)) {
+      await db.exec(await readFile(new URL(name, migrations), "utf8"));
+    }
     const [request] = await query("select body from net.requests");
     const delivery = request.body;
     assert.deepEqual(Object.keys(delivery), ["delivery_id"]);
@@ -117,6 +126,91 @@ test("only a first-party opted-in round can deliver its numeric summary, once", 
     assert.equal(await scalar("select count(*)::integer from flashcards_private.round_completions"), 3);
     assert.equal(await scalar("select state from habit_notify.deliveries where round_id=$1", [missingConfig]), "failed");
     assert.equal(await scalar("select count(*)::integer from net.requests"), 1);
+
+    await t.test("Finish sends ordered snapshots and only the dates assigned by this round", async () => {
+      await query("insert into vault.decrypted_secrets values ('habit_notify_dispatch_url',$1), ('habit_notify_dispatch_secret',repeat('x',32))",
+        ["https://fixture.supabase.co/functions/v1/neckardt-apps-mcp/deliver"]);
+      const roundId = randomUUID();
+      const recall = randomUUID(), paired = randomUUID(), skipped = randomUUID(), retired = randomUUID();
+      const originalDue = "2026-01-01T00:00:00+00:00";
+      const at = new Date().toISOString();
+      const nextDue = new Date(Date.now() + 86400000).toISOString();
+      const card = (id, kind, name, cue = null) => query(`insert into flashcards_private.cards
+        (id,owner_id,kind,front,back,due_at,cue_card_id) values ($1,$2,$3,$4,'Expected answer',$5,$6)`,
+        [id, owner, kind, name, originalDue, cue]);
+      await card(recall, "habit-recall", "Recall the cue");
+      await card(paired, "habit-action", "Take a walk", recall);
+      await card(skipped, "habit-action", "Skipped habit");
+      await card(retired, "fact", "Retired during round");
+      for (const [id, prompt] of [[paired,"Did you walk?"], [skipped,"Did you practice?"]])
+        await query(`insert into flashcards_private.action_opportunities
+          (owner_id,card_id,prompt,cue,available_at) values ($1,$2,$3,'After lunch',now()-interval '1 hour')`,
+          [owner,id,prompt]);
+      // A second owner may legitimately use the very same client-chosen round ID.
+      await open(other, roundId);
+      await query(`insert into flashcards_private.round_items
+        (owner_id,round_id,position,item_kind,card_id,revision,front,back,paired_action)
+        values ($1,$2,0,'review',$3,0,'Unrelated owner','Unrelated answer',false)`, [other,roundId,randomUUID()]);
+      await asUser(owner);
+      const manifest = await query("select * from public.recall_open_round($1)", [roundId]);
+      assert.equal(manifest.length, 4);
+      await asUser(other, {client_id:randomUUID()});
+      await assert.rejects(scalar("select public.habit_notify_arm($1,true)", [roundId]), {code:"42501"});
+      await asUser(owner);
+      await arm(roundId); // Upgrade a legacy opt-in only through the detailed UI.
+      assert.equal(await scalar("select public.habit_notify_arm($1,true)", [roundId]), true);
+      await arm(roundId); // A replay from an old tab keeps the explicit choice.
+      const row = id => manifest.find(item => item.card_id === id);
+      await query("select * from public.recall_record_action($1,$2,$3,0,'skip',$4)",
+        [row(skipped).event_id,row(skipped).opportunity_id,skipped,at]);
+      await service();
+      for (const [id, grade] of [[recall,"hard"], [paired,"medium"]]) {
+        await query(`select * from public.recall_commit_answer($1,$2,$3,0,$4,$5,$6,
+          '{}'::jsonb,'{}'::jsonb,'test','{}'::jsonb,$7)`,
+          [owner,row(id).event_id,id,grade,at,nextDue,row(id).opportunity_id]);
+      }
+      await admin();
+      await query("update flashcards_private.cards set active=false where id=$1", [retired]);
+      await asUser(owner);
+      await finish(roundId);
+      await finish(roundId);
+      await admin();
+      await query("update flashcards_private.cards set front='Later edit',due_at=now()+interval '9 days' where owner_id=$1", [owner]);
+      const deliveryId = await scalar("select delivery_id from habit_notify.deliveries where round_id=$1", [roundId]);
+      const messages = [];
+      const dispatch = randomBytes(32).toString("hex");
+      const events = createEvents(rpc, dispatch, async (_url, post) => {
+        messages.push(JSON.parse(post.body));
+        return {status:200,body:""};
+      });
+      const dispatchRequest = () => new Request("https://fixture.invalid/deliver", {
+        method:"POST",headers:{Authorization:"Bearer " + dispatch},body:JSON.stringify({delivery_id:deliveryId})
+      });
+      await service();
+      assert.equal((await events.deliver(dispatchRequest())).status, 204);
+      assert.equal((await events.deliver(dispatchRequest())).status, 204);
+      assert.equal(messages.length, 1);
+      const { data } = messages[0];
+      assert.equal(data.round_id, roundId);
+      assert.deepEqual(data.outcomes, {hard:1, yes:1, skip:1});
+      assert.deepEqual([data.review_count,data.action_count,data.superseded_count], [1,2,1]);
+      assert.deepEqual(data.items.map(i => i.card_id), manifest.map(i => i.card_id));
+      for (const [position, item] of data.items.entries()) {
+        const orig = manifest[position], id = orig.card_id;
+        const scheduled = id === recall || id === paired;
+        const iso = time => time === null ? null : new Date(time).toISOString();
+        assert.deepEqual({ ...item, answered_at:iso(item.answered_at), next_due_at:iso(item.next_due_at) }, {
+          position, card_id:id, item_kind:orig.item_kind,
+          card_name: id === paired ? "Take a walk" : id === skipped ? "Skipped habit" : orig.front,
+          front:orig.front, back:orig.back,
+          answer: id === paired ? "yes" : id === recall ? "hard" : id === skipped ? "skip" : "superseded",
+          grade: id === paired ? "medium" : id === recall ? "hard" : null,
+          due_at: orig.item_kind === "review" ? originalDue : null,
+          answered_at: id === retired ? null : at,
+          next_due_at: scheduled ? nextDue : null,
+        });
+      }
+    });
   } finally {
     await db.close();
   }
