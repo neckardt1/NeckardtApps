@@ -5,10 +5,10 @@ transport and capability registration. [Token verification](auth.ts) is shared a
 
 | App | Tool | Result |
 | --- | --- | --- |
-| Habit Practice | [`get_habit_practice_link`](apps/habit-practice/tools.ts) | Returns the review URL. Pass `debrief: true` to offer a one-round opt-in. |
+| Habit Practice | [`get_habit_practice_link`](apps/habit-practice/tools.ts) | Returns the same review URL for all callers. |
 
 The [Habit Practice completion event](apps/habit-practice/events.ts), `habit.practice.round.completed`,
-sends aggregate counts when a user finishes an opted-in round.
+accepts `{"automatic":true}` to send counts when a new round completes. Also setting `share_items: true` includes card-level results for that destination until unsubscribe. Empty arguments retain the original one-round scope.
 
 ## Adding a feature
 

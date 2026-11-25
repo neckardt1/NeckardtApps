@@ -132,7 +132,7 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api, base);
   expect(f.auth.listeners.size).toBe(1);
-  await tap('Start review'); await tap('Reveal answer'); await tap('Good'); await tap('Reveal answer');
+  await tap('Reveal answer'); await tap('Good'); await tap('Reveal answer');
   const before = stored()!;
   expect(before).toMatchObject({ cardIndex: 1, revealed: true, finished: false });
   expect(before.saves).toHaveLength(1);
@@ -144,9 +144,8 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(stored()).toEqual(before);
   await follow('recall', base);
   expect(f.auth.listeners.size).toBe(1);
-  expect(button('Resume review')).toBeDefined();
-  expect(host.textContent).not.toContain(`${firstOwner.id} answer 2`);
-  await tap('Resume review');
+  expect(button('Resume review')).toBeUndefined();
+
   expect(host.textContent).toContain(`${firstOwner.id} question 2`);
   expect(host.textContent).toContain(`${firstOwner.id} answer 2`);
   expect(host.textContent).not.toContain(`${firstOwner.id} question 1`);
@@ -163,7 +162,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
-  await tap('Start review'); await tap('Reveal answer'); await tap('Hard'); await tap('Reveal answer');
+  await tap('Reveal answer'); await tap('Hard'); await tap('Reveal answer');
   const original = stored()!;
   await tap('Apps'); await follow('launcher');
   expect(button('Sign out')).toBeUndefined();
@@ -179,9 +178,9 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
 
   await signIn(otherOwner);
   await follow('recall');
-  expect(button('Start review')).toBeDefined();
+  expect(button('Start review')).toBeUndefined();
   expect(button('Resume review')).toBeUndefined();
-  await tap('Start review'); await tap('Reveal answer');
+  await tap('Reveal answer');
   expect(host.textContent).toContain(`${otherOwner.id} answer 1`);
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(f.calls).toHaveLength(1);
@@ -196,7 +195,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(original);
   await signIn(firstOwner);
-  await tap('Resume review');
+
   expect(host.textContent).toContain(`${firstOwner.id} answer 2`);
   expect(host.textContent).not.toContain(otherOwner.id);
   expect(stored(otherOwner.id)).toEqual(otherRound);
@@ -208,7 +207,7 @@ test('shared Apps and Account popovers suppress all grade shortcuts and Escape r
   const f = fixture();
   await mount('recall', f.auth.api, f.api);
   expect(host.querySelectorAll('header')).toHaveLength(1);
-  await tap('Start review'); await tap('Reveal answer');
+  await tap('Reveal answer');
   const before = stored();
   for (const label of ['Apps', 'Account']) {
     const trigger = button(label)!;
@@ -231,7 +230,7 @@ test('shared Apps and Account popovers suppress all grade shortcuts and Escape r
   expect(host.textContent).toContain(`${firstOwner.id} question 2`);
 });
 
-test('unverified final save survives navigation, retries one original event, and requires explicit Finish after acknowledgement', async () => {
+test('unverified final save survives navigation, retries one original event, and finishes automatically after acknowledgement', async () => {
   const hold = deferred<void>(undefined);
   const remotelySaved = new Set<string>();
   const f = fixture({ count: 1, send: async ({ event }, attempt) => {
@@ -239,32 +238,25 @@ test('unverified final save survives navigation, retries one original event, and
     if (attempt === 1) { await hold.promise; throw Error('Synthetic response lost after save'); }
   } });
   await mount('recall', f.auth.api, f.api);
-  await tap('Start review'); await tap('Reveal answer'); await tap('Again');
-  expect(button('Finish')?.disabled).toBe(true);
-  expect(stored()?.finished).toBe(false);
-  await tap('Finish');
+  await tap('Reveal answer'); await tap('Again');
+  expect(button('Finish')).toBeUndefined();
   expect(stored()?.finished).toBe(false);
   await act(async () => hold.resolve());
   expect(stored()?.saves[0].status).toBe('failed');
-  expect(button('Finish')?.disabled).toBe(true);
+  expect(button('Finish')).toBeUndefined();
   await tap('Apps'); await follow('launcher');
-  await follow('recall'); await tap('Resume review');
+  await follow('recall');
   expect(stored()?.finished).toBe(false);
-  expect(button('Finish')?.disabled).toBe(true);
+  expect(button('Finish')).toBeUndefined();
   await tap('Retry save');
   expect(f.calls).toHaveLength(2);
   expect(f.calls[1]).toEqual(f.calls[0]);
   expect(remotelySaved.size).toBe(1);
-  expect(button('Finish')?.disabled).toBe(false);
-  expect(host.textContent).toContain('Ready to finish.');
-  expect(host.textContent).not.toContain('Saved.');
-  expect(stored()?.finished).toBe(false);
-  await tap('Finish');
   expect(host.textContent).toContain('Saved.');
   expect(stored()?.finished).toBe(true);
   await tap('Apps'); await follow('launcher');
   await follow('recall');
-  expect(host.textContent).toContain('Saved.');
+  expect(host.textContent).toContain(firstOwner.id + ' question 1');
   expect(button('Resume review')).toBeUndefined();
   expect(f.calls).toHaveLength(2);
 });
@@ -276,7 +268,7 @@ test('a late due response after account replacement cannot seed or display the p
   await tap('Account'); await tap('Sign out');
   await signIn(otherOwner);
   await act(async () => oldCards.resolve(cards(firstOwner.id)));
-  await tap('Start review'); await tap('Reveal answer');
+  await tap('Reveal answer');
   expect(host.textContent).toContain(`${otherOwner.id} answer 1`);
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toBeNull();
@@ -288,7 +280,7 @@ test.each([null, otherOwner])('a synchronous auth change to %s stops a pending d
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
-  await tap('Start review'); await tap('Reveal answer'); await tap('Good');
+  await tap('Reveal answer'); await tap('Good');
   await tap('Reveal answer'); await tap('Hard');
   const original = stored()!;
   expect(original.saves).toHaveLength(2);
@@ -308,12 +300,12 @@ test.each([null, otherOwner])('a synchronous auth change to %s stops a pending d
   expect(stored()?.finished).toBe(false);
   expect(stored()?.saves[1]).toEqual(original.saves[1]);
   if (nextOwner) {
-    expect(button('Start review')).toBeDefined();
+    expect(button('Start review')).toBeUndefined();
     expect(stored(otherOwner.id)?.saves).toHaveLength(0);
   } else expect(stored(otherOwner.id)).toBeNull();
 });
 
-test.each(['Start review', 'Finish'])('a queued %s operation cannot advance or replace the next owner’s screen', async operation => {
+test('a queued reveal cannot advance or replace the next owner’s screen', async () => {
   const gate = deferred<void>(undefined);
   let holdNextMutation = false;
   const controlledLock: Lock = (name, run) => lock(name, async () => {
@@ -326,27 +318,21 @@ test.each(['Start review', 'Finish'])('a queued %s operation cannot advance or r
   Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: controlledLock } });
   const f = fixture();
   await mount('recall', f.auth.api, f.api);
-  if (operation === 'Finish') {
-    await tap('Start review'); await tap('Reveal answer'); await tap('Good');
-    await tap('Reveal answer'); await tap('Easy');
-    expect(button('Finish')?.disabled).toBe(false);
-  }
   const before = stored();
   const callCount = f.calls.length;
   holdNextMutation = true;
-  await tap(operation);
-  const pendingStart = locks.get(storageKey(firstOwner.id));
-  expect(pendingStart).toBeDefined();
+  await tap('Reveal answer');
+  const pendingReveal = locks.get(storageKey(firstOwner.id));
+  expect(pendingReveal).toBeDefined();
   await act(async () => {
     f.auth.emit(otherOwner);
     gate.resolve();
-    await pendingStart;
+    await pendingReveal;
     await Promise.resolve();
   });
-  expect(button('Start review')).toBeDefined();
-  expect(host.textContent).toContain('Today');
+  expect(button('Start review')).toBeUndefined();
   expect(host.textContent).not.toContain(firstOwner.id);
-  expect(host.textContent).not.toContain(`${otherOwner.id} question 1`);
+  expect(host.textContent).toContain(`${otherOwner.id} question 1`);
   expect(stored()).toEqual(before);
   expect(stored(otherOwner.id)).toMatchObject({ started: false, cardIndex: 0, revealed: false });
   expect(f.calls).toHaveLength(callCount);
@@ -356,7 +342,7 @@ test('an A to B to A auth change invalidates the old drain and replays original 
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
-  await tap('Start review'); await tap('Reveal answer'); await tap('Good');
+  await tap('Reveal answer'); await tap('Good');
   await tap('Reveal answer'); await tap('Easy');
   const before = stored()!;
   const pendingDrain = locks.get(storageKey(firstOwner.id) + '.network');
@@ -377,9 +363,6 @@ test('an A to B to A auth change invalidates the old drain and replays original 
   expect(f.persisted.size).toBe(2);
   expect(stored(otherOwner.id)).toBeNull();
   expect(stored()?.saves.every(save => save.status === 'saved')).toBe(true);
-  expect(stored()?.finished).toBe(false);
-  expect(button('Resume review')).toBeDefined();
-  await tap('Resume review');
-  expect(host.textContent).toContain('Ready to finish.');
-  expect(host.textContent).not.toContain('Saved.');
+  expect(stored()?.finished).toBe(true);
+  expect(host.textContent).toContain('Saved.');
 });

@@ -30,7 +30,7 @@ test('stale tabs share atomic progress and serialize duplicate network drains', 
   const a = makeDurableSession({ storage, lock, key: 'concurrent', api });
   const b = makeDurableSession({ storage, lock, key: 'concurrent', api });
   const r = (await a.initialize(cards, []))!;
-  await a.start(r.id);
+
   await Promise.all([a.reveal(r.id, 'a'), b.reveal(r.id, 'a')]);
   await Promise.all([a.rate(r.id, 'a', 'easy'), b.rate(r.id, 'a', 'miss')]);
   expect(a.read()?.cardIndex).toBe(1); expect(a.read()?.saves).toHaveLength(1);
@@ -42,7 +42,7 @@ test('reload restores the exact revealed card while an earlier grade is still pe
   const storage = memory(), lock = locks(), hold = deferred(), api = fakeApi(async () => hold.promise);
   const a = makeDurableSession({ storage, lock, key: 'resume', api });
   const r = (await a.initialize(cards, []))!;
-  await a.start(r.id); await a.reveal(r.id, 'a'); await a.rate(r.id, 'a', 'medium');
+  await a.reveal(r.id, 'a'); await a.rate(r.id, 'a', 'medium');
   const draining = a.flush(); await a.reveal(r.id, 'b');
   const snapshot = a.read()!;
   const b = makeDurableSession({ storage, lock, key: 'resume', api });
@@ -58,21 +58,21 @@ test('storage failure after server acknowledgement preserves the exact event for
   const api = fakeApi(async event => { requests.push(event); committed.add(event.review_id); storage.fail = true; });
   const session = makeDurableSession({ storage, lock, key: 'ack', api });
   const r = (await session.initialize(cards.slice(0, 1), []))!;
-  await session.start(r.id); await session.reveal(r.id, 'a'); await session.rate(r.id, 'a', 'hard');
+  await session.reveal(r.id, 'a'); await session.rate(r.id, 'a', 'hard');
   await expect(session.flush()).rejects.toThrow();
   expect(session.read()?.saves[0].status).toBe('pending'); expect(session.read()?.finished).toBe(false);
   storage.fail = false;
   api.grade = async event => { requests.push(event); committed.add(event.review_id); };
   await session.retry();
   expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]); expect(committed.size).toBe(1);
-  expect(session.read()?.saves[0].status).toBe('saved'); expect(session.read()?.finished).toBe(false);
-  await session.finish(r.id); expect(session.read()?.finished).toBe(true);
+  expect(session.read()?.saves[0].status).toBe('saved');
+  expect(session.read()?.finished).toBe(true);
 });
 
 test('storage quota failure never consumes a revealed card', async () => {
   const storage = memory(), session = makeDurableSession({ storage, lock: locks(), key: 'quota', api: fakeApi() });
   const r = (await session.initialize(cards, []))!;
-  await session.start(r.id); await session.reveal(r.id, 'a'); storage.fail = true;
+  await session.reveal(r.id, 'a'); storage.fail = true;
   await expect(session.rate(r.id, 'a', 'medium')).rejects.toThrow();
   expect(session.read()).toMatchObject({ cardIndex: 0, revealed: true, saves: [] });
   storage.fail = false; await session.rate(r.id, 'a', 'medium');
@@ -82,9 +82,9 @@ test('storage quota failure never consumes a revealed card', async () => {
 test('Finish cannot bypass a pending or permanently rejected final grade', async () => {
   const storage = memory(), session = makeDurableSession({ storage, lock: locks(), key: 'finish', api: fakeApi(async () => { throw new RecallApiError('Conflict', 409); }) });
   const r = (await session.initialize(cards.slice(0, 1), []))!;
-  await session.start(r.id); await session.reveal(r.id, 'a'); await session.rate(r.id, 'a', 'easy');
-  await session.finish(r.id); expect(session.read()?.finished).toBe(false);
-  await session.flush(); await session.finish(r.id);
+  await session.reveal(r.id, 'a'); await session.rate(r.id, 'a', 'easy');
+  expect(session.read()?.finished).toBe(false);
+  await session.flush();
   expect(session.read()?.saves[0].status).toBe('conflict'); expect(session.read()?.finished).toBe(false);
 });
 
@@ -99,6 +99,6 @@ test('Check again fetches cards that became due after an initially empty round',
     await act(async () => root.render(<ReviewFixture sessionApi={makeSessionFixture('synthetic-owner').api} api={api} />)); expect(target.textContent).toContain('No cards due right now.');
     const check = [...target.querySelectorAll('button')].find(button => button.textContent === 'Check again');
     expect(check).toBeDefined(); await act(async () => check!.click());
-    expect(due).toHaveBeenCalledTimes(2); expect(target.textContent).toContain('1 card');
+    expect(due).toHaveBeenCalledTimes(2); expect(target.textContent).toContain('Card 1 of 1');
   } finally { await act(async () => root.unmount()); target.remove(); localStorage.clear(); }
 });

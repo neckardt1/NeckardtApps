@@ -79,7 +79,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     let pending = true;
     const events = createEvents(async (action, payload) => {
       requests.push([action,payload]);
-      if (action === "subscribe") subscribed = payload;
+      if (action === "subscribe" || action === "subscribe_automatic") subscribed = payload;
       if (action === "claim") {
         if (!pending) return null;
         pending = false;
@@ -105,9 +105,14 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.deepEqual((await call("initialize",{protocolVersion:"2025-11-25",capabilities:{},
       clientInfo:{name:"fixture",version:"1"}})).result.capabilities.events,{});
     assert.ok((await call("server/discover",{})).result.capabilities.events);
-    assert.equal((await call("events/list",{})).result.events[0].name,name);
+    const [definition] = (await call("events/list", {})).result.events;
+    assert.equal(definition.name, name);
+    const item = definition.payloadSchema.properties.items.items;
+    assert.deepEqual(item.required.sort(), ["answer","answered_at","back","card_id","card_name","due_at",
+      "front","grade","item_kind","next_due_at","position"].sort());
+    assert.equal(definition.payloadSchema.required.includes("items"), false);
     const debriefLink = await call("tools/call",{name:"get_habit_practice_link",arguments:{debrief:true}},auth);
-    assert.equal(debriefLink.result.structuredContent.url,"https://apps.neckardt.com/recall/?dot=1");
+    assert.equal(debriefLink.result.structuredContent.url,"https://apps.neckardt.com/recall/");
     const params = {name,arguments:{},delivery:{mode:"webhook",url,secret}};
     assert.ok((await call("events/subscribe",params)).error);
     assert.ok((await call("events/subscribe",{...params,arguments:{owner_id:randomUUID()}},auth)).error);
@@ -115,6 +120,18 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     const registered = (await call("events/subscribe",params,auth)).result;
     assert.equal(registered.id,subscribed.id);
     assert.equal(subscribed.owner_id,claims.sub);
+    assert.ok((await call("events/subscribe",{...params,arguments:{automatic:"true"}},auth)).error);
+    assert.ok((await call("events/subscribe",{...params,arguments:{share_items:true}},auth)).error);
+    const autoParams = {...params,arguments:{automatic:true}};
+    const automatic = (await call("events/subscribe",autoParams,auth)).result;
+    assert.notEqual(automatic.id,registered.id);
+    assert.deepEqual(requests.at(-1),["subscribe_automatic",subscribed]);
+    assert.equal((await call("events/subscribe",autoParams,auth)).result.id,automatic.id);
+    const detailedParams = {...params,arguments:{automatic:true,share_items:true}};
+    const detailed = (await call("events/subscribe",detailedParams,auth)).result;
+    assert.notEqual(detailed.id,automatic.id);
+    assert.equal(subscribed.share_items,true);
+    assert.equal((await call("events/subscribe",detailedParams,auth)).result.id,detailed.id);
     const deliver = bearer => serve(new Request(endpoint+"/deliver",{method:"POST",
       headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/json"},
       body:JSON.stringify({delivery_id:deliveryId})}));
