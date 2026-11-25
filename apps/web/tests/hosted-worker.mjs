@@ -85,7 +85,8 @@ export async function gradeRound(worker, card) {
   await page.getByRole("button", { name: "Reveal answer" }).click();
   await page.getByText("Fixture answer", { exact: true }).waitFor();
   const [response] = await Promise.all([
-    page.waitForResponse(r => r.request().method() === "POST" && r.url() === config.url + "/functions/v1/recall-grade"),
+    page.waitForResponse(r => r.request().method() === "POST" && r.url() === config.url + "/functions/v1/recall-grade"
+      && r.request().postDataJSON()?.grade === "medium"),
     page.getByRole("button", { name: "Good", exact: true }).click()
   ]);
   assert.ok(response.ok(), `Grading returned HTTP ${response.status()}.`);

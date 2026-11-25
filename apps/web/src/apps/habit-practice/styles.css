@@ -26,6 +26,7 @@
 .habit-practice .secondary:hover:not(:disabled), .habit-practice .ratings button:hover:not(:disabled), .habit-practice .choices button:not(.text-button):hover:not(:disabled) { background: #eff2e9; }
 .habit-practice .ratings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
 .habit-practice .ratings button { padding: .75rem .1rem; font-size: clamp(.875rem, 3.7vw, 1rem); }
+.habit-practice .ratings small { display: block; margin-top: .2rem; color: var(--muted); font-size: .78rem; font-weight: 400; overflow-wrap: anywhere; }
 .habit-practice .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
 .habit-practice .choices > :nth-child(n+3) { grid-column: 1 / -1; }
 .habit-practice .text-button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .5rem 0; border: 0; background: transparent; color: var(--green); text-decoration: underline; text-underline-offset: .2em; font-size: .9375rem; }

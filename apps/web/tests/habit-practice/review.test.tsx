@@ -279,3 +279,19 @@ test.each([false, true])('one-round debrief requires an explicit click from a Do
   expect(target.textContent).toContain('Question');
   expect(armDebrief).toHaveBeenCalledTimes(fromDot ? 2 : 0);
 });
+
+test('a late or unavailable preview does not block grading or carry intervals to the next card', async () => {
+  const hold = deferred<Record<ReviewEvent['grade'], number>>();
+  const preview = vi.fn().mockReturnValueOnce(hold.promise).mockRejectedValueOnce(Error('offline'));
+  const grade = vi.fn(async () => {});
+  await remount(api({ preview, grade }));
+  await tap('Start review'); await tap('Reveal answer');
+  expect(preview).toHaveBeenCalledExactlyOnceWith('A', 0);
+  await key('3');
+  await tap('Reveal answer');
+  expect(target.textContent).toContain('Review intervals unavailable.');
+  await act(async () => hold.finish({ miss: 1, hard: 6, medium: 10, easy: 11520 }));
+  expect(target.querySelector('.ratings small')).toBeNull();
+  await tap('Easy');
+  expect(grade.mock.calls).toHaveLength(2);
+});
