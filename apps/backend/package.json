@@ -19,7 +19,8 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "@supabase/supabase-js": "2.119.2",
     "jose": "6.2.18",
-    "ts-fsrs": "5.4.2"
+    "ts-fsrs": "5.4.2",
+    "undici": "6.29.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.17",

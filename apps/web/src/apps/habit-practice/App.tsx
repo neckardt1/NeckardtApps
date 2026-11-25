@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router';
 import { grades, type Grade } from './review-session.ts';
 import { RecallApiError, type ActionEvent, type RecallApi } from './recall-api.ts';
 import { allAnswered, currentKey, makeDurableSession, verified, type DurableSession, type Round } from './durable-session.ts';
@@ -9,12 +10,15 @@ const gradeLabels = ['Again', 'Hard', 'Good', 'Easy'];
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
 export function App({ api }: { api: RecallApi | null }) {
   const session = useSiteSession();
+  const fromDot = new URLSearchParams(useLocation().search).get('dot') === '1';
   const sessionIsCurrent = session.isCurrent;
   const owner = session.status === 'signed-in' ? session.user?.id ?? null : null;
   const [snapshot, setSnapshot] = useState<{ owner: string; round: Round } | null>(null);
   const round = snapshot && snapshot.owner === owner ? snapshot.round : null;
   const [screen, setScreen] = useState<'today' | 'review'>('today');
   const [message, setMessage] = useState('');
+  const [debrief, setDebrief] = useState<{ owner: string; roundId: string } | null>(null);
+  const armed = !!round && debrief?.owner === owner && debrief?.roundId === round.id;
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [legacyScope, setLegacyScope] = useState<string | null>(null);
@@ -69,7 +73,7 @@ export function App({ api }: { api: RecallApi | null }) {
   // Retire the old owner's queue at commit, before passive effects or input.
   useLayoutEffect(() => {
     focusNext.current = false;
-    setSnapshot(null); setScreen('today'); setMessage(''); setBusy(false); setLoading(false);
+    setDebrief(null); setSnapshot(null); setScreen('today'); setMessage(''); setBusy(false); setLoading(false);
     if (!api || !owner) return;
     const legacyKey = `recall.round.v2.${api.origin}.${owner}`;
     const legacyPrefix = `recall.live.v1.${api.origin}.${owner}.`;
@@ -127,6 +131,19 @@ export function App({ api }: { api: RecallApi | null }) {
       if (isCurrent(state)) flush(state);
     } catch { if (isCurrent(state)) setMessage('Could not safely save this step. It has not been discarded. Try again.'); }
     finally { if (isCurrent(state)) setBusy(false); }
+  }
+  async function armDebrief() {
+    const state = runtime.current;
+    if (!state || !isCurrent(state) || !round?.server || round.finished || busy || !api?.armDebrief) return;
+    setBusy(true); setMessage('');
+    try {
+      await api.armDebrief(round.id);
+      if (isCurrent(state)) setDebrief({ owner: state.owner, roundId: round.id });
+    } catch {
+      if (isCurrent(state)) setMessage('Could not confirm the Dot debrief. Retry or continue your review.');
+    } finally {
+      if (isCurrent(state)) setBusy(false);
+    }
   }
   function start() {
     if (!round) return;
@@ -197,7 +214,7 @@ export function App({ api }: { api: RecallApi | null }) {
             <p>{actionCount} {actionCount === 1 ? 'habit check' : 'habit checks'} · {reviewedCount} {reviewedCount === 1 ? 'card reviewed' : 'cards reviewed'}</p>
             <p className="muted">{superseded ? `${superseded} ${superseded === 1 ? 'item was' : 'items were'} superseded before completion.` : 'Every response has been saved.'}</p>
             <a className="debrief-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Debrief with Dot</a>
-            <p className="status">Optional. Open your chat and ask for a debrief.</p>
+            <p className="status">{armed ? 'You requested a debrief in your Dot chat.' : 'Optional. Open your chat and ask for a debrief.'}</p>
           </div> : showReview ? <>
             {opportunity ? <div className="review-card">
               {opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}
@@ -219,6 +236,13 @@ export function App({ api }: { api: RecallApi | null }) {
             </> : <p>Your review will appear here.</p>}
           </div>}
         </div>
+        {fromDot && !loading && round?.server && !round.finished && hasWork && api.armDebrief &&
+          (screen === 'today' || allAnswered(round)) && <div className="save-messages">
+            {armed ? <p className="status" role="status">Debrief requested for this round.</p> : <>
+              <p className="status">Share only this round’s counts with your connected Dot when you finish.</p>
+              <button className="text-button" disabled={busy} onClick={() => void armDebrief()}>Request Dot debrief</button>
+            </>}
+          </div>}
         {(message || saveStatus || otherDevice) && <div className="save-messages" aria-live="polite">
           {message && <p className="status error">{message}</p>}
           {saveStatus && <p className="status">{saveStatus}</p>}

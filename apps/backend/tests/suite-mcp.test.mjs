@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import test from "node:test";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createHandler } from "../supabase/functions/neckardt-apps-mcp/server.ts";
+import { createEvents } from "../supabase/functions/neckardt-apps-mcp/apps/habit-practice/events.ts";
+import { checkedUrl, publicAddress } from "../supabase/functions/neckardt-apps-mcp/callback.mjs";
 import { apps } from "../../web/src/shell/apps.ts";
 
 test("the suite MCP resource requires a signed grant for its own audience and OAuth client", async (t) => {
@@ -65,4 +67,77 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     const unbound = createHandler(origin, undefined, keys);
     assert.equal((await rpc("tools/call", call, await token(), unbound)).status, 401);
   });
+  await t.test("one connected owner registers a verified callback and receives an aggregate once", async () => {
+    const secret = "whsec_" + randomBytes(32).toString("base64");
+    const dispatch = randomBytes(32).toString("hex");
+    const deliveryId = randomUUID();
+    const url = "https://connectors.api.openai.com/fixture";
+    const name = "habit.practice.round.completed";
+    const requests = [];
+    const emitted = [];
+    let subscribed;
+    let pending = true;
+    const events = createEvents(async (action, payload) => {
+      requests.push([action,payload]);
+      if (action === "subscribe") subscribed = payload;
+      if (action === "claim") {
+        if (!pending) return null;
+        pending = false;
+        return {delivery_id:deliveryId, url, secret, subscription_id:subscribed.id,
+          finished_at:"2026-11-24T01:02:03Z", review_count:2, action_count:1, superseded_count:0,
+          owner_id:claims.sub, front:"private fixture prompt", outcomes:{ medium:2, yes:1, extra:"private" }};
+      }
+      return true;
+    }, dispatch, async (target,post) => {
+      assert.equal(target.href,url);
+      const headers = post.headers;
+      const expected = createHmac("sha256",Buffer.from(secret.slice(6),"base64"))
+        .update([headers["webhook-id"],headers["webhook-timestamp"],post.body].join(".")).digest("base64");
+      assert.equal(headers["webhook-signature"],"v1," + expected);
+      const message = JSON.parse(post.body);
+      if (message.type === "verification") return { status:200,body:JSON.stringify({challenge:message.challenge}) };
+      emitted.push(message);
+      return {status:200,body:""};
+    });
+    const serve = createHandler(origin,clientId,keys,events);
+    const call = async (method,params,bearer) => (await rpc(method,params,bearer,serve)).json();
+    const auth = await token();
+    assert.deepEqual((await call("initialize",{protocolVersion:"2025-11-25",capabilities:{},
+      clientInfo:{name:"fixture",version:"1"}})).result.capabilities.events,{});
+    assert.ok((await call("server/discover",{})).result.capabilities.events);
+    assert.equal((await call("events/list",{})).result.events[0].name,name);
+    const debriefLink = await call("tools/call",{name:"get_habit_practice_link",arguments:{debrief:true}},auth);
+    assert.equal(debriefLink.result.structuredContent.url,"https://apps.neckardt.com/recall/?dot=1");
+    const params = {name,arguments:{},delivery:{mode:"webhook",url,secret}};
+    assert.ok((await call("events/subscribe",params)).error);
+    assert.ok((await call("events/subscribe",{...params,arguments:{owner_id:randomUUID()}},auth)).error);
+    assert.equal(requests.length,0);
+    const registered = (await call("events/subscribe",params,auth)).result;
+    assert.equal(registered.id,subscribed.id);
+    assert.equal(subscribed.owner_id,claims.sub);
+    const deliver = bearer => serve(new Request(endpoint+"/deliver",{method:"POST",
+      headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/json"},
+      body:JSON.stringify({delivery_id:deliveryId})}));
+    assert.equal((await deliver(auth)).status,401);
+    assert.equal((await deliver(dispatch)).status,204);
+    assert.equal((await deliver(dispatch)).status,204);
+    assert.equal(emitted.length,1);
+    assert.deepEqual(emitted[0],{eventId:deliveryId,name,timestamp:"2026-11-24T01:02:03Z",cursor:null,
+      data:{finished_at:"2026-11-24T01:02:03Z",review_count:2,action_count:1,superseded_count:0,outcomes:{medium:2,yes:1}}});
+    assert.deepEqual(requests.filter(([a])=>a==="ack"),[["ack",{delivery_id:deliveryId,http_status:200}]]);
+    const unsub = await call("events/unsubscribe",{...params,delivery:{mode:"webhook",url}},auth);
+    assert.deepEqual(unsub.result,{});
+    assert.deepEqual(requests.at(-1),["unsubscribe",{owner_id:claims.sub,id:registered.id}]);
+  });
+
+});
+
+test("callbacks require the exact HTTPS origin and an exclusively public IPv4 answer set", () => {
+  for (const url of ["http://connectors.api.openai.com/", "https://a.connectors.api.openai.com/",
+    "https://example@connectors.api.openai.com", "https://connectors.api.openai.com:444/a",
+    "https://connectors.api.openai.com/#fragment"])
+    assert.throws(()=>checkedUrl(url));
+  for (const list of [[],["127.0.0.1"],["8.8.8.8","169.254.169.254"],["::1"]])
+    assert.throws(()=>publicAddress(list));
+  assert.equal(publicAddress(["8.8.8.8"]),"8.8.8.8");
 });

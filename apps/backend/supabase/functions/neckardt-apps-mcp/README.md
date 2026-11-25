@@ -5,10 +5,10 @@ transport and capability registration. [Token verification](auth.ts) is shared a
 
 | App | Tool | Result |
 | --- | --- | --- |
-| Habit Practice | [`get_habit_practice_link`](apps/habit-practice/tools.ts) | Returns the review URL. Takes no arguments and requires a connected account. |
+| Habit Practice | [`get_habit_practice_link`](apps/habit-practice/tools.ts) | Returns the review URL. Pass `debrief: true` to offer a one-round opt-in. |
 
-The [server capability declaration](server.ts) exposes tools only. There are currently no app
-events or subscriptions.
+The [Habit Practice completion event](apps/habit-practice/events.ts), `habit.practice.round.completed`,
+sends aggregate counts when a user finishes an opted-in round.
 
 ## Adding a feature
 

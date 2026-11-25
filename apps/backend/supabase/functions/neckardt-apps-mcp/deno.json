@@ -3,6 +3,7 @@
     "@modelcontextprotocol/sdk/server/index.js": "npm:@modelcontextprotocol/sdk@1.32.2/server/index.js",
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js": "npm:@modelcontextprotocol/sdk@1.32.2/server/webStandardStreamableHttp.js",
     "@modelcontextprotocol/sdk/types.js": "npm:@modelcontextprotocol/sdk@1.32.2/types.js",
-    "jose": "npm:jose@6.2.18"
+    "jose": "npm:jose@6.2.18",
+    "undici": "npm:undici@6.29.1"
   }
 }

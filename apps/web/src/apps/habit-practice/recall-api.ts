@@ -26,6 +26,7 @@ export interface RecallApi {
   opportunities?(): Promise<Opportunity[]>;
   action?(event: ActionEvent, paired?: boolean): Promise<void>;
   rounds?: RoundApi;
+  armDebrief?(roundId: string): Promise<void>;
 }
 export interface RoundItem {
   round_id: string;
@@ -144,6 +145,10 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
 
   return {
     origin: config.url,
+    async armDebrief(roundId) {
+      const { data, error } = await client.rpc("habit_notify_arm", { round_id: roundId });
+      if (error || data !== true) throw new Error("Round debrief could not be confirmed");
+    },
     rounds: {
       async latest() { return readManifest(await client.rpc("recall_latest_round"), "recall_latest_round"); },
       async open(id) { return readManifest(await client.rpc("recall_open_round", { p_round_id: id }), "recall_open_round"); },
