@@ -71,9 +71,13 @@ async function fixtureRpc(worker, name) {
   }, { config: worker.config, id: worker.id, name });
 }
 
-export async function prepareRound(worker) {
+export async function resetRound(worker) {
   await worker.page.goto(worker.origin);
-  const card = await fixtureRpc(worker, "recall_reset_fixture");
+  return fixtureRpc(worker, "recall_reset_fixture");
+}
+
+export async function prepareRound(worker) {
+  const card = await resetRound(worker);
   await worker.page.goto(worker.origin + "/recall/");
   await worker.page.getByRole("button", { name: "Start review" }).click();
   await worker.page.getByRole("heading", { name: "Worker card " + worker.id, exact: true }).waitFor();
