@@ -1,6 +1,6 @@
 import { getSiteClient } from "../../shell/site-client";
 import { type PublicSupabaseConfig } from "../../shell/browser-auth.mts";
-import { grades, type DueCard, type ReviewEvent } from "./review-session.ts";
+import { grades, type DueCard, type Grade, type ReviewEvent } from "./review-session.ts";
 
 export const actionOutcomes = ["yes", "no", "no_opportunity", "skip"] as const;
 export type ActionOutcome = typeof actionOutcomes[number];
@@ -19,9 +19,11 @@ export interface ActionEvent {
   outcome: ActionOutcome;
   answered_at: string;
 }
+export type ReviewIntervals = Record<Grade, number>;
 export interface RecallApi {
   readonly origin: string;
   due(): Promise<DueCard[]>;
+  preview?(cardId: string, revision: number): Promise<ReviewIntervals>;
   grade(event: ReviewEvent): Promise<void>;
   opportunities?(): Promise<Opportunity[]>;
   action?(event: ActionEvent, paired?: boolean): Promise<void>;
@@ -145,6 +147,20 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
 
   return {
     origin: config.url,
+    async preview(cardId, revision) {
+      const { data, error } = await client.functions.invoke("recall-grade", {
+        body: { preview: true, card_id: cardId, revision }
+      });
+      if (error || !record(data) || data.card_id !== cardId || data.revision !== revision) {
+        throw new Error("Review intervals unavailable");
+      }
+      const minutes = data.minutes;
+      if (!record(minutes) || !grades.every(grade => {
+        const value = minutes[grade];
+        return typeof value === "number" && Number.isFinite(value) && value > 0;
+      })) throw new Error("Invalid review intervals");
+      return minutes as ReviewIntervals;
+    },
     async armDebrief(roundId) {
       const { data, error } = await client.rpc("habit_notify_arm", { round_id: roundId });
       if (error || data !== true) throw new Error("Round debrief could not be confirmed");

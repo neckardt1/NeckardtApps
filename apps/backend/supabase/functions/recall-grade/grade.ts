@@ -20,11 +20,15 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 const gradeLabels = { miss: "Again", hard: "Hard", medium: "Good", easy: "Easy" } as const;
 const isGrade = (g: unknown): g is Grade => typeof g === "string" && Object.hasOwn(gradeLabels, g);
 
+function isCardRevision(body: unknown): body is Record<string, unknown> & { card_id: string; revision: number } {
+  return record(body) && uuid(body.card_id) && typeof body.revision === "number"
+    && Number.isInteger(body.revision) && body.revision >= 0 && body.revision < 2147483647;
+}
+
 // Normalize action answers at the HTTP boundary. The caller cannot set both
 // an action outcome and an independent FSRS grade for the same occasion.
 function parseAnswer(body: unknown): Answer | null {
-  if (!record(body) || !uuid(body.card_id) || typeof body.revision !== "number"
-    || !Number.isInteger(body.revision) || body.revision < 0 || body.revision > 2147483646) return null;
+  if (!isCardRevision(body)) return null;
   const common = { card_id: body.card_id, revision: body.revision };
   const keys = Object.keys(body).sort().join("|");
   const iso = (v: unknown): v is string => timestamp(v)
@@ -131,6 +135,24 @@ export function gradeHandler({ getOwner, prepare, commit, schedule }: Dependenci
       if (raw.length > 2048) return json({ error: "Review is too large" }, 413);
       let body: unknown;
       try { body = JSON.parse(raw); } catch { return json({ error: "Invalid review JSON" }, 400); }
+      if (isCardRevision(body) && body.preview === true && Object.keys(body).length === 3) {
+        stage = "preview";
+        const when = new Date().toISOString();
+        // Prepare reads the owner's revision and FSRS state. Its grade parameter is
+        // required for replay checks. Only a subsequent grading request can commit.
+        const snapshot = await prepare(contextArgs(owner, {
+          card_id: body.card_id, revision: body.revision, grade: "medium",
+          review_id: crypto.randomUUID(), reviewed_at: when
+        }));
+        if (snapshot.card_id !== body.card_id || snapshot.revision !== body.revision) {
+          throw new Error("Unexpected preview snapshot");
+        }
+        const intervals = Object.fromEntries(Object.keys(gradeLabels).map(label => {
+          const due = schedule(snapshot, label as Grade, when).dueAt;
+          return [label, (Date.parse(due) - Date.parse(when)) / 60000];
+        }));
+        return json({ card_id: body.card_id, revision: body.revision, minutes: intervals });
+      }
       const answer = parseAnswer(body);
       if (!answer) return json({ error: "Invalid review" }, 400);
       const args = contextArgs(owner, answer);

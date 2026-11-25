@@ -6,6 +6,8 @@ import { chromium } from "playwright-core";
 import * as fsrs from "ts-fsrs";
 import { gradeHandler, schedulerFor } from "../../backend/supabase/functions/recall-grade/grade.ts";
 
+import { checkNewCardIntervals } from "./hosted-scenarios/review-intervals.mjs";
+
 const migrations = new URL("../../backend/supabase/migrations/", import.meta.url);
 const userRpcs = new Set(["recall_latest_round", "recall_open_round", "recall_finish_round",
   "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
@@ -180,7 +182,9 @@ export async function checkPairedHabit(origin, remote) {
           await click("Retry save");
           const beforeCue = await db.query("select revision from flashcards_private.cards where id=$1", [cue]);
           assert.equal(beforeCue.rows[0].revision, 0, "doing the action must not grade recall of the cue");
-          await click("Reveal answer");
+          await checkNewCardIntervals(page);
+          const untouched = await db.query("select revision, scheduler_state from flashcards_private.cards where id=$1", [cue]);
+          assert.deepEqual(untouched.rows, [{ revision: 0, scheduler_state: null }]);
           await click("Good");
         }
         await click("Finish");
@@ -190,6 +194,8 @@ export async function checkPairedHabit(origin, remote) {
       }
       await context.close();
       if (checkRetry) {
+        const { rows: [review] } = await db.query("select reviewed_at, next_due_at from flashcards_private.reviews where card_id=$1", [cue]);
+        assert.equal(review.next_due_at - review.reviewed_at, 10 * 60000, "Good matches the displayed 10-minute interval");
         assert.equal(fault.actionAttempts.length, 2);
         assert.equal(fault.actionAttempts[0], fault.actionAttempts[1]);
       }

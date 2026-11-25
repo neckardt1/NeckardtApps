@@ -5,8 +5,8 @@ import { RecallApiError, type ActionEvent, type RecallApi } from './recall-api.t
 import { allAnswered, currentKey, makeDurableSession, verified, type DurableSession, type Round } from './durable-session.ts';
 import { useSiteSession } from '../../shell/session.tsx';
 import { FormattedText } from './FormattedText.tsx';
+import { RatingButtons } from './RatingButtons.tsx';
 
-const gradeLabels = ['Again', 'Hard', 'Good', 'Easy'];
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
 export function App({ api }: { api: RecallApi | null }) {
   const session = useSiteSession();
@@ -265,9 +265,9 @@ export function App({ api }: { api: RecallApi | null }) {
             <button className="secondary" disabled={busy} onClick={() => answer('no')}>No</button>
             <button className="secondary" disabled={busy} onClick={() => answer('no_opportunity')}>No opportunity</button>
             <button className="text-button" disabled={busy} onClick={() => answer('skip')}>Skip</button>
-          </div> : card ? round.revealed ? <div className="ratings" aria-label="Rate your recall">
-            {grades.map((grade, i) => <button className="secondary" key={grade} disabled={busy} onClick={() => rate(grade)} aria-keyshortcuts={String(i + 1)}>{gradeLabels[i]}</button>)}
-          </div> : <button className="primary" disabled={busy} onClick={reveal} aria-keyshortcuts="Space Enter">Reveal answer</button>
+          </div> : card ? round.revealed ? <RatingButtons
+            key={`${owner}.${round.id}.${card.card_id}.${card.revision}`} cardId={card.card_id} revision={card.revision}
+            preview={api.preview} disabled={busy} rate={rate} /> : <button className="primary" disabled={busy} onClick={reveal} aria-keyshortcuts="Space Enter">Reveal answer</button>
             : <button className="primary" disabled={busy || !verified(round)} onClick={() => void mutate(store => store.finish(round.id))}>Finish</button>
             : hasWork ? <button className="primary" disabled={busy || loading} onClick={start}>{round?.started ? 'Resume review' : 'Start review'}</button>
             : <button className="secondary" disabled={busy || loading} onClick={() => {
