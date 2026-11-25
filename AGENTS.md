@@ -4,6 +4,13 @@
 - Track review feedback and closure. Report meaningful updates.
 - Rebase-merge only after a formal GitHub approval or an explicit merge instruction from verified `NickEckardt` on the exact current head. Check for later conflicting feedback and guard the merge with the expected head SHA.
 
+## Supabase deploy handoff
+
+- When a PR is ready, the worker sends Dot the PR link, whether a Supabase deploy is needed, and any prerequisites.
+- Dot keeps one private record per release with the PR, exact reviewed commit, original worker thread, and Nick’s deploy authorization or its pending status. A plain merge instruction authorizes only the merge.
+- Once the existing watcher verifies that the reviewed change merged and required CI passed for the release commit, Dot sends the release back to the original thread if Nick explicitly authorized that deploy. Otherwise, keep it pending.
+- The worker follows the [Supabase deploy skill](.agents/skills/supabase-deploy/SKILL.md) and reports what shipped, smoke-test results, and any blockers to Dot. Dot updates the same record.
+
 This is primarily a single-user personal app. Favor fast development over perfection: accept small, reversible failures and prefer actionable logging and easy recovery to defensive code for every edge case. Preserve baseline auth and data integrity.
 
 Treat the committed SQL migrations as the source of truth for the database schema. Generate TypeScript database types locally and keep them out of Git. A clean build must work without hosted Supabase credentials.
