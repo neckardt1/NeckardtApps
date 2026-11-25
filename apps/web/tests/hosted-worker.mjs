@@ -71,11 +71,14 @@ async function fixtureRpc(worker, name) {
   }, { config: worker.config, id: worker.id, name });
 }
 
-export async function prepareRound(worker) {
+export async function resetRound(worker) {
   await worker.page.goto(worker.origin);
-  const card = await fixtureRpc(worker, "recall_reset_fixture");
+  return fixtureRpc(worker, "recall_reset_fixture");
+}
+
+export async function prepareRound(worker) {
+  const card = await resetRound(worker);
   await worker.page.goto(worker.origin + "/recall/");
-  await worker.page.getByRole("button", { name: "Start review" }).click();
   await worker.page.getByRole("heading", { name: "Worker card " + worker.id, exact: true }).waitFor();
   return card;
 }
@@ -85,14 +88,14 @@ export async function gradeRound(worker, card) {
   await page.getByRole("button", { name: "Reveal answer" }).click();
   await page.getByText("Fixture answer", { exact: true }).waitFor();
   const [response] = await Promise.all([
-    page.waitForResponse(r => r.request().method() === "POST" && r.url() === config.url + "/functions/v1/recall-grade"),
+    page.waitForResponse(r => r.request().method() === "POST" && r.url() === config.url + "/functions/v1/recall-grade"
+      && r.request().postDataJSON()?.grade === "medium"),
     page.getByRole("button", { name: "Good", exact: true }).click()
   ]);
   assert.ok(response.ok(), `Grading returned HTTP ${response.status()}.`);
   const receipt = await response.json();
   assert.equal(receipt.card_id, card);
   assert.equal(receipt.revision, 1);
-  await page.getByRole("button", { name: "Finish" }).click();
   await page.getByRole("heading", { name: "Saved.", exact: true }).waitFor();
 }
 

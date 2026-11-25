@@ -40,9 +40,11 @@ on conflict (opportunity_id) do nothing;
 
 ## Saved rounds and recovery
 
-Open the app in another browser with the same login to pick up the server round or see its saved
-summary. Finishing records one completion per round. Recording that completion and delivering an
-MCP notification are separate steps.
+Opening the app starts or resumes the current round at its next prompt. After the final
+response is acknowledged, the browser records the round’s completion and shows its summary.
+If the tab closes during a save, reopening it resumes the outstanding work. A later visit
+checks for newly due cards. An active automatic Dot subscription receives new completed rounds
+through the existing notification service.
 
 The browser holds queued responses until the server acknowledges them. Reopen the original
 browser after going offline so it can send its outstanding answers. Before a rollout, finish or

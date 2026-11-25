@@ -64,7 +64,7 @@ export function createHandler(projectUrl: string, clientId?: string, testKeys?: 
         isError: true, content: [{ type: "text", text: "Connect Neckardt Apps to continue." }],
         _meta: { "mcp/www_authenticate": [challenge] },
       };
-      return getHabitPracticeLink(params.arguments?.debrief === true);
+      return getHabitPracticeLink();
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: 65536,

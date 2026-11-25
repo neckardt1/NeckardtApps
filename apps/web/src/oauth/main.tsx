@@ -69,7 +69,7 @@ function Consent() {
         <dl>
           <dt>Requested permissions</dt>
           <dd>
-            {request.kind === 'suite' ? 'Identify your account and get the link to Habit Practice. You can choose inside the app to share a single round’s counts with this chat.' : request.scope}
+            {request.kind === 'suite' ? 'Identify your account and get the link to Habit Practice. You can subscribe in your Dot chat to receive counts from new rounds. If you also enable card details, that chat receives the card names, prompts, answers, grades and due dates until you unsubscribe.' : request.scope}
             {request.kind === 'suite' && request.scope !== 'openid' &&
               <p>ChatGPT can read your email address and its verification status, and refresh this connection while you’re away.</p>}
           </dd>

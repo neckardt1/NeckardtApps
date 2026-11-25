@@ -157,7 +157,7 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
     expect(migrated.saves).toEqual([{ kind: 'review', status: 'conflict', event: original }]);
     expect(JSON.stringify(migrated.saves[0].event)).toBe(originalPayload);
     const callsBeforeRetry = statuses.length;
-    await store.start(migrated.id); await store.retry(); await store.finish(migrated.id);
+    await store.retry();
     expect(store.read()?.finished).toBe(false);
     expect(store.read()?.saves).toEqual(migrated.saves);
     expect(statuses).toHaveLength(callsBeforeRetry);
@@ -181,7 +181,7 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
     const pendingRound = (await pendingV2.initialize([], [], legacyPrefix))!;
     expect(pendingRound.saves).toEqual([{ kind: 'review', status: 'pending', event: lateLegacyEvent }]);
     expect(pendingStorage.getItem(legacyPrefix + lateLegacyEvent.review_id)).toBeNull();
-    await pendingV2.start(pendingRound.id); await pendingV2.flush(); await pendingV2.finish(pendingRound.id);
+    await pendingV2.flush();
     expect(statuses.at(-1)).toBe(422);
     expect(pendingV2.read()?.saves).toEqual([{ kind: 'review', status: 'conflict', event: lateLegacyEvent }]);
     expect(pendingV2.read()?.finished).toBe(false);
@@ -200,14 +200,13 @@ test('actual V1 and V2 clients preserve unsupported cached grades and replay sup
 
     const supportedV2 = makeDurableSession({ storage: memory(), key: 'supported-v2', api: current, lock });
     const fresh = (await supportedV2.initialize((await current.due()).filter(card => card.card_id === newMemory), []))!;
-    await supportedV2.start(fresh.id); await supportedV2.reveal(fresh.id, newMemory);
+    await supportedV2.reveal(fresh.id, newMemory);
     await supportedV2.rate(fresh.id, newMemory, 'easy'); await supportedV2.flush();
     const newSave = supportedV2.read()!.saves[0];
     expect(newSave.status).toBe('saved'); expect(newSave.kind).toBe('review');
     if (newSave.kind !== 'review') throw Error('Expected memory review');
     await current.grade(newSave.event); await legacy.grade(newSave.event);
-    expect(supportedV2.read()?.finished).toBe(false);
-    await supportedV2.finish(fresh.id); expect(supportedV2.read()?.finished).toBe(true);
+    expect(supportedV2.read()?.finished).toBe(true);
     expect(await count('reviews')).toBe(2);
     expect(await count('action_responses')).toBe(0);
     expect(await q('select revision from flashcards_private.cards where id=$1', [unsupported])).toEqual([{ revision: 0 }]);

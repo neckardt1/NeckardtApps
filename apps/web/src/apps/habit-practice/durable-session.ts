@@ -66,7 +66,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
     });
   }
   function matches(r: Round | null, id: string, expected: string | null): r is Round {
-    return !!r && r.id === id && currentKey(r) === expected && r.started && !r.finished;
+    return !!r && r.id === id && currentKey(r) === expected && !r.finished;
   }
   return {
     read,
@@ -83,7 +83,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
           rows = before?.server ? await remote.open(before.id) : await remote.latest();
           if (!active()) return;
           established ||= rows.length > 0;
-          if (!before?.server && (!rows.length || (rows[0].finished_at && dismissed === rows[0].round_id))) {
+          if (!before?.server && (!rows.length || rows[0].finished_at)) {
             rows = await remote.open(crypto.randomUUID());
           }
         } catch (error) {
@@ -123,10 +123,12 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
       }
       return result;
     },
-    start(id: string) { return update(r => { if (r?.id === id && !r.finished) r.started = true; return r; }); },
     reveal(id: string, expected: string) {
       return update(r => {
-        if (matches(r, id, expected) && r.opportunityIndex === r.opportunities.length && r.cards[r.cardIndex]) r.revealed = true;
+        if (matches(r, id, expected) && r.opportunityIndex === r.opportunities.length && r.cards[r.cardIndex]) {
+          r.started = true;
+          r.revealed = true;
+        }
         return r;
       });
     },
@@ -145,21 +147,12 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         if (!matches(r, id, expected) || !['yes', 'no', 'no_opportunity', 'skip'].includes(outcome)) return r;
         const opportunity = r.opportunities[r.opportunityIndex];
         if (!opportunity || !api.action) throw new Error('Habit check-ins are not available yet.');
+        r.started = true;
         r.saves.push({ kind: 'action', status: 'pending', event: { action_id: opportunity.event_id ?? crypto.randomUUID(), opportunity_id: opportunity.opportunity_id,
           card_id: opportunity.card_id, revision: opportunity.revision, outcome, answered_at: new Date().toISOString() } });
         r.opportunityIndex++;
         return r;
       });
-    },
-    async finish(id: string) {
-      const round = read();
-      if (!round || round.id !== id || !round.started || !allAnswered(round) || !verified(round)) return;
-      if (round.server) {
-        if (!api.rounds || !active()) return;
-        const rows = await api.rounds.finish(id);
-        return update(r => r?.id === id ? restoreRound(rows, r) : r);
-      }
-      return update(r => { if (r?.id === id && r.started && allAnswered(r) && verified(r)) r.finished = true; return r; });
     },
     async clearFinished(id: string) {
       return lock(key, async () => {
@@ -180,7 +173,17 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         while (active()) {
           const round = read();
           const save = round?.saves.find(s => s.status === 'pending');
-          if (!round || !save) return;
+          if (!round || round.finished) return;
+          if (!save) {
+            if (!allAnswered(round) || !verified(round) ||
+                !(round.cards.length || round.opportunities.length || round.saves.length)) return;
+            const rows = round.server ? await api.rounds!.finish(round.id) : null;
+            await update(r => {
+              if (!r || r.id !== round.id) return r;
+              return rows ? restoreRound(rows, r) : { ...r, finished: true };
+            });
+            return;
+          }
           let status: Save['status'] = 'saved';
           try {
             if (save.kind === 'review') await api.grade(save.event);

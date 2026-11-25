@@ -6,11 +6,13 @@ import { chromium } from "playwright-core";
 import * as fsrs from "ts-fsrs";
 import { gradeHandler, schedulerFor } from "../../backend/supabase/functions/recall-grade/grade.ts";
 
+import { checkNewCardIntervals } from "./hosted-scenarios/review-intervals.mjs";
+
 const migrations = new URL("../../backend/supabase/migrations/", import.meta.url);
 const userRpcs = new Set(["recall_latest_round", "recall_open_round", "recall_finish_round",
   "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
 
-async function bootstrap(db) {
+export async function bootstrap(db) {
   await db.exec(`
     create role anon; create role authenticated; create role service_role; create role supabase_auth_admin;
     create schema auth;
@@ -19,6 +21,14 @@ async function bootstrap(db) {
       select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
     $$;
     grant usage on schema auth to anon,authenticated,service_role;
+    create schema vault; create table vault.decrypted_secrets(name text, decrypted_secret text);
+    insert into vault.decrypted_secrets values
+      ('habit_notify_dispatch_url','https://fixture.supabase.co/functions/v1/neckardt-apps-mcp/deliver'),
+      ('habit_notify_dispatch_secret', repeat('x',32));
+    create schema net; create table net.requests(body jsonb);
+    create function net.http_post(url text,body jsonb,headers jsonb,timeout_milliseconds integer)
+      returns bigint language plpgsql as $$
+      begin insert into net.requests values(body); return 1; end $$;
   `);
   for (const file of (await readdir(migrations)).filter(f => f.endsWith(".sql")).sort()) {
     await db.exec(await readFile(new URL(file, migrations), "utf8"));
@@ -36,6 +46,9 @@ async function rpc(db, owner, name, args = {}) {
     if (owner) {
       assert(userRpcs.has(name));
       await tx.exec("set local role authenticated");
+      await tx.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({
+        sub: owner, role: "authenticated", aud: "authenticated", is_anonymous: false
+      })]);
       await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [owner]);
     } else {
       assert(["recall_prepare_answer", "recall_commit_answer"].includes(name));
@@ -103,7 +116,7 @@ async function checkLateAnswer(db, finishFirst) {
   }
 }
 
-async function openBrowser(browser, origin, remote, db, owner, fault = {}) {
+export async function openBrowser(browser, origin, remote, db, owner, fault = {}) {
   const context = await browser.newContext();
   const token = randomUUID();
   await context.addInitScript(({ key, owner, token }) => {
@@ -126,6 +139,10 @@ async function openBrowser(browser, origin, remote, db, owner, fault = {}) {
         const response = await handler(new Request(req.url(), {
           method: "POST", headers: req.headers(), body: JSON.stringify(args)
         }));
+        if (response.ok && args.review_id && fault.reviewAttempts) {
+          fault.reviewAttempts.push(args.review_id);
+          if (fault.reviewAttempts.length === 1) return route.abort("failed");
+        }
         if (response.ok && args.action_id && fault.actionAttempts) {
           fault.actionAttempts.push(args.action_id);
           if (fault.actionAttempts.length === 1) return route.abort("failed"); // commit succeeded; ACK lost
@@ -170,26 +187,34 @@ export async function checkPairedHabit(origin, remote) {
     for (const outcome of ["Yes", "No", "No opportunity"]) {
       const checkRetry = outcome === "Yes";
       const { owner, cue, action } = await seed(db, checkRetry);
+      if (checkRetry) {
+        await db.query("select public.habit_notify_subscribe_automatic($1)", [{
+          owner_id: owner, id: "fixture-sub", url: "https://example.invalid/callback",
+          secret: "fixture-only", expires_at: new Date(Date.now() + 600000).toISOString()
+        }]);
+      }
       const fault = { errors: [], duplicateFinish: true, actionAttempts: checkRetry ? [] : undefined };
       const { page, context } = await openBrowser(browser, origin, remote, db, owner, fault);
       const click = label => page.getByRole("button", { name: label, exact: true }).click();
       try {
-        await click("Start review");
         await click(outcome);
         if (checkRetry) {
           await click("Retry save");
           const beforeCue = await db.query("select revision from flashcards_private.cards where id=$1", [cue]);
           assert.equal(beforeCue.rows[0].revision, 0, "doing the action must not grade recall of the cue");
-          await click("Reveal answer");
+          await checkNewCardIntervals(page);
+          const untouched = await db.query("select revision, scheduler_state from flashcards_private.cards where id=$1", [cue]);
+          assert.deepEqual(untouched.rows, [{ revision: 0, scheduler_state: null }]);
           await click("Good");
         }
-        await click("Finish");
         await page.getByRole("heading", { name: "Saved." }).waitFor();
       } catch (cause) {
         throw new Error([outcome, await page.locator("body").innerText(), ...fault.errors].join("\n"), { cause });
       }
       await context.close();
       if (checkRetry) {
+        const { rows: [review] } = await db.query("select reviewed_at, next_due_at from flashcards_private.reviews where card_id=$1", [cue]);
+        assert.equal(review.next_due_at - review.reviewed_at, 10 * 60000, "Good matches the displayed 10-minute interval");
         assert.equal(fault.actionAttempts.length, 2);
         assert.equal(fault.actionAttempts[0], fault.actionAttempts[1]);
       }
@@ -219,10 +244,20 @@ export async function checkPairedHabit(origin, remote) {
       assert.equal(events[0].round_id, fault.finished);
       assert.equal(events[0].review_count, checkRetry ? 1 : 0);
       assert.equal(events[0].action_count, 1);
+      const { rows: deliveries } = await db.query(
+        "select delivery_id from habit_notify.deliveries where owner_id=$1 and round_id=$2", [owner, fault.finished]);
+      assert.equal(deliveries.length, checkRetry ? 1 : 0);
       if (checkRetry) {
+        const { rows: requests } = await db.query("select body from net.requests");
+        assert.deepEqual(requests, [{ body: { delivery_id: deliveries[0].delivery_id } }]);
+        const { rows: [{ claim }] } = await db.query("select public.habit_notify_rpc('claim',$1) as claim", [requests[0].body]);
+        assert.equal(claim.subscription_id, "fixture-sub");
+        assert.equal("items" in claim, false);
+        assert.equal("round_id" in claim, false);
+        assert.equal(claim.review_count, 1);
+        assert.equal(claim.action_count, 1);
         const second = await openBrowser(browser, origin, remote, db, owner);
-        await second.page.getByRole("heading", { name: "Saved." }).waitFor();
-        assert.match(await second.page.locator("body").innerText(), /1 habit check.*1 card reviewed/);
+        await second.page.getByText("No cards due right now.").waitFor();
         await second.context.close();
         const other = await seed(db, false);
         assert.deepEqual(await rpc(db, other.owner, "recall_latest_round"), []);

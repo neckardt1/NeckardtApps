@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import defaults from "@neckardt/backend/public-config" with { type: "json" };
 import { checkBrowserRoutes } from "./pages-browser.mjs";
+import { checkAutomaticRounds } from "./automatic-rounds-browser.mjs";
 import { checkPairedHabit } from "./paired-habit-browser.mjs";
 
 const build = fileURLToPath(new URL("../scripts/build-pages.mjs", import.meta.url));
@@ -134,6 +135,9 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     await t.test("A paired habit survives a lost answer receipt, duplicate Finish and a second browser", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
     }, () => checkPairedHabit(origin, fixture.NECKARDT_APPS_SUPABASE_URL));
+    await t.test("Automatic subscriptions deliver the selected scope across mobile reviews and stop on revocation", {
+      skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
+    }, () => checkAutomaticRounds(origin, fixture.NECKARDT_APPS_SUPABASE_URL));
     for (const base of ["/", "/NeckardtApps/"]) {
       for (const path of ["", "index.html", "oauth/consent/", "oauth/consent/index.html"]) {
         const kind = path.startsWith("oauth/") ? "consent" : "apps";

@@ -9,8 +9,9 @@ and Deny. Its session is held in memory, separate from the site's Account sessio
 Any signed-in, non-anonymous project user can authorize the Habit Practice link tool. The token
 hook keeps that user's subject on issue and refresh and binds the token to the suite MCP endpoint.
 The connector can return the link regardless of the user's separate Habit Practice enrollment.
-Subscribing to round completions sets up a destination. Sharing the counts from a particular
-round requires a separate opt-in inside Habit Practice, using that owner's first-party session.
+A user can separately request an automatic completion subscription in Dot. It receives aggregate
+counts from rounds opened by that owner’s first-party session while the subscription is active.
+A separate detailed subscription includes card names, prompts, answers, grades and due dates for that destination. Unsubscribing revokes it. Existing registrations keep their original one-round sharing scope.
 
 The suite accepts `openid` alone or the exact set `openid email offline_access` that ChatGPT
 requests. For the latter, consent covers access to email and verification status through Supabase
