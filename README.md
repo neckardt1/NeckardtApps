@@ -8,6 +8,8 @@ Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
   Generate types with `npm run db:types` at the root before checking or deploying an Edge
   Function. Run Supabase CLI commands from `apps/backend/`.
 
+See the [MCP tools and events](apps/backend/supabase/functions/neckardt-apps-mcp/README.md) for the suite’s ChatGPT interface.
+
 ## Local development
 
 From the repo root with Node.js 24:

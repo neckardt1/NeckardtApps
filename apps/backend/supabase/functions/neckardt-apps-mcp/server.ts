@@ -1,51 +1,22 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import type { JWTVerifyGetKey } from "jose";
+import { createTokenVerifier, scopes } from "./auth.ts";
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import { linkTool, getHabitPracticeLink } from "./apps/habit-practice/tools.ts";
 
 const path = "/neckardt-apps-mcp";
 const metadataPath = path + "/.well-known/oauth-protected-resource";
 const website = "https://apps.neckardt.com";
-const reviewUrl = website + "/recall/";
-const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-const scopes = ["openid"];
-const securitySchemes = [{ type: "oauth2", scopes }];
-const linkTool = {
-  name: "get_habit_practice_link",
-  title: "Open Habit Practice",
-  description: "Get the link to start or resume a review in the Habit Practice web app.",
-  inputSchema: { type: "object" as const, properties: {}, additionalProperties: false },
-  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  securitySchemes,
-  _meta: { securitySchemes },
-};
 
 export function createHandler(projectUrl: string, clientId?: string, testKeys?: JWTVerifyGetKey) {
   const origin = new URL(projectUrl).origin;
   const issuer = origin + "/auth/v1";
   const resource = origin + "/functions/v1" + path;
   const metadataUrl = origin + "/functions/v1" + metadataPath;
-  const keys = testKeys ?? createRemoteJWKSet(new URL(issuer + "/.well-known/jwks.json"));
+  const accepts = createTokenVerifier(issuer, resource, clientId, testKeys);
   const challenge = `Bearer resource_metadata="${metadataUrl}", scope="openid"`;
   const headers = { "WWW-Authenticate": challenge, "Cache-Control": "no-store" };
-
-  async function accepts(authorization: string): Promise<boolean> {
-    if (!clientId || !uuid.test(clientId) || authorization.length > 16384) return false;
-    const bearer = /^Bearer ([^\s]+)$/i.exec(authorization);
-    if (!bearer) return false;
-    try {
-      const { payload } = await jwtVerify(bearer[1], keys, {
-        issuer, audience: resource, algorithms: ["ES256", "RS256"],
-        requiredClaims: ["exp", "iat", "sub", "client_id", "role", "session_id", "is_anonymous"],
-      });
-      return payload.aud === resource && payload.client_id === clientId &&
-        payload.role === "neckardt_apps_oauth" && payload.is_anonymous === false &&
-        typeof payload.sub === "string" && uuid.test(payload.sub) &&
-        typeof payload.session_id === "string" && uuid.test(payload.session_id);
-    } catch {
-      return false;
-    }
-  }
 
   return async (request: Request): Promise<Response> => {
     // The hosted Edge gateway removes /functions/v1 when forwarding a request.
@@ -80,7 +51,7 @@ export function createHandler(projectUrl: string, clientId?: string, testKeys?: 
         isError: true, content: [{ type: "text", text: "Connect Neckardt Apps to continue." }],
         _meta: { "mcp/www_authenticate": [challenge] },
       };
-      return { content: [{ type: "text", text: reviewUrl }], structuredContent: { url: reviewUrl } };
+      return getHabitPracticeLink();
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: 65536,
