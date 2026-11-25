@@ -146,7 +146,7 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
   return {
     origin: config.url,
     async armDebrief(roundId) {
-      const { data, error } = await client.rpc("habit_notify_arm", { round_id: roundId });
+      const { data, error } = await client.rpc("habit_notify_arm", { round_id: roundId, share_items: true });
       if (error || data !== true) throw new Error("Round debrief could not be confirmed");
     },
     rounds: {

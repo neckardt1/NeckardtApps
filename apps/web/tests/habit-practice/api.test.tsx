@@ -11,6 +11,12 @@ const saved = { review_id: "review", card_id: "card", revision: 3, due_at: "2026
 const action: ActionEvent = { action_id: "action", opportunity_id: "occasion", card_id: "card", revision: 0, outcome: "no_opportunity", answered_at: "2026-11-22T00:00:00.000Z" };
 beforeEach(() => { vi.clearAllMocks(); });
 
+it("requests detailed sharing for the specified round", async () => {
+  mocks.rpc.mockResolvedValue({ data: true, error: null });
+  await api.armDebrief!("round-A");
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("habit_notify_arm", { round_id: "round-A", share_items: true });
+});
+
 describe("verified review saves", () => {
   it("accepts an exact committed or replayed receipt", async () => {
     mocks.invoke.mockResolvedValue({ data: saved, error: null });

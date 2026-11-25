@@ -6,12 +6,32 @@ type Fields = Record<string, unknown>;
 type Rpc = (action: string, payload: Fields) => Promise<unknown>;
 type Sender = (url: URL, post: ReturnType<typeof signedPost>) => Promise<{status:number; body:string}>;
 const eventName = "habit.practice.round.completed";
-const outcomes = ["miss","hard","medium","easy","yes","no","no_opportunity","skip"];
+const grades = ["miss", "hard", "medium", "easy"];
+const actions = ["yes", "no", "no_opportunity", "skip"];
+const outcomes = [...grades, ...actions];
 const integer = { type: "integer", minimum: 0 };
+const nullableTime = { type: ["string", "null"], format: "date-time" };
+const itemFields = {
+  position: integer,
+  item_kind: { enum: ["review", "action"] },
+  card_id: { type: "string", format: "uuid" },
+  card_name: { type: "string", description: "Card display name captured for this round." },
+  front: { type: "string", description: "The recall prompt or habit check question." },
+  back: { type: ["string", "null"], description: "The expected recall answer or optional habit cue." },
+  answer: { enum: [...outcomes, "superseded"], description: "Saved self-rating or habit response. Superseded means the round recorded no response for this item." },
+  grade: { enum: [...grades, null], description: "Scheduling receipt grade. The app displays miss as Again and medium as Good." },
+  answered_at: nullableTime,
+  due_at: { ...nullableTime, description: "Prior due date captured at the start of the round, when available." },
+  next_due_at: { ...nullableTime, description: "Due date assigned by this response. Null for an item that did not reschedule the card." },
+};
 const dataSchema = {
   type: "object", additionalProperties: false,
   required: ["finished_at","review_count","action_count","superseded_count","outcomes"],
-  properties: { finished_at: { type: "string", format: "date-time" }, review_count: integer,
+  properties: {
+    round_id: { type: "string", format: "uuid" },
+    items: { type: "array", description: "Items in presentation order when the owner shared detailed results.", items: { type: "object", properties: itemFields,
+      required: Object.keys(itemFields), additionalProperties: false } },
+    finished_at: { type: "string", format: "date-time" }, review_count: integer,
     action_count: integer, superseded_count: integer, outcomes: { type: "object",
       additionalProperties: false, properties: Object.fromEntries(outcomes.map(name => [name,integer])) } },
 };
@@ -26,6 +46,27 @@ const invalid = () => new McpError(ErrorCode.InvalidParams, "Invalid event param
 const digest = (value:string) => createHash("sha256").update(value).digest();
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const count = (v:unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const optionalTime = (v: unknown) => v === null || typeof v === "string" && Number.isFinite(Date.parse(v));
+
+function roundDetails(row: Fields) {
+  if (!("items" in row) && !("round_id" in row)) return {};
+  if (typeof row.round_id !== "string" || !uuid.test(row.round_id) || !Array.isArray(row.items))
+    throw Error("Invalid round details");
+  const items = row.items.map((item: unknown, position: number) => {
+    if (!dict(item) || item.position !== position ||
+        (item.item_kind !== "review" && item.item_kind !== "action") ||
+        typeof item.card_id !== "string" || !uuid.test(item.card_id) ||
+        typeof item.card_name !== "string" || typeof item.front !== "string" ||
+        !(typeof item.back === "string" || item.back === null) || typeof item.answer !== "string" ||
+        !(item.answer === "superseded" || (item.item_kind === "review" ? grades : actions).includes(item.answer)) ||
+        !(item.grade === null || typeof item.grade === "string" && grades.includes(item.grade)) ||
+        !optionalTime(item.answered_at) || !optionalTime(item.due_at) || !optionalTime(item.next_due_at))
+      throw Error("Invalid round item");
+    return Object.fromEntries(Object.keys(itemFields).map(key => [key, item[key]]));
+  });
+  return { round_id: row.round_id, items };
+}
+
 export { capabilities };
 
 export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sender = sendCallback as Sender) {
@@ -77,7 +118,7 @@ export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sen
           typeof row.finished_at !== "string" || !Number.isFinite(Date.parse(row.finished_at)) ||
           !count(row.review_count) || !count(row.action_count) || !count(row.superseded_count) ||
           !dict(row.outcomes)) throw Error("Invalid completion");
-      const data = { finished_at:row.finished_at,review_count:row.review_count,
+      const data = { ...roundDetails(row), finished_at:row.finished_at,review_count:row.review_count,
         action_count:row.action_count,superseded_count:row.superseded_count,
         outcomes:Object.fromEntries(Object.entries(row.outcomes).filter(([k,v]) => outcomes.includes(k) && count(v))) };
       const message = { eventId:body.delivery_id,name:eventName,timestamp:row.finished_at,data,cursor:null };
