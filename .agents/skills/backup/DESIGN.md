@@ -1,0 +1,1 @@
+Nick requested “a backup skill in neckardtapps (with a script) which would then update to the google drive.” The filename maps the snapshot to the deployed commit. The SQL route uses the Habit Practice data scope established in the initial export.
