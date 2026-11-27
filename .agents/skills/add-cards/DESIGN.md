@@ -1,0 +1,1 @@
+Nick requested “the add-cards skill and script in NeckardtApps. facts and paired habits for now, with the same preview and approval flow.” The agent previews the wording privately and uses the existing Supabase SQL connector for approved writes.
