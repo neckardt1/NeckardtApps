@@ -15,7 +15,7 @@ export default async function longCard(worker) {
   const { page, origin, config } = worker;
   const card = await resetRound(worker);
   const viewport = page.viewportSize();
-  const endpoint = config.url + "/rest/v1/rpc/recall_latest_round";
+  const endpoint = config.url + "/rest/v1/rpc/recall_open_round";
   await page.route(endpoint, route => route.fulfill({ json: [{
     round_id: randomUUID(), event_id: randomUUID(), card_id: card, item_kind: "review",
     position: 0, revision: 0, front: longFront, back: longBack, paired_action: false, opportunity_id: null,

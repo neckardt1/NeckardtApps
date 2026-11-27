@@ -11,20 +11,25 @@ function intervalLabel(minutes: number) {
   return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
-export function RatingButtons({ cardId, revision, preview, disabled, rate }: {
-  cardId: string; revision: number; preview: RecallApi['preview']; disabled: boolean; rate: (grade: Grade) => void;
+export function RatingButtons({ cardId, revision, preview, revealed, reveal, disabled, rate }: {
+  cardId: string; revision: number; preview: RecallApi['preview']; revealed: boolean;
+  reveal: () => void; disabled: boolean; rate: (grade: Grade) => void;
 }) {
   const [intervals, setIntervals] = useState<ReviewIntervals | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   useEffect(() => {
     let current = true;
-    preview?.(cardId, revision).then(
-      values => { if (current) setIntervals(values); },
-      () => { if (current) setUnavailable(true); }
-    );
+    // A discarded mount should not send a duplicate preview for the same prompt.
+    queueMicrotask(() => {
+      if (current) preview?.(cardId, revision).then(
+        values => { if (current) setIntervals(values); },
+        () => { if (current) setUnavailable(true); }
+      );
+    });
     return () => { current = false; };
   }, [cardId, revision, preview]);
 
+  if (!revealed) return <button className="primary" disabled={disabled} onClick={reveal} aria-keyshortcuts="Space Enter">Reveal answer</button>;
   return <>
     {unavailable && <p className="status" role="status">Review intervals unavailable.</p>}
     <div className="ratings" aria-label="Rate your recall">
