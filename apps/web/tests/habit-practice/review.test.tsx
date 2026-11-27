@@ -199,7 +199,8 @@ test.each(['latest', 'open'] as const)('a missing %s RPC allows ordinary reviews
   latest.mockResolvedValue([]);
   open.mockResolvedValue([]);
   await tap('Check again');
-  expect(latest).toHaveBeenCalledTimes(2);
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(latest).toHaveBeenCalledTimes(1);
   expect(due).toHaveBeenCalledTimes(1);
   expect(target.textContent).toContain('No cards due');
 });
@@ -207,7 +208,7 @@ test.each(['latest', 'open'] as const)('a missing %s RPC allows ordinary reviews
 test.each([new Error('offline'), new RecallApiError('Not authorized', 403)])('a failed round request never falls back on transport or authorization errors', async failure => {
   const due = vi.fn(async () => cards());
   await remount(api({ due, rounds: {
-    latest: async () => { throw failure; }, open: async () => [], finish: async () => []
+    latest: async () => [], open: async () => { throw failure; }, finish: async () => []
   } }));
   expect(due).not.toHaveBeenCalled();
   expect(button('Start review')).toBeUndefined();
@@ -219,7 +220,8 @@ test('a cached server round keeps its server event IDs when the backend becomes 
     position: 0, opportunity_id: null, answer: null, answered_at: null, due_at: null, finished_at: null };
   const due = vi.fn(async () => cards());
   const open = vi.fn(async (): Promise<RoundItem[]> => { throw new MissingRoundRpc(); });
-  const client = api({ due, rounds: { latest: async () => [remote], open, finish: async () => [] } });
+  open.mockResolvedValueOnce([remote]);
+  const client = api({ due, rounds: { latest: async () => [], open, finish: async () => [] } });
   await remount(client);
   await remount(client);
   expect(open).toHaveBeenCalledWith('server-round');
@@ -254,12 +256,14 @@ test.each(['/recall/', '/recall/?dot=1'])('review completes directly at %s, with
 
 test('a late or unavailable preview does not block grading or carry intervals to the next card', async () => {
   const hold = deferred<Record<ReviewEvent['grade'], number>>();
-  const preview = vi.fn().mockReturnValueOnce(hold.promise).mockRejectedValueOnce(Error('offline'));
+  const preview = vi.fn().mockReturnValueOnce(hold.promise).mockRejectedValue(Error('offline'));
   const grade = vi.fn(async () => {});
   await remount(api({ preview, grade }));
-  await tap('Reveal answer');
   expect(preview).toHaveBeenCalledExactlyOnceWith('A', 0);
+  await tap('Reveal answer');
+  expect(preview).toHaveBeenCalledTimes(1);
   await key('3');
+  expect(preview).toHaveBeenNthCalledWith(2, 'B', 0);
   await tap('Reveal answer');
   expect(target.textContent).toContain('Review intervals unavailable.');
   await act(async () => hold.finish({ miss: 1, hard: 6, medium: 10, easy: 11520 }));

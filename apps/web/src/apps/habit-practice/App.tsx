@@ -233,9 +233,9 @@ export function App({ api }: { api: RecallApi | null }) {
             <button className="secondary" disabled={busy} onClick={() => answer('no')}>No</button>
             <button className="secondary" disabled={busy} onClick={() => answer('no_opportunity')}>No opportunity</button>
             <button className="text-button" disabled={busy} onClick={() => answer('skip')}>Skip</button>
-          </div> : card ? round.revealed ? <RatingButtons
+          </div> : card ? <RatingButtons
             key={`${owner}.${round.id}.${card.card_id}.${card.revision}`} cardId={card.card_id} revision={card.revision}
-            preview={api.preview} disabled={busy} rate={rate} /> : <button className="primary" disabled={busy} onClick={reveal} aria-keyshortcuts="Space Enter">Reveal answer</button>
+            preview={api.preview} revealed={round.revealed} reveal={reveal} disabled={busy} rate={rate} />
             : null
             : <button className="secondary" disabled={busy || loading} onClick={() => {
               if (runtime.current?.fallback) setLegacyScope(null);

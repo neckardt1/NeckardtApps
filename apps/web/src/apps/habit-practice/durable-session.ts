@@ -77,18 +77,23 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         if (!active()) return;
         const before = read();
         const dismissed = storage.getItem(key + '.dismissed');
-        let established = !!before?.server || !!dismissed;
         let rows: RoundItem[];
         try {
-          rows = before?.server ? await remote.open(before.id) : await remote.latest();
-          if (!active()) return;
-          established ||= rows.length > 0;
-          if (!before?.server && (!rows.length || rows[0].finished_at)) {
-            rows = await remote.open(crypto.randomUUID());
-          }
+          // Open reuses the owner's active round atomically, including on a new device.
+          rows = await remote.open(before?.server ? before.id : crypto.randomUUID());
         } catch (error) {
-          if (!established && error instanceof MissingRoundRpc && !read()?.server) return 'use-legacy' as const;
-          throw error;
+          if (!active()) return;
+          if (!(error instanceof MissingRoundRpc) || before?.server) throw error;
+          // On a partial rollout, recover an existing manifest before considering legacy mode.
+          try {
+            rows = await remote.latest();
+          } catch (lookupError) {
+            if (!(lookupError instanceof MissingRoundRpc)) throw lookupError;
+            rows = [];
+          }
+          if (!active()) return;
+          if (!rows.length && !dismissed && !read()?.server) return 'use-legacy' as const;
+          if (!rows.length || rows[0].finished_at) throw error;
         }
         if (!active()) return;
         await update(r => {
