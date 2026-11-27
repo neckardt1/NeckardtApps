@@ -1,0 +1,6 @@
+# Release rules and the mechanisms that enforce them
+AGENTS.md @NickEckardt
+/.agents/ @NickEckardt
+/.github/ @NickEckardt
+SOP.md @NickEckardt
+SOPs/ @NickEckardt
