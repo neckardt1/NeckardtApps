@@ -1,0 +1,1 @@
+Nick requested that the backup cover “all tables instead of ‘all 9’” as the database grows. Discover the catalog on every run and use the SQL connector for a consistent row snapshot. The filename maps the capture to the deployed commit. Private Google Drive holds the verified copy.
