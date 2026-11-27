@@ -36,6 +36,14 @@ export async function checkBrowserRoutes(origin) {
       await checkPractice(deep);
       assert.equal(documents.length, before, "In-app navigation keeps the same document");
 
+      await page.getByRole("button", { name: "Apps", exact: true }).click();
+      await page.getByRole("link", { name: "All apps" }).click();
+      await page.getByRole("link", { name: /To-do/ }).click();
+      await page.getByText("Sign in under Account to open your projects.").waitFor();
+      assert.equal(page.url(), root + "todo/");
+      await page.reload();
+      await page.getByRole("heading", { name: "To-do" }).waitFor();
+
       const alias = root + "recall/index.html";
       await page.goto(alias, { waitUntil: "commit" });
       await checkPractice(alias);

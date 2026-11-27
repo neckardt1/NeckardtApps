@@ -49,7 +49,7 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .launcher { max-width: 43rem; margin: 0 auto; padding: clamp(3rem, 10vh, 6rem) clamp(1.25rem, 5vw, 2rem) max(2rem, env(safe-area-inset-bottom)); }
 .launcher h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: clamp(3rem, 10vw, 4.2rem); line-height: 1.1; letter-spacing: -.035em; }
 .launcher-intro { margin: 1rem 0 2.2rem; color: var(--muted); font-size: 1.0625rem; }
-.app-list { list-style: none; padding: 0; margin: 0; }
+.app-list { display: grid; gap: .75rem; list-style: none; padding: 0; margin: 0; }
 .app-card { display: flex; align-items: center; gap: 1rem; min-height: 6.2rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); color: var(--ink); text-decoration: none; }
 .app-card:hover { border-color: #aebdab; background: #f5f7ef; }
 .app-icon { display: grid; place-items: center; flex: 0 0 auto; width: 2.7rem; height: 2.7rem; border-radius: .6rem; background: var(--sage); color: var(--green); }

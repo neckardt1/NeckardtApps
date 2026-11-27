@@ -3,7 +3,7 @@
 Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
 
 - [Web](apps/web/) contains the React/Vite launcher, [Habit Practice](apps/web/src/apps/habit-practice/README.md)
-  at `/recall/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
+  at `/recall/`, the To-do prototype at `/todo/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
 - [Backend](apps/backend/supabase/) contains the SQL migrations and Supabase Edge Functions.
   Generate types with `npm run db:types` at the root before checking or deploying an Edge
   Function. Run Supabase CLI commands from `apps/backend/`.
@@ -31,6 +31,19 @@ with `npm run build -- <directory>` to keep earlier builds.
 
 To test Habit Practice while editing with a disposable Supabase user, see the
 [hosted test setup](tests/hosted/README.md).
+
+## Two-account To-do prototype
+
+In a disposable Supabase project, each tester needs an Auth account and a corresponding
+`public.todo_accounts.user_id` row. The migration creates an empty enrollment table.
+To-do uses the launcher's **Account** sign-in. Each account can create private projects.
+To share one, the other tester opens **Your sharing ID** and gives the ID to the owner.
+The owner enters it under that project's **Manage sharing**. Either tester can then add,
+rename or complete tasks. **Refresh** loads the other tester's changes. **Stop sharing**
+returns the project to the owner alone.
+
+Run `node --test apps/backend/tests/todo-projects.test.mjs` for the disposable database
+test covering private projects, shared tasks and revocation.
 
 ## Deployment
 
