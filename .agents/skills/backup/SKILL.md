@@ -11,3 +11,11 @@ Use the last successful production Pages deployment's full SHA. This identifies 
 4. To rehearse a recovery, use a disposable database with matching table definitions and owner identities. Read the verified JSON as text in PostgreSQL and select a table's rows with `jsonb_populate_recordset(null::flashcards_private.cards, $1::jsonb->'tables'->'cards')`. Insert explicit writable columns into empty scratch tables in foreign-key order. Preserve IDs and review trigger effects and generated columns. Compare restored rows in both directions using EXCEPT ALL. Production recovery is a separate operation.
 
 The backend snapshot test exercises capture, checksum validation and typed recovery with synthetic rows. A successful upload alone establishes file integrity.
+
+## Retention after a verified upload
+
+Use a dedicated private My Drive folder for scheduled snapshots. Record its ID in the schedule, supply it to upload, and verify its ownership and permissions each run. Leave older exports outside that folder alone.
+
+After download verification, list every page of non-trashed files directly in that folder. Pass their `[{id,name}]` metadata on stdin to `node .agents/skills/backup/retention.mjs <freshly-verified-file-id>`. It prints a dry-run plan. Keep the current copy and progressively coarser weekly, fortnightly, monthly, quarterly, half-year and year-scale checkpoints. Exact ages vary with the capture dates.
+
+Apply the plan only after a successful recovery rehearsal and while this is the sole backup run for the folder. For each proposed removal, recheck its ID, current parent, private ownership and matching filename, download it and verify that its payload format, header and checksum match the backup and Drive metadata. Use Drive Trash. If inventory, identity or verification is uncertain, preserve the file. A failed upload or round trip skips pruning. Verify the retained files still exist and report the counts.
