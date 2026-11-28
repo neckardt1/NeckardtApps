@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { checkAppHome, phones } from "./mobile-layout.mjs";
+import { checkSuiteNavigation, checkTaskActions, phones } from "./mobile-layout.mjs";
 
-export async function checkPrivateSites(origin, remote) {
+export async function checkSiteAndTaskRoutes(origin, remote) {
   const browser = await chromium.launch(process.env.CHROME_BIN
     ? { executablePath: process.env.CHROME_BIN } : { channel: "chrome" });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ hasTouch: true });
     await page.addInitScript(key => {
       if (window !== window.top) return;
       localStorage.setItem(key, JSON.stringify({ access_token: "fixture", refresh_token: "fixture", token_type: "bearer",
@@ -36,14 +36,36 @@ export async function checkPrivateSites(origin, remote) {
     assert.equal(await page.getByRole("navigation", { name: "Site navigation" }).getByRole("link", { name: "Home", exact: true }).getAttribute("href"), "/NeckardtApps/sites/family");
     for (const size of phones) {
       await page.setViewportSize(size);
-      await checkAppHome(page, "Sites");
+      await checkSuiteNavigation(page, "Sites");
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await checkAppHome(page, "Sites");
+      await checkSuiteNavigation(page, "Sites");
     }
+    await page.getByRole("link", { name: "Sites home" }).click();
+    for (const size of phones) {
+      await page.setViewportSize(size);
+      await checkSuiteNavigation(page, "Sites");
+    }
+    await page.goBack();
+    await frame.getByText("Private content").waitFor();
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.getByRole("link", { name: "Sites home" }).click();
     assert.equal(new URL(page.url()).pathname, "/NeckardtApps/sites");
     await page.goBack();
     await frame.getByText("Private content").waitFor();
+    // Follow the shared switcher from a nested site into the signed-in Tasks UI.
+    await page.route("**/rest/v1/rpc/tasks_read", route => route.fulfill({ json: {
+      lists: [{ id: "private-list", kind: "private" }, { id: "shared-list", kind: "household" }],
+      tasks: [], focus: [], focusDay: "2026-01-01",
+    } }));
+    await page.setViewportSize(phones[0]);
+    await page.getByRole("button", { name: "Apps", exact: true }).tap();
+    await page.getByRole("dialog", { name: "Apps" }).getByRole("link", { name: "Tasks" }).tap();
+    await page.getByRole("button", { name: "Add task" }).waitFor();
+    await checkTaskActions(page);
+    await page.getByRole("link", { name: "Home", exact: true }).tap();
+    for (const size of phones) {
+      await page.setViewportSize(size);
+      await checkSuiteNavigation(page);
+    }
   } finally { await browser.close(); }
 }

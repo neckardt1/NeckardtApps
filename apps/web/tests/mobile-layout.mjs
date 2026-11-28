@@ -16,17 +16,32 @@ export async function checkBottomAction(page, control, { right = false } = {}) {
     { x, y: box.y + box.height / 2 }), "The action receives a tap at this point.");
 }
 
-export async function checkAppHome(page, name) {
-  const control = page.getByRole("link", { name: name + " home", exact: true });
-  await control.click({ trial: true });
-  const box = await control.boundingBox();
-  const bar = await page.locator(".topbar").boundingBox();
-  const { height } = page.viewportSize();
-  assert.ok(box && bar && box.width >= 44 && box.height >= 44);
-  assert.ok(Math.abs(box.x + box.width / 2 - (bar.x + bar.width / 2)) <= 2,
-    `App home at ${box.x}..${box.x + box.width} in bar ${bar.x}..${bar.x + bar.width}`);
-  assert.ok(box.y >= bar.y && box.y + box.height <= bar.y + bar.height && Math.abs(bar.y + bar.height - height) <= 1,
-    `App home at ${box.y}..${box.y + box.height}, bar ${bar.y}..${bar.y + bar.height}, viewport ${height}`);
+export async function checkSuiteNavigation(page, appName, bottomInset = 0) {
+  const suite = page.locator(".topbar");
+  const account = suite.getByRole("link", { name: /^Account/ });
+  const apps = suite.getByRole("button", { name: "Apps", exact: true });
+  const home = suite.getByRole("link", { name: "Home", exact: true });
+  const controls = [account];
+  if (appName) controls.push(suite.getByRole("link", { name: appName + " home", exact: true }));
+  controls.push(apps, home);
+  const { width, height } = page.viewportSize();
+  const bar = await suite.boundingBox();
+  assert.ok(bar && Math.abs(bar.y + bar.height - height) <= 1, "Suite bar touches the bottom edge.");
+  let end = 0;
+  for (const control of controls) {
+    const box = await control.boundingBox();
+    assert.ok(box && box.width >= 44 && box.height >= 44 && box.x >= end - 1,
+      `${await control.getAttribute("class")} at ${JSON.stringify(box)}, previous right edge ${end}, viewport ${width}×${height}`);
+    assert.ok(box.y >= bar.y && box.y + box.height <= height - bottomInset);
+    assert.ok(await control.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }));
+    end = box.x + box.width;
+  }
+  const picker = await apps.boundingBox();
+  assert.ok(Math.abs(picker.x + picker.width / 2 - (bar.x + bar.width / 2)) <= 1, "Apps stays centered on every route.");
+  assert.ok((await account.boundingBox()).x < width * .1 && end > width * .9 && end <= width);
 }
 
 export async function checkTaskActions(page) {
@@ -36,7 +51,14 @@ export async function checkTaskActions(page) {
   try {
     for (const size of phones) {
       await page.setViewportSize(size);
-      assert.equal(await page.locator(".topbar").isVisible(), false);
+      await checkSuiteNavigation(page, "Tasks");
+      const bar = await page.locator(".topbar").boundingBox();
+      const suite = page.locator(".topbar");
+      await suite.getByRole("link", { name: /^Account/ }).focus();
+      for (const control of [suite.getByRole("link", { name: "Tasks home" }), suite.getByRole("button", { name: "Apps" }), suite.getByRole("link", { name: "Home", exact: true })]) {
+        await page.keyboard.press("Tab");
+        assert.ok(await control.evaluate(el => el === document.activeElement), "Tab follows the visible suite controls.");
+      }
       const addBox = await add.boundingBox();
       assert.ok(addBox.width >= 44 && addBox.height >= 44 && addBox.x > size.width * .75);
       let end = 0;
@@ -44,7 +66,7 @@ export async function checkTaskActions(page) {
         const tab = views.getByRole("button", { name, exact: true });
         const box = await tab.boundingBox();
         assert.ok(box.x >= end && box.width >= 44 && box.height >= 44);
-        assert.ok(box.y >= size.height - 90 && box.y + box.height <= size.height);
+        assert.ok(box.y >= bar.y - 60 && box.y + box.height <= bar.y);
         assert.ok(Math.abs(box.y + box.height / 2 - addBox.y - addBox.height / 2) < 2);
         assert.ok(await tab.evaluate(el => {
           const rect = el.getBoundingClientRect();
@@ -54,13 +76,14 @@ export async function checkTaskActions(page) {
         await tab.tap();
         await page.getByRole("heading", { name, exact: true }).waitFor();
         assert.equal(await tab.getAttribute("aria-current"), "page");
+        await checkSuiteNavigation(page, "Tasks");
       }
       assert.ok(end <= addBox.x + 1);
       const directory = page.getByRole("navigation", { name: "Task lists" });
       assert.deepEqual(await directory.getByRole("button").allTextContents(), ["Private", "Household"]);
       for (const choice of await directory.getByRole("button").all()) {
         const box = await choice.boundingBox();
-        assert.ok(box.y >= size.height / 2 && box.height >= 44 && box.y + box.height <= addBox.y);
+        assert.ok(box.y + box.height / 2 >= size.height / 2 && box.height >= 44 && box.y + box.height <= addBox.y);
       }
       await directory.getByRole("button", { name: "Household" }).click();
       await page.getByRole("heading", { name: "Household" }).waitFor();
@@ -88,15 +111,7 @@ export async function checkTaskActions(page) {
             return label.getClientRects().length === 1 && el.clientWidth >= el.scrollWidth;
           }), "Each enlarged tab label fits on one line.");
         }
-        const suite = page.locator(".topbar");
-        for (const control of await suite.locator(".chrome-button:visible").all()) {
-          const box = await control.boundingBox();
-          assert.ok(box.width >= 44 && box.height >= 44 && box.y >= size.height / 2);
-          assert.ok(await control.evaluate(el => {
-            const r = el.getBoundingClientRect();
-            return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
-          }));
-        }
+        await checkSuiteNavigation(page, "Tasks");
         const apps = suite.getByRole("button", { name: "Apps", exact: true });
         await apps.tap();
         await page.getByRole("dialog", { name: "Apps" }).waitFor();

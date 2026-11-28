@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { resetRound } from "../hosted-worker.mjs";
-import { checkAppHome, checkBottomAction, phones } from "../mobile-layout.mjs";
+import { checkSuiteNavigation, checkBottomAction, phones } from "../mobile-layout.mjs";
 
 export default async function practiceHome(worker) {
   const { page, origin } = worker;
@@ -18,6 +18,7 @@ export default async function practiceHome(worker) {
     await page.goto(origin + "/recall/");
     for (const size of phones) {
       await page.setViewportSize(size);
+      await checkSuiteNavigation(page, "Habits");
       await checkBottomAction(page, button("Start round"), { right: true });
       await checkBottomAction(page, button("Browse all cards"));
     }
@@ -29,7 +30,7 @@ export default async function practiceHome(worker) {
     await page.getByText("Fixture answer", { exact: true }).waitFor();
     for (const size of phones) {
       await page.setViewportSize(size);
-      await checkAppHome(page, "Habits");
+      await checkSuiteNavigation(page, "Habits");
     }
     await home.focus();
     await page.keyboard.press("Enter");

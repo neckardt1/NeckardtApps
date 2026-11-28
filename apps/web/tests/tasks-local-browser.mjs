@@ -120,10 +120,7 @@ async function checkHomeWidget(account, listId) {
     } });
     assert(result.ok);
   }
-  const home = async () => {
-    if (await page.locator(".tasks-mobile-tabs").isVisible()) await button(page, "Browse").tap();
-    await page.getByRole("link", { name: "Home", exact: true }).click();
-  };
+  const home = () => page.getByRole("link", { name: "Home", exact: true }).click();
   await home();
   await button(page, "Pick tasks").click();
   const focus = page.getByRole("region", { name: "Focus", exact: true });

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { checkSuiteNavigation } from "../mobile-layout.mjs";
 import { resetRound } from "../hosted-worker.mjs";
 
+const bottomInset = 24;
 const phones = [
+  { width: 320, height: 568, theme: "light" },
   { width: 375, height: 667, theme: "light" },
   { width: 390, height: 844, theme: "dark" },
   { width: 430, height: 932, theme: "light" },
@@ -15,15 +18,19 @@ async function dockPositions(page, step, action) {
     await page.getByText(`Step ${step} of 2`, { exact: true }).waitFor();
     const button = page.getByRole("button", { name: action, exact: true });
     const box = await button.boundingBox();
-    const nav = await page.locator(step === 1 ? ".tasks-heading-actions" : ".topbar").boundingBox();
+    const nav = await page.locator(".topbar").boundingBox();
     const footer = await page.locator(".guide-footer").boundingBox();
+    await checkSuiteNavigation(page, step === 1 ? "Tasks" : "Habits", bottomInset);
     assert(box.height >= 44 && box.y + box.height <= nav.y && footer.y + footer.height <= nav.y + 1);
     assert(await button.evaluate(el => {
       const r = el.getBoundingClientRect();
       return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
     }));
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme), theme);
-    if (step === 2) {
+    if (step === 1) {
+      const tabs = await page.locator(".tasks-heading-actions").boundingBox();
+      assert(tabs.y + tabs.height <= footer.y + 1);
+    } else {
       const ratings = await page.locator(".ratings").boundingBox();
       assert(ratings.y >= 0 && ratings.y + ratings.height <= footer.y);
       for (const grade of ["Again", "Hard", "Good", "Easy"]) assert(await page.getByRole("button", { name: grade, exact: true }).isEnabled());
@@ -48,13 +55,18 @@ export default async function guidedHome(worker) {
   const cdp = await page.context().newCDPSession(page);
   page.on("request", observe);
   try {
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: bottomInset } });
     // Use an actual Pacific midnight. Return to wall time before recording a grade.
     await page.clock.setFixedTime(new Date("2026-03-08T07:59:58Z"));
     await page.setViewportSize({ width: phones[0].width, height: phones[0].height });
     await page.goto(origin);
+    for (const { width, height } of phones) {
+      await page.setViewportSize({ width, height });
+      await checkSuiteNavigation(page, undefined, bottomInset);
+    }
     await button("Pick tasks").click();
     await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
-    await button("Browse").click();
+    await checkSuiteNavigation(page, "Tasks");
     await page.setViewportSize({ width: 568, height: 320 });
     const enlarged = await page.addStyleTag({ content: ":root { font-size: 200%; }" });
     await button("Apps").click();
@@ -62,7 +74,7 @@ export default async function guidedHome(worker) {
     await picker.getByRole("link", { name: "All apps" }).click();
     await page.waitForURL(url => url.pathname === "/apps/");
     await page.goBack();
-    await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
     await enlarged.evaluate(el => el.remove());
     await page.setViewportSize({ width: phones[0].width, height: phones[0].height });
     await page.getByRole("link", { name: "Home", exact: true }).click();
@@ -129,6 +141,7 @@ export default async function guidedHome(worker) {
     assert.equal(await button("Skip practice").count(), 0);
   } finally {
     page.off("request", observe);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
     await cdp.detach();
   }
 }
