@@ -228,6 +228,9 @@ test("signed suite MCP requests use the registered tools and isolated app data",
         role:"authenticated", sub:a, aud:"authenticated", is_anonymous:false})]);
       const read = await tx.query("select public.tasks_read($1) as data", [a]);
       assert.deepEqual(read.rows[0].data.tasks.map(item=>item.id), [task.id]);
+      const history = await tx.query("select action, by_you from public.tasks_history($1,$2)", [a,shared.id]);
+      assert.deepEqual(history.rows.map(row=>row.action), ["completed","rescheduled","promoted","created"]);
+      assert(history.rows.every(row=>row.by_you));
       await tx.query("select public.tasks_complete($1,$2,1)", [a,task.id]);
     });
     assert.deepEqual((await ok(wa,"list_tasks")).tasks,[]);
