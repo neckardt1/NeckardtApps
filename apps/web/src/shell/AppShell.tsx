@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from "react-router";
 import type { AccountProfile } from "./profile.ts";
 import { apps } from "./apps.ts";
 import { AppHomeBusy } from "./app-navigation";
-import { AppTileGrid } from "./AppTileGrid.tsx";
+import { AppTileGrid, AppTileIcon } from "./AppTileGrid.tsx";
 
 type Props = {
   profile?: AccountProfile;
@@ -85,20 +85,22 @@ export function AppShell({ profile, children }: Props) {
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
-        <Link className="chrome-button home-link" to="/" aria-label="Home" onClick={() => setOpen(false)}>
+        <NavLink className="chrome-button home-link" to="/" end aria-label="Home" onClick={() => setOpen(false)}>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
             <path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9" strokeLinejoin="round" />
           </svg><span>Home</span>
-        </Link>
-        {currentApp && <Link to={currentApp.path} className="chrome-button app-home-link"
-          aria-label={`${currentApp.name} home`} aria-disabled={appBusy || undefined}
-          replace={!location.state?.appView && location.pathname === currentApp.path && !location.search && !location.hash}
-          onClick={event => { if (appBusy) event.preventDefault(); else setOpen(false); }}>
-          {currentApp.name}
-        </Link>}
-        <button ref={appsButton} type="button" className="chrome-button apps-toggle" aria-label="Apps" title="Apps" aria-expanded={open}
-          aria-controls={open ? `${id}-apps` : undefined} aria-haspopup="dialog"
-          onClick={() => setOpen(!open)}><AppsIcon /><span>Apps</span><Chevron /></button>
+        </NavLink>
+        <div className="app-switcher">
+          {currentApp && <Link to={currentApp.path} className="chrome-button app-home-link"
+            aria-label={`${currentApp.name} home`} aria-disabled={appBusy || undefined}
+            replace={!location.state?.appView && location.pathname === currentApp.path && !location.search && !location.hash}
+            onClick={event => { if (appBusy) event.preventDefault(); else setOpen(false); }}>
+            <AppTileIcon id={currentApp.id} /><span className="app-home-name">{currentApp.name}</span>
+          </Link>}
+          <button ref={appsButton} type="button" className="chrome-button apps-toggle" aria-label="Apps" title="Apps" aria-expanded={open}
+            aria-controls={open ? `${id}-apps` : undefined} aria-haspopup="dialog"
+            onClick={() => setOpen(!open)}><AppsIcon /><span>Apps</span><Chevron /></button>
+        </div>
         <NavLink to="/profile" className="chrome-button account-link" aria-label={profile?.display_name ? `Account: ${profile.display_name}` : "Account"}
           onClick={() => setOpen(false)}>
           {profile?.picture ? <img className="account-avatar" src={profile.picture} alt="" /> : <AccountIcon />}
