@@ -3,7 +3,7 @@ import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { checkedUrl, secretBytes, sendCallback, signedPost, verifyCallback } from "../../callback.mjs";
 
 type Fields = Record<string, unknown>;
-type Rpc = (action: string, payload: Fields) => Promise<unknown>;
+type Rpc = (action: string, payload: Fields, grantId?: string) => Promise<unknown>;
 type Sender = (url: URL, post: ReturnType<typeof signedPost>) => Promise<{status:number; body:string}>;
 const eventName = "habit.practice.round.completed";
 const grades = ["miss", "hard", "medium", "easy"];
@@ -73,9 +73,7 @@ function roundDetails(row: Fields) {
 export { capabilities };
 
 export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sender = sendCallback as Sender) {
-  async function handle(method:string, params:unknown, owner:string | null) {
-    if (method === "server/discover")
-      return { resultType:"complete", supportedVersions:["2026-07-28"], capabilities };
+  async function handle(method:string, params:unknown, owner:string | null, grantId?:string) {
     if (method === "events/list") return { events:[event] };
     if (method !== "events/subscribe" && method !== "events/unsubscribe")
       throw new McpError(ErrorCode.MethodNotFound, "Method not found");
@@ -91,11 +89,12 @@ export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sen
     const automatic = params.arguments.automatic === true;
     const details = params.arguments.share_items === true;
     const identity = [owner,eventName,url.href];
+    if (grantId) identity.push(grantId);
     if (automatic) identity.push("automatic");
     if (details) identity.push("share_items");
     const id = "sub_" + digest(JSON.stringify(identity)).toString("hex").slice(0,40);
     if (method === "events/unsubscribe") {
-      await db("unsubscribe", { owner_id:owner,id });
+      await db("unsubscribe", { owner_id:owner,id }, grantId);
       return {};
     }
     const ttl = params.ttlMs ?? 3600000;
@@ -107,9 +106,11 @@ export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sen
     try { valid = await verifyCallback(url,id,secret,send); } catch { /* fail closed */ }
     if (!valid) throw new McpError(-32015, "CallbackEndpointError", { reason:"challenge_failed" });
     const expires = new Date(Date.now() + Math.min(ttl,86400000)).toISOString();
-    await db(automatic ? "subscribe_automatic" : "subscribe", { owner_id:owner,id,url:url.href,secret,expires_at:expires,
-      ...(details ? { share_items:true } : {}) });
-    return { id,refreshBefore:expires,cursor:null,truncated:false };
+    const registration = await db(automatic ? "subscribe_automatic" : "subscribe", { owner_id:owner,id,url:url.href,secret,expires_at:expires,
+      ...(details ? { share_items:true } : {}) }, grantId);
+    const refreshBefore = grantId && dict(registration) && typeof registration.expires_at === "string"
+      ? new Date(registration.expires_at).toISOString() : expires;
+    return { id,refreshBefore,cursor:null,truncated:false };
   }
 
   async function deliver(req:Request) {

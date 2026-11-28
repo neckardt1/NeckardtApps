@@ -146,3 +146,59 @@ test.each([
   expect(writes.mock.calls.some(([key, value]) => key === 'neckardt-apps-oauth-consent'
     || /synthetic-consent-(?:access|refresh|password)/.test(value) || value.includes(member.email))).toBe(false);
 });
+
+test.each([
+  { id:'neckardt-muse', scope:'habit:link', callback:'https://agent.meta.ai/api/hatch/oauth/callback', name:'Muse' },
+  { id:'neckardt-chatgpt', scope:'habit:events habit:link offline_access', callback:'https://chatgpt.com/connector_platform_oauth_redirect', name:'ChatGPT' }
+])('the $name MCP-only entry shares only the approved code and shows the actual scope', async ({ id,scope,callback,name }) => {
+  vi.resetModules();
+  const config = { url:'https://abcdefghijklmnopqrst.supabase.co', publishableKey:'sb_publishable_entry_fixture' };
+  const resource = config.url + '/functions/v1/neckardt-apps-mcp';
+  const issuer = 'https://apps.neckardt.com/mcp.json';
+  const query = new URLSearchParams({ client_id:id, redirect_uri:callback, resource, state:'synthetic-state',
+    scope, response_type:'code', code_challenge_method:'S256', code_challenge:'a'.repeat(43) });
+  const dest = new URL(callback);
+  dest.search = new URLSearchParams({ code:'nmc_c_' + 'a'.repeat(43), state:'synthetic-state', iss:issuer }).toString();
+  history.replaceState({}, '', '/oauth/consent/?' + query);
+  vi.stubGlobal('__SITE_PUBLIC_CONFIG__', config);
+  const redirect = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
+  const dbCalls: string[] = [];
+  const storageBefore = [snapshot(localStorage),snapshot(sessionStorage)];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input,init) => {
+    if (String(input) === config.url + '/auth/v1/token?grant_type=password') {
+      return Response.json({ access_token:'synthetic-first-party-access', refresh_token:'synthetic-first-party-refresh', token_type:'bearer',
+        expires_in:3600, user:{ id:'11111111-1111-4111-8111-111111111111',email:'person@example.invalid' } });
+    }
+    expect(String(input)).toBe(resource + '/oauth/consent');
+    expect(init?.redirect).toBe('error');
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-first-party-access');
+    const body = new URLSearchParams(String(init?.body));
+    const decision = body.get('decision')!;
+    body.delete('decision');
+    expect(body.toString()).toBe(query.toString());
+    dbCalls.push(decision);
+    return Response.json(decision === 'review' ? { name,scope,redirect_uri:callback } : { redirect_uri:dest.href });
+  });
+  const host = document.createElement('main'); host.id = 'root'; document.body.append(host);
+  await act(async () => { await import('../src/oauth/main'); });
+  const form = host.querySelector('form')!;
+  form.querySelector<HTMLInputElement>('[name="email"]')!.value = 'person@example.invalid';
+  form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-consent-password';
+  await act(async () => {
+    form.dispatchEvent(new Event('submit', { bubbles:true, cancelable:true }));
+    await vi.waitFor(() => expect(dbCalls).toEqual(['review']));
+  });
+  expect(host.textContent).toContain('Allow access?');
+  expect(host.textContent).toContain('Get the link to Habit Practice');
+  expect(host.textContent?.includes('card names')).toBe(scope.includes('habit:events'));
+  expect(host.textContent?.includes('Refresh this connection')).toBe(scope.includes('offline_access'));
+  expect(redirect).not.toHaveBeenCalled();
+  const allow = [...host.querySelectorAll('button')].find(b => b.textContent === 'Allow')!;
+  await act(async () => {
+    allow.click();
+    await vi.waitFor(() => expect(redirect).toHaveBeenCalledExactlyOnceWith(dest.href));
+  });
+  expect(dbCalls).toEqual(['review','approve']);
+  expect([snapshot(localStorage),snapshot(sessionStorage)]).toEqual(storageBefore);
+  expect(dest.search).not.toContain('first-party');
+});

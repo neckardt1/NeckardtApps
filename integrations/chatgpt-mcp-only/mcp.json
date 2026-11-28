@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "neckardt-apps": {
+      "type": "streamable-http",
+      "url": "https://jjgepkhpvslqwzkquqaf.supabase.co/functions/v1/neckardt-apps-mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "provided",
+              "clientId": "neckardt-chatgpt",
+              "tokenEndpointAuthMethod": "none"
+            },
+            "baseScopes": [
+              "habit:link",
+              "offline_access"
+            ],
+            "authorizationServerBase": "https://apps.neckardt.com/mcp.json",
+            "authorizationUrl": "https://apps.neckardt.com/oauth/consent/",
+            "tokenUrl": "https://jjgepkhpvslqwzkquqaf.supabase.co/functions/v1/neckardt-apps-mcp/oauth/token",
+            "resource": "https://jjgepkhpvslqwzkquqaf.supabase.co/functions/v1/neckardt-apps-mcp",
+            "defaultScopes": [],
+            "oidcEnabled": false
+          }
+        }
+      }
+    }
+  }
+}

@@ -120,9 +120,14 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     const done = run(out, fixture);
     assert.equal(done.status, 0, done.stderr);
     await assertOwnerValuesAbsent(out, [primaryOwnerId, legacyCanaryId, expectedDigest(legacyCanaryId)]);
-    assert.deepEqual((await readdir(out)).sort(), ["404.html", "assets", "index.html", "oauth"]);
+    assert.deepEqual((await readdir(out)).sort(), [".well-known", "404.html", "assets", "index.html", "oauth"]);
     assert.deepEqual(await readdir(join(out, "oauth")), ["consent"]);
     assert.deepEqual(await readdir(join(out, "oauth", "consent")), ["index.html"]);
+    const metadata = JSON.parse(await readFile(join(out, ".well-known/oauth-authorization-server/mcp.json"), "utf8"));
+    assert.equal(metadata.issuer, "https://apps.neckardt.com/mcp.json");
+    assert.equal(metadata.token_endpoint, fixture.NECKARDT_APPS_SUPABASE_URL + "/functions/v1/neckardt-apps-mcp/oauth/token");
+    assert.deepEqual(metadata.code_challenge_methods_supported, ["S256"]);
+    assert.deepEqual(metadata.token_endpoint_auth_methods_supported, ["none"]);
     const assets = await readdir(join(out, "assets"));
     assert(assets.length >= 4);
     assert(assets.every(name => /^[\w-]+\.(?:js|css)$/.test(name)));

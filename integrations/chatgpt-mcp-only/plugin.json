@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "neckardt-apps-mcp-only",
+  "version": "0.1.0",
+  "description": "Connect ChatGPT to Neckardt Apps using an MCP-only grant.",
+  "homepage": "https://apps.neckardt.com",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Neckardt Apps MCP-only",
+        "shortDescription": "Connect to Neckardt Apps"
+      }
+    }
+  }
+}

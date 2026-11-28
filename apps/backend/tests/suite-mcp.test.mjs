@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import test from "node:test";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
+import { createBroker } from "../supabase/functions/neckardt-apps-mcp/oauth.ts";
+import { mcpIssuer } from "../supabase/functions/_shared/mcp-oauth-metadata.ts";
 import { createHandler } from "../supabase/functions/neckardt-apps-mcp/server.ts";
 import { createEvents } from "../supabase/functions/neckardt-apps-mcp/apps/habit-practice/events.ts";
 import { checkedUrl, publicAddress } from "../supabase/functions/neckardt-apps-mcp/callback.mjs";
@@ -14,7 +16,8 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
   const clientId = randomUUID();
   const { publicKey, privateKey } = await generateKeyPair("ES256");
   const keys = createLocalJWKSet({ keys: [{ ...await exportJWK(publicKey), kid: "test" }] });
-  const handler = createHandler(origin, clientId, keys);
+  const broker = createBroker(endpoint, async () => null, async () => null);
+  const handler = createHandler(origin, broker, clientId, keys);
   const issuer = origin + "/auth/v1";
   const claims = { sub: randomUUID(), session_id: randomUUID(), role: "neckardt_apps_oauth",
     client_id: clientId, is_anonymous: false, aud: endpoint, iss: issuer };
@@ -37,8 +40,8 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.ok(response.headers.get("WWW-Authenticate").includes(metadataUrl));
     const meta = await (await handler(new Request(metadataUrl))).json();
     assert.equal(meta.resource, endpoint);
-    assert.deepEqual(meta.authorization_servers, [issuer]);
-    assert.deepEqual(meta.scopes_supported, ["openid"]);
+    assert.deepEqual(meta.authorization_servers, [issuer, mcpIssuer]);
+    assert.equal(meta.scopes_supported, undefined);
   });
   await t.test("a fresh client can initialize and discover the protected link tool", async () => {
     const init = await rpc("initialize", { protocolVersion: "2025-11-25", capabilities: {},
@@ -46,7 +49,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.equal((await init.json()).result.serverInfo.name, "neckardt-apps-mcp");
     const { result } = await (await rpc("tools/list", {})).json();
     assert.deepEqual(result.tools.map(tool => tool.name), [call.name]);
-    assert.deepEqual(result.tools[0]._meta.securitySchemes, [{ type: "oauth2", scopes: ["openid"] }]);
+    assert.deepEqual(result.tools[0]._meta.securitySchemes, [{ type: "oauth2", scopes: [] }]);
     const denied = (await (await rpc("tools/call", call)).json()).result;
     assert.equal(denied.isError, true);
     assert.ok(denied._meta["mcp/www_authenticate"][0].includes(metadataUrl));
@@ -64,7 +67,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
       const response = await rpc("tools/call", call, await token(different));
       assert.equal(response.status, 401, JSON.stringify(different));
     }
-    const unbound = createHandler(origin, undefined, keys);
+    const unbound = createHandler(origin, broker, undefined, keys);
     assert.equal((await rpc("tools/call", call, await token(), unbound)).status, 401);
   });
   await t.test("one connected owner registers a verified callback and receives an aggregate once", async () => {
@@ -99,7 +102,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
       emitted.push(message);
       return {status:200,body:""};
     });
-    const serve = createHandler(origin,clientId,keys,events);
+    const serve = createHandler(origin,broker,clientId,keys,events);
     const call = async (method,params,bearer) => (await rpc(method,params,bearer,serve)).json();
     const auth = await token();
     assert.deepEqual((await call("initialize",{protocolVersion:"2025-11-25",capabilities:{},

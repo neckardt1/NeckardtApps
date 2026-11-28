@@ -44,9 +44,18 @@ jobs:
           RECALL_SUPABASE_URL: ${{ vars.RECALL_SUPABASE_URL }}
           RECALL_SUPABASE_PUBLISHABLE_KEY: ${{ vars.RECALL_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build --workspace @neckardt/web
-      - uses: actions/upload-pages-artifact@v4
+      - name: Check the public OAuth metadata before including hidden files
+        run: |
+          metadata=_site/.well-known/oauth-authorization-server/mcp.json
+          test -f "$metadata"
+          unexpected=$(find _site -mindepth 1 \( -type l -o -name '.*' -o -path '_site/.well-known/*' \) \
+            ! -path _site/.well-known ! -path _site/.well-known/oauth-authorization-server ! -path "$metadata" -print -quit)
+          test -z "$unexpected"
+          test ! -L _site/.well-known && test ! -L _site/.well-known/oauth-authorization-server && test ! -L "$metadata"
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          include-hidden-files: true
 
   deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
