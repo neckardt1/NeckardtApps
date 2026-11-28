@@ -8,6 +8,10 @@ recipient needs its own authorization.
 
 This is primarily a single-user personal app. Favor fast development over perfection: accept small, reversible failures and prefer actionable logging and easy recovery to defensive code for every edge case. Preserve baseline auth and data integrity.
 
+On phones, keep common actions and navigation near the bottom, with the most-used controls within easy
+reach of the right thumb. When the bar gets crowded, simplify secondary controls so essential destinations
+remain accessible from the bottom. Check the combined layout on a small phone when app and shared navigation changes overlap.
+
 Treat the committed SQL migrations as the source of truth for the database schema. Generate TypeScript database types locally and keep them out of Git. A clean build must work without hosted Supabase credentials.
 
 Use `NECKARDT_APPS_*` for configuration shared across apps. Name feature settings for the feature
