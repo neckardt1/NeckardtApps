@@ -201,7 +201,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       setNotice({ text: "The Show after time has not arrived.", error: true });
       return;
     }
-    void write(() => adapter.promote(task), `Moved “${task.title}” to the top of Focus.`);
+    void write(() => adapter.promote(task), `Moved “${task.title}” to the top of ${atHome ? "today’s picks" : "Focus"}.`);
   }
   function drop(task: Task) { void write(() => adapter.deprioritize(task), `Deprioritized “${task.title}”.`); }
   function rows(tasks: Task[]) {
@@ -210,7 +210,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       const inFocus = focusIds.has(task.id);
       const datePanel = panel?.kind === "date" && panel.task.id === task.id ? panel : null;
       return <li key={task.id} aria-label={task.title}>
-        <TaskRow {...{ task, list, today: day, inFocus, busy }} gated={!gateOpen(task, now)} expanded={!!datePanel}
+        <TaskRow {...{ task, list, today: day, inFocus, atHome, busy }} gated={!gateOpen(task, now)} expanded={!!datePanel}
           onEdit={() => edit(task)} onSchedule={keyboard => {
             setNotice(null);
             setPanel(datePanel ? null : { kind: "date", task, keyboard });
@@ -265,7 +265,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
     task={edited} listId={editor.kind === "create" ? editor.listId : editor.task.listId} lists={lists}
     busy={writing || (conflict && loading)} error={notice?.error ? notice.text : null} conflict={conflict}
     latest={snapshot?.tasks.find(task => task.id === edited?.id)} focusAction={focusAction}
-    history={edited && <TaskHistory adapter={adapter} taskId={edited.id} />}
+    history={edited && <TaskHistory adapter={adapter} taskId={edited.id} atHome={atHome} />}
     onClose={close} onSave={save} onLoadLatest={edit} />;
   const feedback = <>
     {toast && <TaskToast key={toast.eventId ?? toast.text} toast={toast} busy={busy} dismiss={dismissToast}

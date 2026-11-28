@@ -24,6 +24,12 @@ const actions: Record<string, [string, string]> = {
   deprioritized: ["Deprioritized in Focus", "deprioritization"],
 };
 
+const homeActions: typeof actions = {
+  ...actions,
+  promoted: ["Moved to top of today’s picks", "priority change"],
+  deprioritized: ["Deprioritized task", "deprioritization"],
+};
+
 function Pages<T>({ load, empty, children }: {
   load: (last?: T) => Promise<T[]>; empty: string; children: (row: T) => ReactNode;
 }) {
@@ -50,10 +56,10 @@ function Pages<T>({ load, empty, children }: {
   </>;
 }
 
-export function TaskHistory({ adapter, taskId }: { adapter: TasksAdapter; taskId: string }) {
+export function TaskHistory({ adapter, taskId, atHome = false }: { adapter: TasksAdapter; taskId: string; atHome?: boolean }) {
   const load = useCallback((last?: TaskActivity) => adapter.history(taskId, last?.event_id), [adapter, taskId]);
   return <Pages load={load} empty="No activity recorded since tracking began.">{event => {
-    const [label, noun] = actions[event.action] ?? ["Updated task", "update"];
+    const [label, noun] = (atHome ? homeActions : actions)[event.action] ?? ["Updated task", "update"];
     return <li key={event.event_id}>
       <strong>{event.is_undo ? "Undid " + noun : label}</strong>
       {(event.from_date || event.to_date) && <span>{plan(event.from_date,event.from_time)} → {plan(event.to_date,event.to_time)}</span>}
