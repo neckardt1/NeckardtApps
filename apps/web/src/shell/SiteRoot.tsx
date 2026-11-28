@@ -26,7 +26,7 @@ function ProfilePage({ profile, profileControls }: { profile?: AccountProfile; p
     }
   }
   return <section className="profile-page" aria-labelledby="profile-title">
-    <h1 id="profile-title">Profile</h1>
+    <h1 className="visually-hidden" id="profile-title">Profile</h1>
     <div className="profile-card">
       {session.status === "loading" ? <p className="account-note" role="status">Checking your session…</p>
         : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>

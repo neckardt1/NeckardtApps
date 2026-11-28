@@ -30,7 +30,7 @@
 .tasks-page { width: 100%; max-width: 55rem; margin-inline: auto; min-width: 0; padding: 1.65rem clamp(1.25rem, 4vw, 3.25rem) 4rem; }
 .tasks-heading, .tasks-heading-actions, .tasks-add, .tasks-icon-button { display: flex; align-items: center; }
 .tasks-heading { gap: .7rem; margin-bottom: .45rem; }
-.tasks-heading h1 { font-size: clamp(1.65rem, 3vw, 2rem); letter-spacing: -.05em; line-height: 1.15; font-weight: 670; }
+.tasks-heading h1 { font-size: 1.25rem; letter-spacing: -.02em; line-height: 1.25; font-weight: 650; overflow-wrap: anywhere; }
 .tasks-heading time { font-size: .88rem; color: var(--tasks-muted); }
 .tasks-heading-actions { margin-inline-start: auto; gap: .35rem; }
 .tasks-icon-button, .tasks-add { justify-content: center; padding: 0; border-radius: 6px; min-width: 40px; min-height: 40px; }
@@ -157,7 +157,6 @@
   .tasks-heading-actions { grid-area: 1 / 2; gap: 0; margin-inline-end: -.5rem; }
   .tasks-heading :is(.tasks-icon-button,.tasks-add) { min-height: 44px; min-width: 44px; }
   .tasks-heading h1, .tasks-heading time { grid-column: 1 / -1; }
-  .tasks-heading h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.035em; }
   .tasks-heading time { font-size: .9rem; font-weight: 600; }
   .tasks-heading-weekday { display: inline; }
   .tasks-section h2 { min-height: 28px; }

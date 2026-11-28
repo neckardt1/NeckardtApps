@@ -109,7 +109,7 @@ test('Apps and Account suppress grades, Escape restores trigger, sign-out hides 
   await tap('Sign out');
   await tap('Apps');
   await act(async () => target.querySelector<HTMLAnchorElement>('nav[aria-label="Apps"] a[href="/recall/"]')!.click());
-  expect(target.textContent).toContain('Welcome back.'); expect(target.textContent).not.toContain('Answer A');
+  expect(target.textContent).toContain('Open Account to sign in and review your cards.'); expect(target.textContent).not.toContain('Answer A');
 });
 
 test.each(['yes', 'no', 'no_opportunity', 'skip'] as const)('habit %s is distinct from recall and precedes answer reveal', async outcome => {
@@ -141,7 +141,7 @@ test('late due responses cannot reveal another owner’s data', async () => {
   const client = api({ due: () => late.promise });
   await act(async () => root.render(<ReviewFixture sessionApi={session.api} api={client} />));
   await act(async () => session.emit(null)); await act(async () => late.finish(cards()));
-  expect(target.textContent).toContain('Welcome back.'); expect(target.textContent).not.toContain('Question A');
+  expect(target.textContent).toContain('Open Account to sign in and review your cards.'); expect(target.textContent).not.toContain('Question A');
 });
 
 test('a late Check again completion cannot reload or leave a replacement owner’s revealed card', async () => {
