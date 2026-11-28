@@ -2,7 +2,7 @@ import { useImperativeHandle, useLayoutEffect, useRef, type PointerEvent, type R
 import type { DueCard } from './review-session.ts';
 import { FormattedText } from './FormattedText.tsx';
 
-type Drag = { id: number; x: number; y: number; width: number; origin: number; axis?: 'x' | 'y' };
+type Drag = { id: number; x: number; y: number; width: number; origin: number; touch?: AbortController; axis?: 'x' | 'y' };
 const isBack = (angle: number) => Math.abs(Math.round(angle / 180) % 2) === 1;
 
 export function ReviewCard({ card, index, count, revealed, disabled, entering, showFace, flipRef }: {
@@ -23,6 +23,7 @@ export function ReviewCard({ card, index, count, revealed, disabled, entering, s
     if (disabled) return;
     // Restore the durable face on resume, external updates or a failed write.
     if (isBack(angle.current) !== revealed) angle.current += revealed ? 180 : -180;
+    drag.current?.touch?.abort();
     drag.current = null;
     delete rotor.current!.dataset.dragging;
     rotate(angle.current);
@@ -47,9 +48,19 @@ export function ReviewCard({ card, index, count, revealed, disabled, entering, s
 
   function down(event: PointerEvent<HTMLDivElement>) {
     if (!canFlip() || !event.isPrimary || event.button !== 0 || (event.target as Element).closest('a')) return;
+    const surface: HTMLDivElement = event.currentTarget;
     const width = window.visualViewport?.width || window.innerWidth;
-    drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, width, origin: angle.current };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    const gesture: Drag = { id: event.pointerId, x: event.clientX, y: event.clientY, width, origin: angle.current };
+    drag.current = gesture;
+    if (event.pointerType === 'touch') {
+      // Claim a horizontal drag before Chromium starts a fling that consumes
+      // the next button tap. Yield immediately to native vertical scrolling.
+      gesture.touch = new AbortController();
+      surface.addEventListener('touchmove', move => {
+        if (gesture.axis === 'x' && move.touches.length === 1 && move.cancelable) move.preventDefault();
+      }, { passive: false, signal: gesture.touch.signal });
+    }
+    surface.setPointerCapture(event.pointerId);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
     const gesture = drag.current;
@@ -57,6 +68,7 @@ export function ReviewCard({ card, index, count, revealed, disabled, entering, s
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.axis && Math.max(Math.abs(dx), Math.abs(dy)) >= 6) {
       gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (gesture.axis === 'y') gesture.touch?.abort();
       if (gesture.axis === 'x') {
         // Pick up an interrupted CSS transition at its current visual angle.
         const transform = getComputedStyle(rotor.current!).transform;
@@ -73,6 +85,7 @@ export function ReviewCard({ card, index, count, revealed, disabled, entering, s
   function end(event: PointerEvent<HTMLDivElement>, cancelled = false) {
     const gesture = drag.current;
     if (!gesture || gesture.id !== event.pointerId) return;
+    gesture.touch?.abort();
     drag.current = null;
     delete rotor.current!.dataset.dragging;
     if (cancelled) rotate(angle.current);
