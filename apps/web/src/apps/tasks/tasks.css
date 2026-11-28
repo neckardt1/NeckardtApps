@@ -36,7 +36,7 @@
 .tasks-icon-button, .tasks-add { justify-content: center; padding: 0; border-radius: 6px; min-width: 40px; min-height: 40px; }
 .tasks-app .tasks-add { gap: .4rem; color: var(--tasks-accent); padding: .25rem .6rem; font-weight: 600; }
 .tasks-icon-button:hover, .tasks-add:hover { background: light-dark(#f4f3ef, #32342f); }
-.tasks-mobile-nav { display: none; }
+.tasks-mobile-nav, .tasks-heading-weekday { display: none; }
 .tasks-section + .tasks-section { margin-top: 1.5rem; }
 .tasks-section h2 { font-size: 1rem; font-weight: 650; letter-spacing: -.025em; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid var(--tasks-line); }
 .tasks-rows { padding: 0; list-style: none; }
@@ -143,12 +143,23 @@
 
 @media (max-width: 720px) {
   .tasks-app { display: block; }
-  .tasks-sidebar, .tasks-row-actions, .tasks-heading time, .tasks-add span { display: none; }
-  .tasks-mobile-nav { display: inline-flex; margin-inline-start: -5px; }
-  .tasks-page { padding: .2rem 1rem 2.5rem; }
-  .tasks-heading { gap: 3px; margin-bottom: 2px; }
-  .tasks-heading h1 { font-size: 1.55rem; }
-  .tasks-heading :is(.tasks-icon-button,.tasks-add) { min-height: 44px; min-width: 40px; }
+  .tasks-sidebar, .tasks-row-actions, .tasks-add span { display: none; }
+  .tasks-page { padding: .5rem 1rem 2.5rem; }
+  .tasks-heading {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .35rem 0;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--tasks-line);
+    margin-bottom: .4rem;
+  }
+  .tasks-mobile-nav { display: inline-flex; justify-self: start; margin-inline-start: -.5rem; }
+  .tasks-heading-actions { grid-area: 1 / 2; gap: 0; margin-inline-end: -.5rem; }
+  .tasks-heading :is(.tasks-icon-button,.tasks-add) { min-height: 44px; min-width: 44px; }
+  .tasks-heading h1, .tasks-heading time { grid-column: 1 / -1; }
+  .tasks-heading h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.035em; }
+  .tasks-heading time { font-size: .9rem; font-weight: 600; }
+  .tasks-heading-weekday { display: inline; }
   .tasks-section h2 { min-height: 28px; }
   .tasks-section + .tasks-section { margin-top: 1.05rem; }
   .tasks-check { flex-basis: 36px; }
