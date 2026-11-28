@@ -50,7 +50,8 @@ function CalendarDays({ today, selected, onSelect }: { today: string; selected: 
       delete panel.dataset.fortnight;
       panel.style.removeProperty("--tasks-day-height");
       if (panel.clientWidth > 540 || !matchMedia("(max-width: 720px)").matches) return;
-      const bottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? innerHeight) - 8;
+      const bottomInset = parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom) || 0;
+      const bottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? innerHeight) - bottomInset - 8;
       const available = bottom - days[0].getBoundingClientRect().top;
       const rowHeight = days[0].getBoundingClientRect().height;
       const weeks = Math.round((days[days.length - 1].offsetTop - days[0].offsetTop) / rowHeight) + 1;
