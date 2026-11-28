@@ -4,8 +4,8 @@ import { TaskIcon } from "./icons";
 
 export const listName = (list: TaskList) => list.kind === "private" ? "Private" : "Household";
 
-export function TasksDialog({ title, children, busy = false, drawer = false, onClose }: {
-  title: string; children: ReactNode; busy?: boolean; drawer?: boolean; onClose: () => void;
+function TasksDialog({ title, children, busy = false, onClose }: {
+  title: string; children: ReactNode; busy?: boolean; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
@@ -31,7 +31,7 @@ export function TasksDialog({ title, children, busy = false, drawer = false, onC
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
   }, []);
-  return <dialog className={drawer ? "tasks-dialog tasks-drawer" : "tasks-dialog"} ref={dialog} aria-labelledby={heading}
+  return <dialog className="tasks-dialog" ref={dialog} aria-labelledby={heading}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget || busy) return;

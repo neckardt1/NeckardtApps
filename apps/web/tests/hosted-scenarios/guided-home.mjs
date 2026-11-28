@@ -15,16 +15,17 @@ async function dockPositions(page, step, action) {
     await page.getByText(`Step ${step} of 2`, { exact: true }).waitFor();
     const button = page.getByRole("button", { name: action, exact: true });
     const box = await button.boundingBox();
-    const nav = await page.locator(".topbar").boundingBox();
-    assert(box.height >= 44 && box.y + box.height <= nav.y);
+    const nav = await page.locator(step === 1 ? ".tasks-heading-actions" : ".topbar").boundingBox();
+    const footer = await page.locator(".guide-footer").boundingBox();
+    assert(box.height >= 44 && box.y + box.height <= nav.y && footer.y + footer.height <= nav.y + 1);
     assert(await button.evaluate(el => {
       const r = el.getBoundingClientRect();
       return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
     }));
     assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).colorScheme), theme);
-    const appActions = await page.locator(step === 1 ? ".tasks-heading-actions" : ".ratings").boundingBox();
-    assert(appActions.y >= 0 && appActions.y + appActions.height <= (await page.locator(".guide-footer").boundingBox()).y);
     if (step === 2) {
+      const ratings = await page.locator(".ratings").boundingBox();
+      assert(ratings.y >= 0 && ratings.y + ratings.height <= footer.y);
       for (const grade of ["Again", "Hard", "Good", "Easy"]) assert(await page.getByRole("button", { name: grade, exact: true }).isEnabled());
     }
     positions.push([box.x + box.width, box.y + box.height]);
