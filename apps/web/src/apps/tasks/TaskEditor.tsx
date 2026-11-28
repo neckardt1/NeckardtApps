@@ -13,7 +13,20 @@ export function TasksDialog({ title, children, busy = false, drawer = false, onC
     const node = dialog.current!;
     const previous = document.activeElement;
     node.showModal();
+    // iOS can shrink and pan the visual viewport when the title keyboard opens.
+    const viewport = window.visualViewport;
+    function fitSheet() {
+      if (!viewport) return;
+      node.style.setProperty("--tasks-visible-height", viewport.height + "px");
+      const covered = document.documentElement.clientHeight - viewport.offsetTop - viewport.height;
+      node.style.setProperty("--tasks-covered-bottom", Math.max(0, covered) + "px");
+    }
+    fitSheet();
+    viewport?.addEventListener("resize", fitSheet);
+    viewport?.addEventListener("scroll", fitSheet);
     return () => {
+      viewport?.removeEventListener("resize", fitSheet);
+      viewport?.removeEventListener("scroll", fitSheet);
       node.close();
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
@@ -76,16 +89,19 @@ export function TaskEditor({ task, listId, lists, busy, error, conflict, latest,
   }
   return <TasksDialog title={task ? "Edit task" : "New task"} onClose={onClose} busy={busy}>
     <form className="tasks-form" onSubmit={submit}>
-      <fieldset disabled={busy || !!attempt || conflict}>
-        <label>Title<input name="title" type="text" required defaultValue={task?.title} autoFocus /></label>
-        {task ? <p className="tasks-read-list">List <strong>{listName(lists.find(list => list.id === task.listId)!)}</strong></p> :
-          <label>List<select name="listId" defaultValue={listId}>{lists.map(list => <option value={list.id} key={list.id}>{listName(list)}</option>)}</select></label>}
-        <p className="tasks-zone">Dates and times use Pacific time.</p>
-        <DatePair field="planned" label="Planned" task={task} />
-        <DatePair field="deadline" label="Deadline" task={task} />
-        <DatePair field="showAfter" label="Show after" task={task} />
-      </fieldset>
-      {(titleError || error) && <p className="tasks-error" role="alert">{titleError || error}</p>}
+      <div className="tasks-form-fields">
+        <fieldset disabled={busy || !!attempt || conflict}>
+          <label>Title<input name="title" type="text" required defaultValue={task?.title}
+            ref={input => { if (input) input.autofocus = true; }} /></label>
+          {task ? <p className="tasks-read-list">List <strong>{listName(lists.find(list => list.id === task.listId)!)}</strong></p> :
+            <label>List<select name="listId" defaultValue={listId}>{lists.map(list => <option value={list.id} key={list.id}>{listName(list)}</option>)}</select></label>}
+          <p className="tasks-zone">Dates and times use Pacific time.</p>
+          <DatePair field="planned" label="Planned" task={task} />
+          <DatePair field="deadline" label="Deadline" task={task} />
+          <DatePair field="showAfter" label="Show after" task={task} />
+        </fieldset>
+        {(titleError || error) && <p className="tasks-error" role="alert">{titleError || error}</p>}
+      </div>
       <div className="tasks-form-actions">
         {focusAction && !conflict && <button type="button" className="tasks-focus-action" onClick={focusAction.run} disabled={busy}>{focusAction.label}</button>}
         <button type="button" onClick={onClose} disabled={busy}>{conflict ? "Close" : "Cancel"}</button>

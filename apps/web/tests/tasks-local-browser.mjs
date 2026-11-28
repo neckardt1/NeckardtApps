@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { pacificDate, shiftDate } from "../src/apps/tasks/model.ts";
 import { servePages } from "./serve-pages.mjs";
+import { checkTaskActions } from "./mobile-layout.mjs";
 
 const fixture = JSON.parse(await readFile(process.argv[2], "utf8"));
 const local = new URL(fixture.url);
@@ -77,7 +78,7 @@ async function startAccount(origin, user, mobile) {
 
 async function view(account, name) {
   const { page } = account;
-  if (account.mobile) await button(page, "Open navigation").click();
+  if (account.mobile) await button(page, "Task views").click();
   await button(page, name).click();
   await page.getByRole("heading", { name, exact: true }).first().waitFor();
 }
@@ -118,6 +119,7 @@ try {
   browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : { channel: "chrome" });
   const [a, b] = await Promise.all(fixture.users.map((user, i) => startAccount(server.origin, user, i === 1)));
   const ap = a.page, bp = b.page;
+  await checkTaskActions(bp);
   const snapshots = await Promise.all([a.read(), b.read()]);
   const listId = (i, kind) => snapshots[i].lists.find(l => l.kind === kind).id;
   assert.notEqual(listId(0, "private"), listId(1, "private"));

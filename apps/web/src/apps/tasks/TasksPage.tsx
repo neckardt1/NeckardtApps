@@ -188,10 +188,11 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
       <Navigation lists={lists} view={view} choose={chooseView} /></aside>
     <div className="tasks-page">
       <header className="tasks-heading">
-        <button type="button" className="tasks-icon-button tasks-mobile-nav" aria-label="Open navigation" onClick={() => setNavOpen(true)}><TaskIcon name="menu" /></button>
         <h1>{title}</h1>
         {view === "today" && <time dateTime={day}>{dateLabel(day)}<span className="tasks-heading-weekday"> · {weekday.format(now)}</span></time>}
         <div className="tasks-heading-actions">
+          <button type="button" className="tasks-icon-button tasks-mobile-nav" aria-haspopup="dialog" aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}><TaskIcon name="menu" />Task views</button>
           <button type="button" className="tasks-icon-button" aria-label="Refresh" title="Refresh" disabled={busy}
             onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
           {lists.length > 0 && <button type="button" className="tasks-add" aria-label="Add task" title="Add task" disabled={busy} onClick={create}>
