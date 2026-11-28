@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
+import { taskTimeZone } from "./contract";
 import { gateOpen, pacificDate, todaySections, weekTasks } from "./model";
 import { TaskCalendar, dateLabel } from "./TaskCalendar";
 import { TaskEditor, TasksDialog, listName, type FormDraft, type SaveResult } from "./TaskEditor";
@@ -10,6 +11,7 @@ import "./tasks.css";
 type Panel = { kind: "create"; listId: string; requestId: string } | { kind: "edit"; task: Task }
   | { kind: "date"; task: Task; keyboard: boolean };
 type Notice = { text: string; error?: boolean };
+const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: taskTimeZone });
 
 function Navigation({ lists, view, choose }: { lists: TaskList[]; view: string; choose: (view: string) => void }) {
   const item = (id: string, label: string, icon: "today" | "week" | "private" | "household") =>
@@ -187,7 +189,8 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
     <div className="tasks-page">
       <header className="tasks-heading">
         <button type="button" className="tasks-icon-button tasks-mobile-nav" aria-label="Open navigation" onClick={() => setNavOpen(true)}><TaskIcon name="menu" /></button>
-        <h1>{title}</h1>{view === "today" && <time dateTime={day}>{dateLabel(day)}</time>}
+        <h1>{title}</h1>
+        {view === "today" && <time dateTime={day}>{dateLabel(day)}<span className="tasks-heading-weekday"> · {weekday.format(now)}</span></time>}
         <div className="tasks-heading-actions">
           <button type="button" className="tasks-icon-button" aria-label="Refresh" title="Refresh" disabled={busy}
             onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
