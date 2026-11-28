@@ -109,9 +109,9 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
     border-top: 1px solid var(--line);
     border-bottom: 0;
   }
-  .topbar-inner { min-height: var(--mobile-nav-row); gap: 1rem; padding: 0 1rem; }
-  .home-link { margin-right: auto; }
-  .topbar-inner > .account-button:last-of-type { margin-left: 0; min-width: 2.75rem; justify-content: center; }
+  .topbar-inner { flex-direction: row-reverse; reading-flow: flex-visual; min-height: var(--mobile-nav-row); gap: 1rem; padding: 0 1rem; }
+  .home-link { margin-right: 0; }
+  .topbar-inner > .account-button:last-of-type { margin: 0 auto 0 0; min-width: 2.75rem; justify-content: center; }
   .account-name, .account-button .chevron { display: none; }
   .chrome-button .chevron { transform: rotate(180deg); }
   .chrome-popover.apps, .chrome-popover.account {
@@ -119,4 +119,5 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
     width: min(21rem, calc(100% - 2rem));
     max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top) - 1rem);
   }
+  .chrome-popover.account { left: 1rem; right: auto; }
 }
