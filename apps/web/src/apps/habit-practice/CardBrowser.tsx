@@ -33,8 +33,8 @@ export function CardBrowser({ api, onHome }: { api: RecallApi; onHome(): void })
   const text = query.trim().toLowerCase();
   const matches = cards?.filter(card => (!kind || card.kind === kind)
     && [card.front, card.back, kinds[card.kind]].some(field => field?.toLowerCase().includes(text)));
-  return <section className="habit-practice catalog" aria-label="Card browser">
-    <button className="text-button deck-back" onClick={onHome}>← Practice home</button>
+  return <section className="habit-practice catalog mobile-reader" aria-label="Card browser">
+    <button className="text-button deck-back reader-back" onClick={onHome}>← Practice home</button>
     <h1>Browse cards</h1>
     <div className="catalog-controls">
       <label>Search cards<input type="search" value={query} onChange={e => setQuery(e.target.value)} /></label>

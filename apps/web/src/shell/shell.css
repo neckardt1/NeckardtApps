@@ -115,4 +115,26 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
     width: min(21rem, calc(100% - 2rem));
     max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top) - 1rem);
   }
+  :root:has(.reader-back) { scroll-padding-bottom: calc(var(--mobile-nav-height) + 3.25rem); }
+  .site-main .mobile-reader {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top));
+    padding-bottom: 0;
+    reading-flow: flex-visual;
+  }
+  .site-main .mobile-reader > .reader-back {
+    order: 1;
+    position: sticky;
+    bottom: var(--mobile-nav-height);
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: max(44px, 3.25rem);
+    margin: auto 0 0;
+    padding: .5rem;
+    border-top: 1px solid var(--line);
+    background: var(--paper);
+  }
 }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
+import { checkBottomAction, phones } from "./mobile-layout.mjs";
 
 export async function checkPrivateSites(origin, remote) {
   const browser = await chromium.launch(process.env.CHROME_BIN
@@ -33,5 +34,11 @@ export async function checkPrivateSites(origin, remote) {
     assert.equal(await frame.locator("body").getAttribute("data-executed"), null);
     assert.deepEqual(external, []);
     assert.equal(await page.getByRole("navigation", { name: "Site navigation" }).getByRole("link", { name: "Home", exact: true }).getAttribute("href"), "/NeckardtApps/sites/family");
+    for (const size of phones) {
+      await page.setViewportSize(size);
+      await checkBottomAction(page, page.getByRole("link", { name: "All private sites" }), { right: true });
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await checkBottomAction(page, page.getByRole("link", { name: "All private sites" }), { right: true });
+    }
   } finally { await browser.close(); }
 }
