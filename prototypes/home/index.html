@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today · Neckardt Apps Home preview</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #faf9f4;
+  --card: #fffdf8;
+  --ink: #25392e;
+  --muted: #58685d;
+  --line: #d5dcd1;
+  --green: #344f40;
+  --wash: #e9efe5;
+  --serif: Georgia, "Times New Roman", serif;
+  font: 100%/1.5 system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { background: var(--card); border-bottom: 1px solid var(--line); }
+.mast, main, footer { width: min(calc(100% - 2.5rem), 62rem); margin-inline: auto; }
+.mast, footer, .section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.mast { padding-block: 1rem; }
+.mast strong { font: 1.25rem var(--serif); }
+.meta, .label { font-size: .875rem; color: var(--muted); }
+.label { display: block; font-weight: 650; margin: 0 0 .6rem; }
+main { padding-block: clamp(2rem, 5vw, 4.5rem); }
+h1, h2, h3, p { margin: 0; }
+h1, h2 { font: normal clamp(2rem, 4.5vw, 3rem)/1.12 var(--serif); letter-spacing: -.035em; }
+h1 { font-size: clamp(3.4rem, 8vw, 5rem); margin-bottom: 1.75rem; }
+h3 { font-size: 1.1rem; font-weight: 600; }
+.hero { background: var(--wash); border: 1px solid #c7d5c5; border-radius: .9rem; padding: clamp(1.4rem, 4.5vw, 3rem); }
+.hero p { max-width: 53ch; margin-block: .75rem 1.3rem; color: var(--muted); }
+.actions { display: flex; align-items: center; gap: .5rem 1.1rem; flex-wrap: wrap; }
+button { font: inherit; font-weight: 600; min-height: 2.75rem; cursor: pointer; }
+.primary { background: var(--green); color: white; border: 1px solid var(--green); border-radius: .5rem; padding: .6rem 1.05rem; }
+.primary:hover { background: #233e2f; }
+.quiet { padding: .3rem 0; border: 0; background: transparent; color: var(--green); text-decoration: underline; text-underline-offset: .24em; }
+button:focus-visible, input:focus-visible { outline: 3px solid #517b61; outline-offset: 4px; }
+.columns { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(1.75rem, 5vw, 4rem); margin-top: 2.5rem; }
+.columns h2 { font-size: 1.6rem; }
+.section-head { padding-bottom: .75rem; border-bottom: 1px solid var(--line); min-height: 3.5rem; }
+.entry { padding-block: .95rem; border-bottom: 1px solid var(--line); }
+.entry p { margin-top: .25rem; }
+footer { border-top: 1px solid var(--line); padding: .75rem 0 1.5rem; }
+dialog { color: var(--ink); background: var(--card); width: min(29rem, calc(100% - 2rem)); padding: 1.6rem; border: 1px solid var(--line); border-radius: .8rem; }
+dialog::backdrop { background: #182c20a8; }
+dialog h2 { font-size: 2rem; }
+dialog p { margin: .8rem 0 1rem; color: var(--muted); }
+fieldset { margin: 0 0 1rem; padding: 0; border: none; }
+legend { font-weight: 600; margin-bottom: .5rem; }
+label { display: flex; align-items: center; gap: .55rem; min-height: 2.75rem; }
+input { accent-color: var(--green); }
+@media (max-width: 42rem) {
+  .columns { grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+  .mast, main, footer { width: calc(100% - 2rem); }
+}
+</style>
+</head>
+<body>
+<header><div class="mast"><strong>Neckardt Apps / Home</strong><span class="meta">Design preview</span></div></header>
+<main>
+  <div class="label">Saturday, November 28</div>
+  <h1>Today</h1>
+  <section class="hero" aria-labelledby="headline">
+    <span id="eyebrow" class="label"></span>
+    <h2 id="headline" tabindex="-1"></h2>
+    <p id="summary"></p>
+    <div id="actions" class="actions"></div>
+  </section>
+  <div class="columns">
+    <section aria-labelledby="focus-title">
+      <div class="section-head"><h2 id="focus-title">Today’s Focus</h2><button id="plan" class="quiet">Review in Tasks</button></div>
+      <div id="focus-list"></div>
+    </section>
+    <section aria-labelledby="practice-title">
+      <div class="section-head"><h2 id="practice-title">Habit Practice</h2></div>
+      <div class="entry"><h3 id="round-title"></h3><p class="meta" id="round-copy"></p>
+        <button class="quiet" id="practice">Open round</button>
+      </div>
+    </section>
+  </div>
+</main>
+<footer><span class="meta">Sample day · Fictional data</span><button id="reset" class="quiet">Restart preview</button></footer>
+<dialog aria-labelledby="dialog-title">
+  <span class="label" id="destination"></span><h2 id="dialog-title"></h2><p id="dialog-copy"></p>
+  <form method="dialog">
+    <fieldset hidden><legend>First in Focus</legend><div id="choices"></div></fieldset>
+    <div class="actions"><button class="primary" value="apply" id="apply"></button><button class="quiet" value="cancel" formnovalidate>Back to Home</button></div>
+  </form>
+</dialog>
+<script>
+const samples = [
+  { title: 'Reserve the picnic shelter', detail: 'Deadline today at noon' },
+  { title: 'Pick up seed packets', detail: 'Planned for today' }
+];
+const byId = id => document.getElementById(id);
+const dialog = document.querySelector('dialog');
+let queue, baseline, practiced, destination;
+function reset() {
+  queue = [...samples];
+  baseline = true;
+  practiced = false;
+  render();
+}
+function action(text, style, click) {
+  const button = document.createElement('button');
+  button.className = style;
+  button.textContent = text;
+  button.onclick = click;
+  return button;
+}
+function showDay() {
+  baseline = false;
+  render();
+  byId('headline').focus();
+}
+function render() {
+  const next = queue[0];
+  byId('eyebrow').textContent = baseline ? 'Morning baseline' : 'Up next';
+  byId('headline').textContent = baseline ? 'What comes first today?' : next?.title ||
+    (practiced ? 'Your Focus list is clear.' : 'Take a practice round');
+  byId('summary').textContent = baseline ? 'Review what’s in Focus, or go straight to your day with the order you already have.' :
+    next ? next.detail + ' · First in Tasks Focus' :
+    practiced ? 'Your practice round is complete, too.' : 'Your Focus list is clear. A round is ready in Habit Practice.';
+  const actions = byId('actions');
+  actions.replaceChildren();
+  if (baseline) {
+    actions.append(action('Review my Focus', 'primary', () => handoff('plan')), action('Use current Focus', 'quiet', showDay));
+  } else if (next || !practiced) {
+    actions.append(next ? action('Open in Tasks', 'primary', () => handoff('task')) :
+      action('Open round', 'primary', () => handoff('practice')));
+  }
+  const list = byId('focus-list');
+  list.replaceChildren();
+  byId('focus-title').textContent = baseline || !next ? 'Today’s Focus' : 'After this in Focus';
+  const remaining = baseline ? queue : queue.slice(1);
+  for (const task of remaining) {
+    const row = document.createElement('div');
+    row.className = 'entry';
+    const title = document.createElement('h3');
+    title.textContent = task.title;
+    const detail = document.createElement('p');
+    detail.className = 'meta';
+    detail.textContent = task.detail;
+    row.append(title, detail);
+    list.append(row);
+  }
+  if (!remaining.length) {
+    const empty = document.createElement('p');
+    empty.className = 'entry meta';
+    empty.textContent = next ? 'This is the last task in Focus.' : 'No tasks left in Focus.';
+    list.append(empty);
+  }
+  byId('plan').hidden = baseline || !next;
+  byId('round-title').textContent = practiced ? 'Round complete' : 'A round is ready';
+  byId('round-copy').textContent = practiced ? 'Finished today.' : 'Pick up at the next prompt.';
+  byId('practice').hidden = practiced || (!baseline && !next);
+}
+function handoff(kind) {
+  destination = kind;
+  const plan = kind === 'plan';
+  const practice = kind === 'practice';
+  byId('destination').textContent = practice ? 'Habit Practice · Sample handoff' : 'Tasks / Today · Sample handoff';
+  byId('dialog-title').textContent = plan ? 'Review your Focus' : practice ? 'Your current round' : queue[0].title;
+  byId('dialog-copy').textContent = plan ? 'Choose which task to put first, then return to Home.' :
+    practice ? 'Habit Practice opens at your next prompt. Preview how Home looks after you finish the round.' :
+    'Preview how Home looks after you complete this task in Tasks.';
+  dialog.querySelector('fieldset').hidden = !plan;
+  byId('choices').replaceChildren();
+  if (plan) {
+    queue.forEach((task, index) => {
+      const label = document.createElement('label');
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'first';
+      radio.value = String(index);
+      radio.checked = index === 0;
+      label.append(radio, task.title);
+      byId('choices').append(label);
+    });
+  }
+  byId('apply').textContent = plan ? 'Use this Focus' : practice ? 'Simulate finished round' : 'Simulate completed task';
+  dialog.returnValue = '';
+  dialog.showModal();
+}
+dialog.addEventListener('close', () => {
+  if (dialog.returnValue !== 'apply') return;
+  if (destination === 'plan') {
+    const index = Number(dialog.querySelector('input:checked').value);
+    queue.unshift(...queue.splice(index, 1));
+    baseline = false;
+  } else if (destination === 'task') {
+    queue.shift();
+  } else {
+    practiced = true;
+  }
+  render();
+  byId('headline').focus();
+});
+byId('plan').onclick = () => handoff('plan');
+byId('practice').onclick = () => handoff('practice');
+byId('reset').onclick = () => { reset(); byId('headline').focus(); };
+reset();
+</script>
+</body>
+</html>
