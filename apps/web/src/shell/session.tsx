@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { profileStore, type ProfileStore } from './profile';
 import { getSiteClient } from './site-client';
 import { readPublicSupabaseConfig, type PublicSupabaseConfig } from './browser-auth.mts';
 
 export interface SessionUser { id: string; email?: string }
 export type SessionStatus = 'loading' | 'signed-out' | 'signed-in' | 'unavailable';
 export interface SessionApi {
+  profiles?: ProfileStore;
   observe(onChange: (user: SessionUser | null) => void, onError?: (error: unknown) => void): () => void;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
@@ -33,6 +35,7 @@ export function makeSiteSessionApi(input: PublicSupabaseConfig | null): SessionA
   try {
     const client = getSiteClient(config);
     const api: SessionApi = {
+      profiles: profileStore(client),
       observe(onChange, onError) {
         let active = true;
         let changedSinceInitialization = false;

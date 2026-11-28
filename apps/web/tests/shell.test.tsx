@@ -153,3 +153,19 @@ test.each(["/", "/NeckardtApps/"])("the Apps menu links stay inside the site at 
   expect(target.querySelector(".popover-link")?.getAttribute("href")).toBe(base);
   expect(target.querySelector(".app-menu-link")?.getAttribute("href")).toBe(base + "recall/");
 });
+
+test("profile reads finishing after an account switch cannot replace the current header", async () => {
+  const controller = session({ id: "first" });
+  let finish!: (profile: {display_name: string; picture: null}) => void;
+  controller.api.profiles = {
+    load: id => id === "first" ? new Promise(resolve => { finish = resolve; })
+      : Promise.resolve({ display_name: "Second", picture: null }),
+    save: vi.fn()
+  };
+  await mount(controller.api);
+  await act(async () => controller.emit({ id: "second" }));
+  await act(async () => finish({ display_name: "First", picture: null }));
+  expect(target.querySelector(".account-name")?.textContent).toBe("Second");
+  await act(async () => controller.emit(null));
+  expect(target.querySelector(".account-name")?.textContent).toBe("Account");
+});
