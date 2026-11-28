@@ -4,7 +4,6 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { SiteRoot } from '../src/shell/SiteRoot.tsx';
 import type { SessionApi, SessionUser } from '../src/shell/session.tsx';
 import { BrowserRouter } from 'react-router';
-import { AppRoutes } from '../src/AppRoutes.tsx';
 import { PracticeDeck } from '../src/apps/habit-practice/PracticeDeck.tsx';
 import type { RecallApi } from '../src/apps/habit-practice/recall-api.ts';
 import type { DueCard, ReviewEvent } from '../src/apps/habit-practice/review-session.ts';
@@ -42,11 +41,14 @@ async function tap(label: string) {
   expect(target, `button ${label}`).toBeDefined();
   await act(async () => target!.click());
 }
+async function openProfile() {
+  await act(async () => host.querySelector<HTMLAnchorElement>('.account-link')!.click());
+  expect(host.querySelector('h1')?.textContent).toBe('Profile');
+}
 async function press(key: string, target: EventTarget = document.activeElement ?? document) {
   await act(async () => { target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); });
 }
 async function signIn(user: SessionUser) {
-  await tap('Account');
   const form = host.querySelector<HTMLFormElement>('.account-form');
   expect(form).not.toBeNull();
   form!.querySelector<HTMLInputElement>('input[name="email"]')!.value = user.email!;
@@ -96,9 +98,7 @@ async function mount(page: 'launcher' | 'recall', auth: SessionApi, api: RecallA
   window.history.replaceState(null, '', `${base}${page === 'recall' ? 'recall/' : ''}`);
   root = createRoot(host);
   await act(async () => root!.render(<StrictMode>
-    <BrowserRouter basename={base}><SiteRoot api={auth}>
-      <AppRoutes practice={<PracticeDeck api={api} />} />
-    </SiteRoot></BrowserRouter>
+    <BrowserRouter basename={base}><SiteRoot api={auth} practice={<PracticeDeck api={api} />} /></BrowserRouter>
   </StrictMode>));
 }
 async function follow(page: 'launcher' | 'recall', base = '/') {
@@ -162,7 +162,7 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(stored()?.revealed).toBe(true);
 });
 
-test('Account sign-out on launcher preserves pending review, isolates another owner, and restores the original owner', async () => {
+test('Profile sign-out preserves pending review, isolates another owner, and restores the original owner', async () => {
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
@@ -171,10 +171,10 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   const original = stored()!;
   await tap('Apps'); await follow('launcher');
   expect(button('Sign out')).toBeUndefined();
-  await tap('Account'); await tap('Sign out');
+  await openProfile(); await tap('Sign out');
   expect(f.auth.api.signOut).toHaveBeenCalledTimes(1);
   expect(f.auth.current()).toBeNull();
-  expect(host.textContent).toContain('Your apps');
+  expect(host.querySelector('form')).not.toBeNull();
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(original);
   await act(async () => { hold.resolve(); window.dispatchEvent(new Event('online')); });
@@ -182,6 +182,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(stored()).toEqual(original);
 
   await signIn(otherOwner);
+  await tap('Apps'); await follow('launcher');
   await follow('recall');
   await tap('Start round');
   expect(button('Resume review')).toBeUndefined();
@@ -195,11 +196,12 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(f.calls[1].event.card_id).toBe(`${otherOwner.id}-card-1`);
   const otherRound = stored(otherOwner.id)!;
 
-  await tap('Account'); await tap('Sign out');
+  await openProfile(); await tap('Sign out');
   expect(host.textContent).not.toContain(otherOwner.id);
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(original);
   await signIn(firstOwner);
+  await tap('Apps'); await follow('launcher'); await follow('recall');
   await tap('Continue round');
 
   expect(host.textContent).toContain(`${firstOwner.id} answer 2`);
@@ -209,28 +211,26 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(f.calls.every(call => call.owner !== null && call.event.card_id.startsWith(call.owner))).toBe(true);
 });
 
-test('shared Apps and Account popovers suppress all grade shortcuts and Escape returns focus to each trigger', async () => {
+test('the Apps popover suppresses all grade shortcuts and Escape returns focus to Apps', async () => {
   const f = fixture();
   await mount('recall', f.auth.api, f.api);
   await tap('Start round');
   expect(host.querySelectorAll('header')).toHaveLength(1);
   await tap('Reveal answer');
   const before = stored();
-  for (const label of ['Apps', 'Account']) {
-    const trigger = button(label)!;
-    await tap(label);
-    const popover = host.querySelector<HTMLElement>(`[role="dialog"][aria-label="${label}"]`)!;
-    expect(popover).not.toBeNull();
-    expect(popover.contains(document.activeElement)).toBe(true);
-    for (const value of ['1', '2', '3', '4', ' ', 'Enter']) await press(value);
-    // Suppression follows popover state, including document-targeted shortcuts.
-    await press('3', document);
-    expect(f.calls).toHaveLength(0);
-    expect(stored()).toEqual(before);
-    await press('Escape');
-    expect(host.querySelector('[data-popover-open]')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-  }
+  const trigger = button('Apps')!;
+  await tap('Apps');
+  const popover = host.querySelector<HTMLElement>('[role="dialog"][aria-label="Apps"]')!;
+  expect(popover).not.toBeNull();
+  expect(popover.contains(document.activeElement)).toBe(true);
+  for (const value of ['1', '2', '3', '4', ' ', 'Enter']) await press(value);
+  // Suppression follows popover state, including document-targeted shortcuts.
+  await press('3', document);
+  expect(f.calls).toHaveLength(0);
+  expect(stored()).toEqual(before);
+  await press('Escape');
+  expect(host.querySelector('[data-popover-open]')).toBeNull();
+  expect(document.activeElement).toBe(trigger);
   await press('3', document);
   expect(f.calls).toHaveLength(1);
   expect(f.calls[0].event.grade).toBe('medium');
@@ -276,8 +276,9 @@ test('a late due response after account replacement cannot seed or display the p
   const f = fixture({ due: owner => owner === firstOwner.id ? oldCards.promise : Promise.resolve(cards(owner)) });
   await mount('recall', f.auth.api, f.api);
   await tap('Start round');
-  await tap('Account'); await tap('Sign out');
+  await openProfile(); await tap('Sign out');
   await signIn(otherOwner);
+  await tap('Apps'); await follow('launcher'); await follow('recall');
   await tap('Start round');
   await act(async () => oldCards.resolve(cards(firstOwner.id)));
   await tap('Reveal answer');

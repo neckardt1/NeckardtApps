@@ -1,13 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, NavLink, useLocation } from "react-router";
 import type { AccountProfile } from "./profile.ts";
 import { apps } from "./apps.ts";
 
-type Popover = "apps" | "account";
 type Props = {
-  account: ReactNode;
   profile?: AccountProfile;
-  accountIdentity: string | null;
   children: ReactNode;
 };
 
@@ -27,12 +24,10 @@ function Chevron() {
 }
 
 /** Shared page chrome; session and feature behavior remain outside this component. */
-export function AppShell({ account: accountContent, accountIdentity, profile, children }: Props) {
-  const [open, setOpen] = useState<Popover | null>(null);
+export function AppShell({ profile, children }: Props) {
+  const [open, setOpen] = useState(false);
   const appsButton = useRef<HTMLButtonElement>(null);
-  const accountButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const previousIdentity = useRef(accountIdentity);
   const { pathname } = useLocation();
   const previousPath = useRef(pathname);
   const main = useRef<HTMLElement>(null);
@@ -41,7 +36,7 @@ export function AppShell({ account: accountContent, accountIdentity, profile, ch
   useLayoutEffect(() => {
     if (previousPath.current !== pathname) {
       previousPath.current = pathname;
-      setOpen(null);
+      setOpen(false);
       main.current?.focus();
     }
   }, [pathname]);
@@ -51,30 +46,20 @@ export function AppShell({ account: accountContent, accountIdentity, profile, ch
   }, [open]);
 
   useEffect(() => {
-    if (previousIdentity.current !== accountIdentity) {
-      previousIdentity.current = accountIdentity;
-      if (open === "account") {
-        setOpen(null);
-        accountButton.current?.focus();
-      }
-    }
-  }, [accountIdentity, open]);
-
-  useEffect(() => {
     if (!open) return;
     function outside(event: Event) {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (!panel.current?.contains(target) && !appsButton.current?.contains(target) && !accountButton.current?.contains(target)) {
-        setOpen(null);
+      if (!panel.current?.contains(target) && !appsButton.current?.contains(target)) {
+        setOpen(false);
       }
     }
     function keyboard(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      setOpen(null);
-      (open === "apps" ? appsButton : accountButton).current?.focus();
+      setOpen(false);
+      appsButton.current?.focus();
     }
     document.addEventListener("pointerdown", outside);
     document.addEventListener("focusin", outside);
@@ -90,23 +75,23 @@ export function AppShell({ account: accountContent, accountIdentity, profile, ch
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
-        <Link className="chrome-button home-link" to="/" onClick={() => setOpen(null)}>Home</Link>
-        <button ref={appsButton} type="button" className="chrome-button" aria-expanded={open === "apps"}
-          aria-controls={open === "apps" ? `${id}-apps` : undefined} aria-haspopup="dialog"
-          onClick={() => setOpen(open === "apps" ? null : "apps")}><AppsIcon /><span>Apps</span><Chevron /></button>
-        <button ref={accountButton} type="button" className="chrome-button account-button" aria-label={profile?.display_name ? `Account: ${profile.display_name}` : "Account"} aria-expanded={open === "account"}
-          aria-controls={open === "account" ? `${id}-account` : undefined} aria-haspopup="dialog"
-          onClick={() => setOpen(open === "account" ? null : "account")}>
+        <Link className="chrome-button home-link" to="/" onClick={() => setOpen(false)}>Home</Link>
+        <button ref={appsButton} type="button" className="chrome-button" aria-expanded={open}
+          aria-controls={open ? `${id}-apps` : undefined} aria-haspopup="dialog"
+          onClick={() => setOpen(!open)}><AppsIcon /><span>Apps</span><Chevron /></button>
+        <NavLink to="/profile" className="chrome-button account-link" aria-label={profile?.display_name ? `Account: ${profile.display_name}` : "Account"}
+          onClick={() => setOpen(false)}>
           {profile?.picture ? <img className="account-avatar" src={profile.picture} alt="" /> : <AccountIcon />}
-          <span className="account-name">{profile?.display_name || "Account"}</span><Chevron /></button>
-        {open && <div ref={panel} id={`${id}-${open}`} className={`chrome-popover ${open}`} role="dialog"
-          aria-label={open === "apps" ? "Apps" : "Account"} tabIndex={-1} data-popover-open="true">
-          {open === "apps" ? <nav aria-label="Apps" onClick={() => setOpen(null)}>
+          <span className="account-name">{profile?.display_name || "Account"}</span>
+        </NavLink>
+        {open && <div ref={panel} id={`${id}-apps`} className="chrome-popover apps" role="dialog"
+          aria-label="Apps" tabIndex={-1} data-popover-open="true">
+          <nav aria-label="Apps" onClick={() => setOpen(false)}>
             <Link className="popover-link" to="/">All apps</Link>
             {apps.map(app => <Link className="popover-link app-menu-link" key={app.id} to={app.path}>
               <span>{app.name}</span><span className="menu-status">Open</span>
             </Link>)}
-          </nav> : accountContent}
+          </nav>
         </div>}
       </div>
     </header>

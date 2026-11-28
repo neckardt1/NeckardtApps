@@ -5,11 +5,12 @@ import { Launcher } from "./shell/Launcher.tsx";
 
 const Tasks = lazy(() => import("./apps/tasks/Tasks.tsx"));
 
-export function AppRoutes({ practice }: { practice: ReactNode }) {
+export function AppRoutes({ practice, profile }: { practice: ReactNode; profile: ReactNode }) {
   return <Routes>
     <Route path="/index.html?" element={<Launcher />} />
     <Route path="/recall/index.html?" element={practice} />
     <Route path="/tasks/index.html?" element={<Suspense fallback={<p role="status">Loading Tasks…</p>}><Tasks /></Suspense>} />
+    <Route path="/profile" element={profile} />
     <Route path="/sites" element={<Sites />} />
     <Route path="/sites/:slug/*" element={<Sites />} />
     <Route path="*" element={<section className="launcher"><h1>Page not found</h1><Link to="/">All apps</Link></section>} />

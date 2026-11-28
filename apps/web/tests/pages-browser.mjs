@@ -35,6 +35,17 @@ export async function checkBrowserRoutes(origin) {
       await checkPractice(deep);
       assert.equal(documents.length, before, "In-app navigation keeps the same document");
 
+      await page.getByRole("link", { name: "Account", exact: true }).click();
+      const profile = page.getByRole("heading", { name: "Profile", exact: true });
+      await profile.waitFor();
+      assert.equal(page.url(), root + "profile");
+      await page.reload({ waitUntil: "commit" });
+      await profile.waitFor();
+      await page.getByLabel("Password", { exact: true }).waitFor();
+      assert.equal(await page.title(), "Profile");
+      await page.goBack();
+      await checkPractice(deep);
+
       const alias = root + "recall/index.html";
       await page.goto(alias, { waitUntil: "commit" });
       await checkPractice(alias);
@@ -42,7 +53,7 @@ export async function checkBrowserRoutes(origin) {
       assert.equal((await page.goto(consent)).status(), 200);
       await page.getByRole("button", { name: "Continue" }).waitFor();
       assert.equal(page.url(), consent);
-      assert.equal(await page.getByRole("button", { name: "Account" }).count(), 0);
+      assert.equal(await page.getByRole("link", { name: "Account" }).count(), 0);
       for (const mode of [consent, root + "oauth/consent/?manage"]) {
         await page.setContent('<iframe title="Connection settings"></iframe>');
         await page.locator("iframe").evaluate((frame, url) => { frame.src = url; }, mode);

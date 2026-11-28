@@ -4,7 +4,6 @@ import { BrowserRouter } from "react-router";
 import { SiteRoot } from "./shell/SiteRoot.tsx";
 import { makeSiteSessionApi, type SessionApi } from "./shell/session.tsx";
 import type { PublicSupabaseConfig } from "./shell/browser-auth.mts";
-import { AppRoutes } from "./AppRoutes.tsx";
 
 declare const __SITE_PUBLIC_CONFIG__: PublicSupabaseConfig | null;
 
@@ -24,13 +23,11 @@ try { api = makeSiteSessionApi(__SITE_PUBLIC_CONFIG__); } catch { /* Public laun
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter basename={base}>
-      <SiteRoot api={api}>
-        <AppRoutes practice={
-          <Suspense fallback={<p role="status">Loading Habit Practice…</p>}>
-            <HabitPractice />
-          </Suspense>
-        } />
-      </SiteRoot>
+      <SiteRoot api={api} practice={
+        <Suspense fallback={<p role="status">Loading Habit Practice…</p>}>
+          <HabitPractice />
+        </Suspense>
+      } />
     </BrowserRouter>
   </StrictMode>
 );

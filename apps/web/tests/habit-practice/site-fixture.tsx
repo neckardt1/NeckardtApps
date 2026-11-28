@@ -26,6 +26,6 @@ export function makeSessionFixture(initialOwner: string | null | undefined = 'ow
 
 export function ReviewFixture({ api, sessionApi, entry = "/recall/" }: { entry?: string; api: RecallApi | null; sessionApi: SessionApi | null }) {
   return <MemoryRouter initialEntries={[entry]}>
-    <SiteRoot api={sessionApi}><App api={api} /></SiteRoot>
+    <SiteRoot api={sessionApi} practice={<App api={api} />} />
   </MemoryRouter>;
 }

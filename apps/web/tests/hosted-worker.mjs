@@ -25,7 +25,7 @@ export async function openWorker(browser, origin, config, createFixture) {
     const password = randomBytes(32).toString("base64url") + "aA1!";
     const { email, id } = await createFixture(password);
     await page.goto(origin);
-    await page.getByRole("button", { name: "Account", exact: true }).click();
+    await page.getByRole("link", { name: "Account", exact: true }).click();
     // Playwright failure messages can echo fill arguments. Keep credentials out of diagnostics.
     try {
       await page.getByLabel("Email", { exact: true }).fill(email);

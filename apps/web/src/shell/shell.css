@@ -44,19 +44,21 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .topbar-inner { position: relative; display: flex; align-items: center; justify-content: space-between; width: min(100%, 72rem); min-height: 4rem; margin: 0 auto; padding: .35rem clamp(1rem, 4.5vw, 2rem); }
 .chrome-button { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; min-width: 2.75rem; padding: .35rem 0; border: 0; background: transparent; color: light-dark(#293640, #e2e8e6); font-size: .9375rem; font-weight: 550; }
 .home-link { text-decoration: none; margin-right: 1rem; }
-.topbar-inner > button:last-of-type { margin-left: auto; }
+.account-link { margin-left: auto; max-width: 54%; text-decoration: none; }
 .chrome-button > svg { width: 1rem; height: 1rem; }
 .chrome-button .chevron { width: .7rem; height: .7rem; margin-left: -.15rem; }
 .account-icon { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: light-dark(#edf0f1, #39413e); }
 .account-icon svg { width: 1rem; height: 1rem; }
 .chrome-popover { position: absolute; top: calc(100% - .1rem); width: min(21rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem - env(safe-area-inset-top)); overflow-y: auto; overscroll-behavior: contain; padding: .4rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--card); box-shadow: 0 .5rem 1.5rem #27382c17; }
 .chrome-popover.apps { left: clamp(1rem, 4.5vw, 2rem); }
-.chrome-popover.account { right: clamp(1rem, 4.5vw, 2rem); }
 .popover-link { display: flex; align-items: center; gap: .8rem; min-height: 2.75rem; padding: .6rem .7rem; border-radius: .3rem; color: var(--ink); text-decoration: none; font-size: .9375rem; }
 .popover-link:hover { background: var(--sage); }
 .app-menu-link { justify-content: space-between; }
 .menu-status { color: var(--muted); font-size: .8125rem; }
-.account-panel { padding: .65rem .75rem .75rem; }
+.profile-page { max-width: 36rem; margin: 0 auto; padding: clamp(2rem, 8vh, 5rem) 1.25rem; }
+.profile-page h1 { margin: 0 0 1.5rem; font: 400 clamp(2.5rem, 7vw, 3.5rem)/1.1 Georgia, serif; }
+.profile-card { padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--line); border-radius: .85rem; background: var(--card); }
+.profile-identity { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .account-note { margin: 0 0 .9rem; color: var(--muted); font-size: .9375rem; }
 .account-note:last-child { margin-bottom: 0; }
 .account-form label { display: block; margin: .9rem 0; font-size: .9375rem; }
@@ -84,7 +86,6 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 @media (prefers-reduced-motion: no-preference) {
   button, a { transition: background-color 100ms ease; }
 }
-.account-button { min-width: 0; max-width: 54%; }
 .account-avatar { width: 1.8rem; height: 1.8rem; border-radius: 50%; object-fit: cover; flex: none; }
 .account-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .profile-edit { display: block; min-height: 2.75rem; border: 0; background: transparent; padding: .4rem 0; color: var(--green); text-decoration: underline; text-underline-offset: .2em; }
@@ -111,13 +112,12 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
   }
   .topbar-inner { flex-direction: row-reverse; reading-flow: flex-visual; min-height: var(--mobile-nav-row); gap: 1rem; padding: 0 1rem; }
   .home-link { margin-right: 0; }
-  .topbar-inner > .account-button:last-of-type { margin: 0 auto 0 0; min-width: 2.75rem; justify-content: center; }
-  .account-name, .account-button .chevron { display: none; }
+  .account-link { margin: 0 auto 0 0; min-width: 2.75rem; justify-content: center; }
+  .account-name { display: none; }
   .chrome-button .chevron { transform: rotate(180deg); }
-  .chrome-popover.apps, .chrome-popover.account {
+  .chrome-popover.apps {
     inset: auto 1rem calc(100% + .25rem) auto;
     width: min(21rem, calc(100% - 2rem));
     max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top) - 1rem);
   }
-  .chrome-popover.account { left: 1rem; right: auto; }
 }
