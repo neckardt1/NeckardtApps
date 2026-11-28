@@ -68,3 +68,11 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 @media (prefers-reduced-motion: no-preference) {
   button, a { transition: background-color 100ms ease; }
 }
+.account-button { min-width: 0; max-width: 54%; }
+.account-avatar { width: 1.8rem; height: 1.8rem; border-radius: 50%; object-fit: cover; flex: none; }
+.account-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.profile-edit { display: block; min-height: 2.75rem; border: 0; background: transparent; padding: .4rem 0; color: var(--green); text-decoration: underline; text-underline-offset: .2em; }
+.profile-form { border-bottom: 1px solid var(--line); margin-bottom: 1rem; }
+.profile-form fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.profile-form legend { font-weight: 600; }
+.profile-preview { display: block; width: 4rem; height: 4rem; border-radius: 50%; }

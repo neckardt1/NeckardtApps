@@ -1,10 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
+import type { AccountProfile } from "./profile.ts";
 import { apps } from "./apps.ts";
 
 type Popover = "apps" | "account";
 type Props = {
   account: ReactNode;
+  profile?: AccountProfile;
   accountIdentity: string | null;
   children: ReactNode;
 };
@@ -25,7 +27,7 @@ function Chevron() {
 }
 
 /** Shared page chrome; session and feature behavior remain outside this component. */
-export function AppShell({ account: accountContent, accountIdentity, children }: Props) {
+export function AppShell({ account: accountContent, accountIdentity, profile, children }: Props) {
   const [open, setOpen] = useState<Popover | null>(null);
   const appsButton = useRef<HTMLButtonElement>(null);
   const accountButton = useRef<HTMLButtonElement>(null);
@@ -92,9 +94,11 @@ export function AppShell({ account: accountContent, accountIdentity, children }:
         <button ref={appsButton} type="button" className="chrome-button" aria-expanded={open === "apps"}
           aria-controls={open === "apps" ? `${id}-apps` : undefined} aria-haspopup="dialog"
           onClick={() => setOpen(open === "apps" ? null : "apps")}><AppsIcon /><span>Apps</span><Chevron /></button>
-        <button ref={accountButton} type="button" className="chrome-button" aria-expanded={open === "account"}
+        <button ref={accountButton} type="button" className="chrome-button account-button" aria-label={profile?.display_name ? `Account: ${profile.display_name}` : "Account"} aria-expanded={open === "account"}
           aria-controls={open === "account" ? `${id}-account` : undefined} aria-haspopup="dialog"
-          onClick={() => setOpen(open === "account" ? null : "account")}><AccountIcon /><span>Account</span><Chevron /></button>
+          onClick={() => setOpen(open === "account" ? null : "account")}>
+          {profile?.picture ? <img className="account-avatar" src={profile.picture} alt="" /> : <AccountIcon />}
+          <span className="account-name">{profile?.display_name || "Account"}</span><Chevron /></button>
         {open && <div ref={panel} id={`${id}-${open}`} className={`chrome-popover ${open}`} role="dialog"
           aria-label={open === "apps" ? "Apps" : "Account"} tabIndex={-1} data-popover-open="true">
           {open === "apps" ? <nav aria-label="Apps" onClick={() => setOpen(null)}>
