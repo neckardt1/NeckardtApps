@@ -91,7 +91,7 @@ test("the launcher remains public while account loading, signed out, failed, or 
 test("Apps manages focus and dismissal when navigating to Profile or interacting outside", async () => {
   await mount(session(null).api);
   const header = target.querySelector("header")!;
-  expect([...header.querySelectorAll(":scope > div > button")].map(element => element.textContent)).toEqual(["Apps"]);
+  expect([...header.querySelectorAll("button")].map(element => element.textContent)).toEqual(["Apps"]);
   expect(header.querySelector("h1")).toBeNull();
   await tap("Apps");
   expect(button("Apps").getAttribute("aria-expanded")).toBe("true");

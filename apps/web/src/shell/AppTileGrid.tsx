@@ -28,12 +28,16 @@ const artwork: Record<AppId, ReactNode> = {
   </>
 };
 
+export function AppTileIcon({ id }: { id: AppId }) {
+  return <span className={`app-tile-icon ${id}`} aria-hidden="true">
+    <svg viewBox="0 0 48 48">{artwork[id]}</svg>
+  </span>;
+}
+
 export function AppTileGrid({ onSelect }: { onSelect?: () => void }) {
   return <div className="app-tile-grid">
     {apps.map(app => <NavLink key={app.id} className="app-tile" to={app.path} onClick={onSelect}>
-      <span className={`app-tile-icon ${app.id}`} aria-hidden="true">
-        <svg viewBox="0 0 48 48">{artwork[app.id]}</svg>
-      </span>
+      <AppTileIcon id={app.id} />
       <span>{app.name}</span>
     </NavLink>)}
   </div>;

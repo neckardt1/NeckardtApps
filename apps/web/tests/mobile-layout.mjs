@@ -40,21 +40,21 @@ export async function checkSuiteNavigation(page, appName, bottomInset = 0) {
     }));
     end = box.x + box.width;
   }
-  const picker = await apps.boundingBox();
-  for (const control of [apps, home]) {
-    const label = control.locator("span");
-    if (await label.isVisible()) {
-      assert.ok(await label.evaluate(el => el.clientWidth >= el.scrollWidth && el.offsetWidth <= el.parentElement.clientWidth),
-        "The full text fits inside its touch target.");
-    } else {
-      assert.ok(await control.locator("svg").first().isVisible(), "A compact control has a visible icon.");
-    }
-  }
+  assert.ok(await apps.locator("svg").first().isVisible(), "Apps shows the four-block launcher.");
+  assert.ok(await home.locator("svg").isVisible(), "Home has a visible icon.");
+  const label = current ? current.getByText(appName, { exact: true }) : apps.getByText("Apps", { exact: true });
+  assert.ok(await label.isVisible() && await label.evaluate(el => {
+    const text = document.createRange();
+    text.selectNodeContents(el);
+    return text.getClientRects().length === 1 && el.clientWidth >= el.scrollWidth
+      && el.offsetWidth <= el.parentElement.clientWidth;
+  }), "The switcher label fits on one line.");
   const center = bar.x + bar.width / 2;
-  assert.ok(picker.x >= center, "Apps stays to the right of center on every route.");
+  const centered = await (current ? label : apps).boundingBox();
+  assert.ok(Math.abs(centered.x + centered.width / 2 - center) <= 1, "The app name or standalone launcher is centered.");
   if (current) {
-    const box = await current.boundingBox();
-    assert.ok(Math.abs(box.x + box.width / 2 - center) <= 1, "The current app is centered.");
+    assert.ok(await current.locator(".app-tile-icon").isVisible(), "The current app uses its launcher artwork.");
+    assert.ok((await apps.boundingBox()).x >= center, "Apps is on the right of the app name.");
     assert.equal(await current.evaluate(el => getComputedStyle(el).textDecorationLine), "none");
   }
   assert.ok((await account.boundingBox()).x < width * .1 && end > width * .9 && end <= width);
