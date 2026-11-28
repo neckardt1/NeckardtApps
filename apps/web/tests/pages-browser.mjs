@@ -28,8 +28,7 @@ export async function checkBrowserRoutes(origin) {
       await checkPractice(deep);
 
       const before = documents.length;
-      await page.getByRole("button", { name: "Apps", exact: true }).click();
-      await page.getByRole("link", { name: "All apps" }).click();
+      await page.getByRole("link", { name: "Home", exact: true }).click();
       await page.getByRole("heading", { name: "Your apps" }).waitFor();
       assert.equal(page.url(), root);
       await page.goBack();

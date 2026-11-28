@@ -27,6 +27,8 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .topbar { position: relative; z-index: 10; border-bottom: 1px solid var(--line); background: var(--card); padding-top: env(safe-area-inset-top); }
 .topbar-inner { position: relative; display: flex; align-items: center; justify-content: space-between; width: min(100%, 72rem); min-height: 4rem; margin: 0 auto; padding: .35rem clamp(1rem, 4.5vw, 2rem); }
 .chrome-button { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; min-width: 2.75rem; padding: .35rem 0; border: 0; background: transparent; color: #293640; font-size: .9375rem; font-weight: 550; }
+.home-link { text-decoration: none; margin-right: 1rem; }
+.topbar-inner > button:last-of-type { margin-left: auto; }
 .chrome-button > svg { width: 1rem; height: 1rem; }
 .chrome-button .chevron { width: .7rem; height: .7rem; margin-left: -.15rem; }
 .account-icon { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: #edf0f1; }
