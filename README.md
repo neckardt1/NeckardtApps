@@ -5,6 +5,7 @@ Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
 - [Web](apps/web/) contains the React/Vite launcher, [Habit Practice](apps/web/src/apps/habit-practice/README.md)
   at `/recall/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
 - [Private sites](/apps/web/src/apps/sites/Sites.tsx) at `/sites` displays owner- and viewer-scoped HTML. Use the [publishing skill](.agents/skills/publish-site/SKILL.md) to create pages and manage access.
+- [Tasks](apps/web/src/apps/tasks/) at `/tasks/` uses the existing Account sign-in. Two enrolled accounts each have a private list and share Household. Focus choices belong to each account.
 - [Backend](apps/backend/supabase/) contains the SQL migrations and Supabase Edge Functions.
   Generate types with `npm run db:types` at the root before checking or deploying an Edge
   Function. Run Supabase CLI commands from `apps/backend/`.
@@ -32,6 +33,30 @@ with `npm run build -- <directory>` to keep earlier builds.
 
 To test Habit Practice while editing with a disposable Supabase user, see the
 [hosted test setup](tests/hosted/README.md).
+
+### Rehearse Tasks with two accounts
+
+Both lists use `America/Los_Angeles`. A planned time can appear in Today that morning.
+Show after gates Today independently of the plan and deadline. Manual Focus carries
+forward until changed or completed. Deprioritizing suppresses a suggestion for the
+rest of the Pacific day. The database operator's existing backups cover both lists.
+
+Use a disposable local Auth, PostgREST and PostgreSQL stack with the committed migrations.
+Create two password users in local Auth. As the local database operator, bind their Auth
+IDs as `$1` and `$2` to provision the empty lists in one statement.
+
+```sql
+insert into tasks_private.lists (slot, owner_id)
+values (0, null), (1, $1::uuid), (2, $2::uuid);
+```
+
+Prepare a JSON fixture outside Git with the loopback gateway `url` (such as
+`http://127.0.0.1:54321`), a synthetic `publicOrigin` such as
+`https://taskslocalfixtureabc.supabase.co`, the local gateway's `publishableKey`,
+and `users` containing two objects with `id`, `email` and `password`. Run
+`CHROME_BIN=/usr/bin/chromium node apps/web/tests/tasks-local-browser.mjs /path/to/fixture.json`.
+The test builds Pages, signs in through Home in separate desktop and phone browser
+contexts, and forwards the synthetic origin to loopback. It creates synthetic tasks.
 
 ## Deployment
 

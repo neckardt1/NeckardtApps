@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { runInNewContext } from "node:vm";
 import { mkdtemp, mkdir, readdir, readFile, writeFile, symlink, rm } from "node:fs/promises";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import defaults from "@neckardt/backend/public-config" with { type: "json" };
+import { servePages } from "./serve-pages.mjs";
 import { checkPrivateSites } from "./sites-browser.mjs";
 import { checkBrowserRoutes } from "./pages-browser.mjs";
 import { checkAutomaticRounds } from "./automatic-rounds-browser.mjs";
@@ -38,23 +38,6 @@ const run = (out, vars = {}) => spawnSync(process.execPath, [build, out], {
     ...vars
   }
 });
-async function serve(out) {
-  const files = createServer(async (req, res) => {
-    try {
-      const path = new URL(req.url, "http://127.0.0.1").pathname.replace(/^\/NeckardtApps(?=\/)/, "");
-      const file = resolve(out, "." + path + (path.endsWith("/") ? "index.html" : ""));
-      if (!file.startsWith(out + sep)) throw Error("Not found");
-      const body = await readFile(file);
-      res.writeHead(200, { "Content-Type": file.endsWith(".html") ? "text/html" : file.endsWith(".css") ? "text/css" : "text/javascript" });
-      res.end(body);
-    } catch {
-      res.writeHead(404, { "Content-Type": "text/html" });
-      res.end(await readFile(join(out, "404.html")));
-    }
-  });
-  await new Promise((yes, no) => files.on("error", no).listen(0, "127.0.0.1", yes));
-  return { files, origin: "http://127.0.0.1:" + files.address().port };
-}
 async function scriptGraph(out, entry, graph = new Map()) {
   if (graph.has(entry)) return graph;
   graph.set(entry, "");
@@ -127,7 +110,7 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     assert(assets.every(name => /^[\w-]+\.(?:js|css)$/.test(name)));
     const entries = new Set(), pages = [];
     let origin;
-    ({ files, origin } = await serve(out));
+    ({ files, origin } = await servePages(out));
     await t.test("Chrome opens and refreshes deep links on the built site", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
     }, () => checkBrowserRoutes(origin));

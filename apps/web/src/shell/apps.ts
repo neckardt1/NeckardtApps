@@ -8,4 +8,9 @@ export const apps = [{
   name: "Private sites",
   path: "/sites",
   description: "Open your sites and sites shared with you."
+}, {
+  id: "tasks",
+  name: "Tasks",
+  path: "/tasks/",
+  description: "Your private tasks, Household list, and Today Focus."
 }] as const;
