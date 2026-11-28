@@ -11,9 +11,9 @@ function intervalLabel(minutes: number) {
   return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
-export function RatingButtons({ cardId, revision, preview, revealed, reveal, disabled, rate }: {
+export function RatingButtons({ cardId, revision, preview, revealed, flip, savingFace, disabled, rate }: {
   cardId: string; revision: number; preview: RecallApi['preview']; revealed: boolean;
-  reveal: () => void; disabled: boolean; rate: (grade: Grade) => void;
+  flip: () => void; savingFace: boolean; disabled: boolean; rate: (grade: Grade) => void;
 }) {
   const [intervals, setIntervals] = useState<ReviewIntervals | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -29,18 +29,20 @@ export function RatingButtons({ cardId, revision, preview, revealed, reveal, dis
     return () => { current = false; };
   }, [cardId, revision, preview]);
 
-  if (!revealed) return <button className="primary" disabled={disabled} onClick={reveal} aria-keyshortcuts="Space Enter">Reveal answer</button>;
   return <>
-    {unavailable && <p className="status" role="status">Review intervals unavailable.</p>}
-    <div className="ratings" aria-label="Rate your recall">
+    {unavailable && revealed && <p className="status" role="status">Review intervals unavailable.</p>}
+    <div className="ratings" inert={!revealed} aria-label="Rate your recall">
       {grades.map((grade, i) => {
         const interval = intervals && intervalLabel(intervals[grade]);
-        return <button className="secondary" key={grade} disabled={disabled} onClick={() => rate(grade)}
+        return <button className="secondary" key={grade} disabled={disabled || savingFace} onClick={() => rate(grade)}
           aria-keyshortcuts={String(i + 1)} aria-label={labels[grade]}
           aria-description={interval ? `Next review in ${interval}` : undefined}>
           {labels[grade]}{preview && !unavailable && <small aria-hidden="true">{interval ?? '…'}</small>}
         </button>;
       })}
     </div>
+    <button className="primary flip-control" aria-disabled={disabled} onClick={flip} aria-keyshortcuts="Space Enter">
+      {revealed ? 'Show question' : 'Reveal answer'}
+    </button>
   </>;
 }

@@ -146,11 +146,11 @@ export function makeDurableSession({ storage, key, api, reviewLimit = defaultRev
       }
       return result;
     },
-    reveal(id: string, expected: string) {
+    reveal(id: string, expected: string, revealed = true) {
       return update(r => {
         if (matches(r, id, expected) && r.opportunityIndex === r.opportunities.length && r.cards[r.cardIndex]) {
           r.started = true;
-          r.revealed = true;
+          r.revealed = revealed;
         }
         return r;
       });

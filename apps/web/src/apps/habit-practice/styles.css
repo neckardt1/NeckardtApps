@@ -156,3 +156,27 @@
 @media (max-width: 720px) {
   .catalog-selection { position: sticky; top: env(safe-area-inset-top); z-index: 1; }
 }
+
+.habit-practice .screen-content:has(.flip-scene) { overflow-x: clip; }
+.card-surface { perspective: 65rem; touch-action: pan-y pinch-zoom; cursor: pointer; }
+.card-rotor { position: relative; transform-style: preserve-3d; transition: transform 200ms ease-out; }
+.card-rotor[data-dragging] { transition: none; user-select: none; }
+.card-face {
+  min-height: 8rem; padding: clamp(.85rem, 3.5vw, 1.45rem); border: 1px solid var(--line);
+  border-radius: .8rem; color: var(--ink); background: var(--card); backface-visibility: hidden;
+}
+.card-face[inert] { position: absolute; inset: 0 0 auto; max-height: 100%; overflow: clip; visibility: hidden; transition: visibility 0s 200ms; }
+.card-rotor[data-dragging] .card-face[inert] { max-height: none; visibility: visible; transition: none; }
+.card-back { transform: rotateY(180deg); background: var(--sage); }
+.habit-practice .card-back .prompt { font-family: inherit; font-size: .9375rem; font-weight: 550; line-height: 1.35; letter-spacing: 0; }
+.habit-practice .card-back .answer-panel { margin-top: .75rem; padding: 0; }
+.habit-practice .flip-control { margin-top: .4rem; min-height: 44px; padding-block: .5rem; }
+.habit-practice .ratings[inert] { visibility: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .card-enter { animation: review-slide-in 155ms cubic-bezier(.18,.75,.25,1); }
+}
+@keyframes review-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .card-rotor, .card-back { transform: none !important; transition: none; }
+  .card-face[inert], .card-rotor[data-dragging] .card-face[inert] { visibility: hidden; transition: none; }
+}
