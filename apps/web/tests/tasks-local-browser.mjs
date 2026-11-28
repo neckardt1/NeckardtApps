@@ -275,6 +275,14 @@ try {
   await ap.getByRole("region", { name: "Reschedule " + edited }).waitFor();
   await ap.keyboard.press("Escape");
   assert(await button(ar, "Set date").evaluate(el => el === document.activeElement));
+  await ap.keyboard.press("Enter");
+  const calendar = ap.getByRole("region", { name: "Reschedule " + edited });
+  await calendar.waitFor();
+  await ap.getByRole("link", { name: "Tasks home" }).click();
+  await ap.getByRole("heading", { name: "Today", exact: true }).waitFor();
+  await calendar.waitFor({ state: "detached" });
+  await ap.goBack();
+  await ap.getByRole("heading", { name: "Household" }).waitFor();
   await button(ar, "More actions").focus();
   await ap.keyboard.press("Enter");
   await ap.getByRole("menu", { name: "Task actions" }).waitFor();

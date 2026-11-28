@@ -16,7 +16,7 @@ export default async function practiceHeadings({ page, origin }) {
       await catalog.waitFor();
       assert((await catalog.boundingBox()).height < 32);
       await page.getByRole("searchbox", { name: "Search cards" }).waitFor();
-      await page.getByRole("button", { name: "Practice home" }).click();
+      await page.getByRole("link", { name: "Habits home" }).click();
     }
   }
 }

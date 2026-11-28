@@ -5,11 +5,12 @@ import { allAnswered, currentKey, makeDurableSession, type DurableSession, type 
 import { useSiteSession } from '../../shell/session.tsx';
 import { FormattedText } from './FormattedText.tsx';
 import { RatingButtons } from './RatingButtons.tsx';
+import { useAppHomeBusy } from '../../shell/app-navigation';
 import { GuideFooter } from '../../shell/daily-guide';
 
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
-export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }: {
-  api: RecallApi | null; onHome?: () => void; onGuideExit?: () => void; reviewLimit?: number; completedRoundId?: string;
+export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRoundId }: {
+  api: RecallApi | null; onPreviewNext?: () => void; onGuideExit?: () => void; reviewLimit?: number; completedRoundId?: string;
 }) {
   const session = useSiteSession();
   const sessionIsCurrent = session.isCurrent;
@@ -18,6 +19,7 @@ export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }:
   const round = snapshot && snapshot.owner === owner ? snapshot.round : null;
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  useAppHomeBusy(busy);
   const [loading, setLoading] = useState(false);
   const [legacyScope, setLegacyScope] = useState<string | null>(null);
   const [storageGeneration, resetStorage] = useState(0);
@@ -182,12 +184,10 @@ export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }:
   const superseded = round?.summary?.superseded ?? 0;
   const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && hasWork && !round.finished;
-  const previewNext = onHome && round && (round.finished || (!hasWork && !loading && !message));
+  const previewNext = onPreviewNext && round && (round.finished || (!hasWork && !loading && !message));
   useEffect(() => {
     if (onGuideExit && round && !loading && !message && sessionIsCurrent() && (round.finished || !hasWork)) onGuideExit();
   }, [onGuideExit, round, loading, message, hasWork, sessionIsCurrent]);
-
-  const homeButton = onHome && <button className="text-button deck-back" disabled={busy} onClick={onHome}>← Practice home</button>;
 
   return <section className="habit-practice" aria-label="Review session">
       {!api && <div className="today-card"><h1>Unavailable</h1><p>This app is not configured.</p></div>}
@@ -199,7 +199,6 @@ export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }:
         <h1>Habit Practice</h1><p>Open Account to sign in and review your cards.</p>
       </div>}
       {api && owner && <>
-        {!previewNext && (!showReview || (!opportunity && !card)) && homeButton}
         <div ref={content} tabIndex={-1} className="screen-content">
           {round?.finished ? <div className="saved-screen">
             <h1>Saved.</h1>
@@ -207,10 +206,10 @@ export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }:
             <p className="muted">{superseded ? `${superseded} ${superseded === 1 ? 'item was' : 'items were'} superseded before completion.` : 'Every response has been saved.'}</p>
           </div> : showReview ? <>
             {opportunity ? <div className="review-card">
-              <div className="review-heading">{opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}{homeButton}</div>
+              {opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}
               <h1 className="prompt">{opportunity.prompt}</h1>
             </div> : card ? <div className="review-card">
-              <div className="review-heading"><p className="eyebrow">Card {round.cardIndex + 1} of {round.cards.length}</p>{homeButton}</div>
+              <p className="eyebrow">Card {round.cardIndex + 1} of {round.cards.length}</p>
               <h1 className="prompt">{card.front}</h1>
               {round.revealed && <div className="answer-panel" aria-label="Answer"><FormattedText text={card.back} /></div>}
             </div> : <div className="today-card">
@@ -231,7 +230,7 @@ export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }:
           {round?.server && conflict > 0 && <button className="text-button" disabled={busy} onClick={() => void mutate(store => store.syncRound(), false)}>Check saved answers</button>}
         </div>}
         <div className="action-dock">
-          {previewNext ? <button className="primary" disabled={busy} onClick={onHome}>Preview next round</button>
+          {previewNext ? <button className="primary" disabled={busy} onClick={onPreviewNext}>Preview next round</button>
             : round?.finished ? <button className="primary" disabled={busy} onClick={() => void mutate(async (store, state) => {
             await store.clearFinished(round.id);
             if (!isCurrent(state)) return;

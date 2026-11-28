@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { checkBottomAction, phones } from "./mobile-layout.mjs";
+import { checkAppHome, phones } from "./mobile-layout.mjs";
 
 export async function checkPrivateSites(origin, remote) {
   const browser = await chromium.launch(process.env.CHROME_BIN
@@ -22,7 +22,7 @@ export async function checkPrivateSites(origin, remote) {
       assert.equal(request.headers().authorization, "Bearer fixture");
       const path = url.searchParams.get("path");
       const html = '<p>Private content</p><img src="https://fixture.invalid/image"><script>document.body.dataset.executed="yes"</script>';
-      const rows = url.pathname.endsWith("site_links") ? [] : path === "eq.trips/packing"
+      const rows = (url.pathname.endsWith("site_links") || url.pathname.endsWith("/sites")) ? [] : path === "eq.trips/packing"
         ? [{ title: "Packing", html }] : [{ path: "", title: "Home" }, { path: "trips/packing", title: "Packing" }];
       await route.fulfill({ json: rows, headers });
     });
@@ -36,9 +36,14 @@ export async function checkPrivateSites(origin, remote) {
     assert.equal(await page.getByRole("navigation", { name: "Site navigation" }).getByRole("link", { name: "Home", exact: true }).getAttribute("href"), "/NeckardtApps/sites/family");
     for (const size of phones) {
       await page.setViewportSize(size);
-      await checkBottomAction(page, page.getByRole("link", { name: "All private sites" }), { right: true });
+      await checkAppHome(page, "Sites");
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await checkBottomAction(page, page.getByRole("link", { name: "All private sites" }), { right: true });
+      await checkAppHome(page, "Sites");
     }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole("link", { name: "Sites home" }).click();
+    assert.equal(new URL(page.url()).pathname, "/NeckardtApps/sites");
+    await page.goBack();
+    await frame.getByText("Private content").waitFor();
   } finally { await browser.close(); }
 }

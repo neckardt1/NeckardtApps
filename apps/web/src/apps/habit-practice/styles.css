@@ -58,7 +58,6 @@
 .habit-practice .formatted > :last-child { margin-bottom: 0; }
 .habit-practice .save-messages { margin-top: 1rem; }
 
-.habit-practice .deck-back { align-self: flex-start; margin-bottom: .5rem; }
 .practice-deck .deck-row, .practice-deck .browse-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 0; border-top: 1px solid var(--line); }
 .practice-deck, .catalog, .habit-practice:has(.today-card, .saved-screen) { padding-top: clamp(1.25rem, 4vh, 2.5rem); }
 .practice-deck .deck-row { border-top: 0; padding-top: 0; }
@@ -74,9 +73,6 @@
 .catalog-card summary { cursor: pointer; padding: .85rem 0; overflow-wrap: anywhere; }
 .catalog-card summary small { display: block; color: var(--muted); margin-top: .25rem; }
 .catalog-card .answer-panel { margin-top: 0; }
-.habit-practice .review-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; }
-.habit-practice .review-heading .eyebrow, .habit-practice .review-heading .deck-back { margin: 0; }
-.habit-practice .review-heading .deck-back { margin-left: auto; flex-shrink: 0; }
 
 @media (max-width: 720px), (orientation: landscape) and (max-height: 480px) and (pointer: coarse) {
   .habit-practice { min-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top)); }

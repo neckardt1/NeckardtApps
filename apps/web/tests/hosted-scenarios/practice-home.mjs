@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { resetRound } from "../hosted-worker.mjs";
-import { checkBottomAction, phones } from "../mobile-layout.mjs";
+import { checkAppHome, checkBottomAction, phones } from "../mobile-layout.mjs";
 
 export default async function practiceHome(worker) {
   const { page, origin } = worker;
   const card = "Worker card " + worker.id;
   const button = name => page.getByRole("button", { name, exact: true });
+  const home = page.getByRole("link", { name: "Habits home", exact: true });
   const original = page.viewportSize();
   const opens = [];
   const opening = request => {
@@ -26,13 +27,25 @@ export default async function practiceHome(worker) {
     await page.getByLabel("Search cards").fill("Fixture answer");
     await page.getByText(card, { exact: true }).click();
     await page.getByText("Fixture answer", { exact: true }).waitFor();
-    await checkBottomAction(page, button("← Practice home"), { right: true });
-    await button("← Practice home").click();
+    for (const size of phones) {
+      await page.setViewportSize(size);
+      await checkAppHome(page, "Habits");
+    }
+    await home.focus();
+    await page.keyboard.press("Enter");
+    await button("Start round").waitFor();
+    assert(await page.locator("main").evaluate(el => el === document.activeElement));
+    await page.goBack();
+    await page.getByLabel("Search cards").waitFor();
+    await page.goForward();
+    await button("Start round").waitFor();
     assert.equal(opens.length, 0);
     await button("Start round").click();
     await checkBottomAction(page, button("Reveal answer"), { right: true });
     await button("Reveal answer").click();
     await page.getByRole("button", { name: "Good", exact: true }).waitFor();
+    await home.click();
+    await button("Continue round").waitFor();
     await page.reload();
     for (const size of phones) {
       await page.setViewportSize(size);
@@ -47,6 +60,10 @@ export default async function practiceHome(worker) {
     }
     await button("Good").click();
     await page.getByRole("heading", { name: "Saved." }).waitFor();
+    await home.click();
+    await page.getByText("No cards due right now.").waitFor();
+    await page.goBack();
+    await page.getByText("No cards due right now.").waitFor();
   } finally {
     page.off("request", opening);
     if (original) await page.setViewportSize(original);

@@ -16,6 +16,19 @@ export async function checkBottomAction(page, control, { right = false } = {}) {
     { x, y: box.y + box.height / 2 }), "The action receives a tap at this point.");
 }
 
+export async function checkAppHome(page, name) {
+  const control = page.getByRole("link", { name: name + " home", exact: true });
+  await control.click({ trial: true });
+  const box = await control.boundingBox();
+  const bar = await page.locator(".topbar").boundingBox();
+  const { height } = page.viewportSize();
+  assert.ok(box && bar && box.width >= 44 && box.height >= 44);
+  assert.ok(Math.abs(box.x + box.width / 2 - (bar.x + bar.width / 2)) <= 2,
+    `App home at ${box.x}..${box.x + box.width} in bar ${bar.x}..${bar.x + bar.width}`);
+  assert.ok(box.y >= bar.y && box.y + box.height <= bar.y + bar.height && Math.abs(bar.y + bar.height - height) <= 1,
+    `App home at ${box.y}..${box.y + box.height}, bar ${bar.y}..${bar.y + bar.height}, viewport ${height}`);
+}
+
 export async function checkTaskActions(page) {
   const original = page.viewportSize();
   const add = page.getByRole("button", { name: "Add task", exact: true });
@@ -65,6 +78,10 @@ export async function checkTaskActions(page) {
       await save.click({ trial: true });
       await page.keyboard.press("Escape");
       assert.ok(await add.evaluate(el => el === document.activeElement));
+      await page.getByRole("link", { name: "Tasks home" }).click();
+      await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+      await page.goBack();
+      await page.getByRole("heading", { name: "Household" }).waitFor();
       await views.getByRole("button", { name: "Today" }).click();
     }
   } finally { if (original) await page.setViewportSize(original); }
