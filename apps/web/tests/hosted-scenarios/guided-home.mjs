@@ -113,7 +113,7 @@ export default async function guidedHome(worker) {
     await page.getByRole("link", { name: "Pick more tasks" }).waitFor();
     assert.equal(await reminder.count(), 0);
     await page.goto(origin + "/recall/");
-    await button("Start round").waitFor();
+    await page.getByText("No cards due right now.").waitFor();
     await button("Browse all cards").click();
     await page.getByLabel("Search cards").waitFor();
     assert.equal(await button("Skip practice").count(), 0);

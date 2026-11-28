@@ -10,7 +10,7 @@ import { checkNewCardIntervals } from "./hosted-scenarios/review-intervals.mjs";
 
 const migrations = new URL("../../backend/supabase/migrations/", import.meta.url);
 const userRpcs = new Set(["recall_latest_round", "recall_open_round", "recall_finish_round",
-  "recall_browse_cards", "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
+  "recall_browse_cards", "recall_round_preview", "recall_set_cards_active", "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
 
 export async function bootstrap(db) {
   await db.exec(`
@@ -152,13 +152,17 @@ export async function openBrowser(browser, origin, remote, db, owner, fault = {}
       const name = url.pathname.match(/^\/rest\/v1\/rpc\/([a-z_]+)$/)?.[1];
       assert(userRpcs.has(name), url.pathname);
       const rows = await rpc(db, owner, name, args ?? {});
+      if (name === "recall_set_cards_active" && fault.loseActivityReceipt) {
+        fault.loseActivityReceipt = false;
+        return route.abort("failed");
+      }
       if (name === "recall_finish_round" && fault.duplicateFinish) {
         const replay = await rpc(db, owner, name, args);
         assert.deepEqual(replay, rows);
         fault.finished = args.p_round_id;
       }
       let result = rows;
-      if (name === "recall_record_action") result = rows[0].recall_record_action;
+      if (name === "recall_record_action" || name === "recall_set_cards_active") result = rows[0][name];
       if (req.headers().accept?.includes("vnd.pgrst.object")) {
         assert.equal(rows.length, 1);
         result = rows[0];
@@ -175,6 +179,86 @@ export async function openBrowser(browser, origin, remote, db, owner, fault = {}
   return { context, page };
 }
 
+async function checkDeckControls(db, browser, origin, remote) {
+  const { owner } = await seed(db, true);
+  await db.query("update flashcards_private.cards set back=back || ' Trial batch' where owner_id=$1", [owner]);
+  await db.query(`insert into flashcards_private.cards(owner_id,kind,front,back)
+    select $1,'fact','Review '||i,case when i <= 4 then 'Trial batch' else 'Keeper' end
+    from generate_series(1,14) i`, [owner]);
+  await db.query(`insert into flashcards_private.cards(owner_id,kind,front,back,due_at) values
+    ($1,'habit-action','No occasion yet','Later',now()),
+    ($1,'fact','Future recall','Later',now()+interval '1 day')`, [owner]);
+  const { page, context } = await openBrowser(browser, origin, remote, db, owner, { loseActivityReceipt: true });
+  const click = label => page.getByRole("button", { name: label, exact: true }).click();
+  const row = front => page.locator(".catalog-row").filter({ has: page.getByText(front, { exact: true }) });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByText("1 check-in · 5 of 15 due recall cards").waitFor();
+    await click("Browse all cards");
+    await row("No occasion yet").getByText(/Waiting for an occasion/).waitFor();
+    await row("Future recall").getByText(/Next recall/).waitFor();
+    assert.ok(await row("Future recall").locator("summary time").getAttribute("datetime"));
+    await page.getByLabel("Search cards").fill("Trial batch");
+    await page.getByText("6 cards", { exact: true }).waitFor();
+    await row("Did it happen?").getByText(/Check-in ready/).waitFor();
+    await row("What follows the cue?").locator("summary").click();
+    await row("What follows the cue?").getByRole("button", { name: "Pause card" }).click();
+    await row("Did it happen?").getByText(/Cue paused/).waitFor();
+    await page.getByText(/Could not confirm the change/).waitFor();
+    await page.getByLabel("Status", { exact: true }).selectOption("paused");
+    await row("What follows the cue?").locator("summary").click();
+    await click("Resume card");
+    await page.getByText("No matching cards.").waitFor();
+    await page.getByLabel("Status", { exact: true }).selectOption("");
+    await click("Select cards");
+    await click("Select all 6 results");
+    await click("Pause 6");
+    await page.getByText("Paused 6 cards.").waitFor();
+    await click("← Practice home");
+    await page.getByText("0 check-ins · 5 of 10 due recall cards").waitFor();
+    await click("Browse all cards");
+    await page.getByLabel("Status", { exact: true }).selectOption("paused");
+    await click("Select cards");
+    await click("Select all 6 results");
+    await click("Resume 6");
+    await page.getByText("No matching cards.").waitFor();
+    await click("← Practice home");
+    const size = page.getByLabel("Recall cards per round");
+    await size.selectOption("1");
+    await page.getByText("1 check-in · 1 of 15 due recall cards").waitFor();
+    await size.selectOption("10");
+    await page.getByText("1 check-in · 10 of 15 due recall cards").waitFor();
+    assert.deepEqual(await rpc(db, owner, "recall_latest_round"), []);
+    await click("Start round");
+    await page.getByRole("heading", { name: "Did you do it this time?" }).waitFor();
+    await click("← Practice home");
+    await page.getByText("1 check-in · 10 recall cards left").waitFor();
+    assert.equal(await size.count(), 0);
+    const manifest = await rpc(db, owner, "recall_latest_round");
+    assert.equal(manifest.length, 11);
+    const second = await openBrowser(browser, origin, remote, db, owner);
+    try {
+      await second.page.getByRole("button", { name: "Continue round" }).click();
+      await second.page.getByRole("heading", { name: "Did you do it this time?" }).waitFor();
+      assert.deepEqual(await rpc(db, owner, "recall_latest_round"), manifest);
+      await second.page.getByRole("button", { name: "Yes", exact: true }).click();
+      for (let i = 0; i < 10; i++) {
+        await second.page.getByRole("button", { name: "Reveal answer" }).click();
+        await second.page.getByRole("button", { name: "Good", exact: true }).click();
+      }
+      await second.page.getByRole("heading", { name: "Saved." }).waitFor();
+      await second.page.getByRole("button", { name: "Preview next round" }).click();
+      await second.page.getByText("0 check-ins · 5 recall cards", { exact: true }).waitFor();
+      assert.equal((await rpc(db, owner, "recall_latest_round"))[0].round_id, manifest[0].round_id);
+      await page.reload();
+      await page.getByText("0 check-ins · 5 recall cards", { exact: true }).waitFor();
+      await click("Start round");
+      await page.getByText("Card 1 of 5", { exact: true }).waitFor();
+      assert.notEqual((await rpc(db, owner, "recall_latest_round"))[0].round_id, manifest[0].round_id);
+    } finally { await second.context.close(); }
+  } finally { await context.close(); }
+}
+
 export async function checkPairedHabit(origin, remote) {
   const db = new PGlite();
   let browser;
@@ -184,6 +268,7 @@ export async function checkPairedHabit(origin, remote) {
     await checkLateAnswer(db, true);
     browser = await chromium.launch(process.env.CHROME_BIN
       ? { executablePath: process.env.CHROME_BIN } : { channel: "chrome" });
+    await checkDeckControls(db, browser, origin, remote);
     for (const outcome of ["Yes", "No", "No opportunity"]) {
       const checkRetry = outcome === "Yes";
       const { owner, cue, action } = await seed(db, checkRetry);
@@ -204,6 +289,10 @@ export async function checkPairedHabit(origin, remote) {
           await page.getByText("Check the occasion.", { exact: true }).waitFor();
           assert.deepEqual(await rpc(db, owner, "recall_latest_round"), []);
           await click("← Practice home");
+        }
+        if (!checkRetry) {
+          await page.getByText("1 check-in · 0 recall cards", { exact: true }).waitFor();
+          assert.equal(await page.getByLabel("Recall cards per round").count(), 0);
         }
         await click("Start round");
         await click(outcome);
@@ -266,8 +355,8 @@ export async function checkPairedHabit(origin, remote) {
         assert.equal(claim.review_count, 1);
         assert.equal(claim.action_count, 1);
         const second = await openBrowser(browser, origin, remote, db, owner);
-        await second.page.getByRole("button", { name: "Start round" }).click();
         await second.page.getByText("No cards due right now.").waitFor();
+        assert.equal(await second.page.getByRole("button", { name: "Start round" }).count(), 0);
         await second.context.close();
         const other = await seed(db, false);
         assert.deepEqual(await rpc(db, other.owner, "recall_latest_round"), []);

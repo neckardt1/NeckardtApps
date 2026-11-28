@@ -20,11 +20,16 @@ export interface ActionEvent {
   answered_at: string;
 }
 export type ReviewIntervals = Record<Grade, number>;
+export const defaultReviewLimit = 5;
+export interface RoundPreview { due_reviews: number; check_ins: number; next_review_at: string | null }
 export interface CatalogCard {
   card_id: string; front: string; back: string; kind: string; active: boolean; due_at: string;
+  cue_card_id: string | null; check_in_available: boolean;
 }
 export interface RecallApi {
   browse?(signal: AbortSignal, isCurrent: () => boolean): Promise<CatalogCard[]>;
+  roundPreview?(): Promise<RoundPreview>;
+  setCardsActive?(ids: string[], active: boolean): Promise<void>;
   readonly origin: string;
   due(): Promise<DueCard[]>;
   preview?(cardId: string, revision: number): Promise<ReviewIntervals>;
@@ -51,7 +56,7 @@ export interface RoundItem {
 }
 export interface RoundApi {
   latest(): Promise<RoundItem[]>;
-  open(id: string): Promise<RoundItem[]>;
+  open(id: string, reviewLimit?: number): Promise<RoundItem[]>;
   finish(id: string): Promise<RoundItem[]>;
 }
 
@@ -163,6 +168,16 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
       }
       return cards.sort((a, b) => a.front.localeCompare(b.front));
     },
+    async roundPreview() {
+      const { data, error } = await client.rpc("recall_round_preview").single();
+      if (error || !data || !revision(data.due_reviews) || !revision(data.check_ins)
+        || !(data.next_review_at === null || timestamp(data.next_review_at))) throw Error("Could not load the next round");
+      return data;
+    },
+    async setCardsActive(ids, active) {
+      const { data, error } = await client.rpc("recall_set_cards_active", { p_card_ids: ids, p_active: active });
+      if (error || data !== ids.length) throw Error("Could not confirm the card change");
+    },
     async preview(cardId, revision) {
       const { data, error } = await client.functions.invoke("recall-grade", {
         body: { preview: true, card_id: cardId, revision }
@@ -179,7 +194,9 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
     },
     rounds: {
       async latest() { return readManifest(await client.rpc("recall_latest_round"), "recall_latest_round"); },
-      async open(id) { return readManifest(await client.rpc("recall_open_round", { p_round_id: id }), "recall_open_round"); },
+      async open(id, reviewLimit = defaultReviewLimit) {
+        return readManifest(await client.rpc("recall_open_round", { p_round_id: id, p_review_limit: reviewLimit }), "recall_open_round");
+      },
       async finish(id) {
         const rows = readManifest(await client.rpc("recall_finish_round", { p_round_id: id }), "recall_finish_round");
         if (!rows[0]?.finished_at || rows[0].round_id !== id) throw new Error("Unconfirmed round completion");
