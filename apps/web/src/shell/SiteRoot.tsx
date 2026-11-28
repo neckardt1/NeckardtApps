@@ -7,7 +7,7 @@ import { ProfileEditor } from "./ProfileEditor.tsx";
 import type { AccountProfile, ProfileStore } from "./profile.ts";
 import "./shell.css";
 
-function ProfilePage({ profile, profileControls }: { profile?: AccountProfile; profileControls: ReactNode }) {
+function ProfilePage({ profileControls }: { profileControls: ReactNode }) {
   const session = useSiteSession();
   useEffect(() => {
     document.title = "Profile";
@@ -26,30 +26,25 @@ function ProfilePage({ profile, profileControls }: { profile?: AccountProfile; p
     }
   }
   return <section className="profile-page" aria-labelledby="profile-title">
-    <h1 className="visually-hidden" id="profile-title">Profile</h1>
-    <div className="profile-card">
-      {session.status === "loading" ? <p className="account-note" role="status">Checking your session…</p>
-        : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>
-        : session.status === "signed-in" ? <>
-          <div className="profile-identity">
-            {profile?.picture && <img className="profile-preview" src={profile.picture} alt="" />}
-            <div>{profile?.display_name && <strong>{profile.display_name}</strong>}
-              <p className="account-note">Signed in</p>
-            </div>
-          </div>
-          {profileControls}
+    <h1 id="profile-title">Profile</h1>
+    {session.status === "loading" ? <p className="account-note" role="status">Checking your session…</p>
+      : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>
+      : session.status === "signed-in" ? <>
+        <p className="account-note">Signed in</p>
+        {profileControls}
+        <div className="profile-account-actions">
           <Link reloadDocument to="/oauth/consent/?manage">Manage connections</Link>
-          <button className="account-action" type="button" disabled={session.busy} onClick={() => void session.signOut()}>
+          <button className="profile-edit" type="button" disabled={session.busy} onClick={() => void session.signOut()}>
             {session.busy ? "Signing out…" : "Sign out"}
           </button>
-        </> : <form className="account-form" onSubmit={event => void signIn(event)}>
-          <p className="account-note">Sign in to your existing account.</p>
-          <label>Email<input type="email" name="email" autoComplete="username" required disabled={session.busy} /></label>
-          <label>Password<input type="password" name="password" autoComplete="current-password" required disabled={session.busy} /></label>
-          <button className="account-action" type="submit" disabled={session.busy}>{session.busy ? "Signing in…" : "Sign in"}</button>
-        </form>}
-      {session.error && <p className="account-error" role="alert">{session.error}</p>}
-    </div>
+        </div>
+      </> : <form className="account-form" onSubmit={event => void signIn(event)}>
+        <p className="account-note">Sign in to your existing account.</p>
+        <label>Email<input type="email" name="email" autoComplete="username" required disabled={session.busy} /></label>
+        <label>Password<input type="password" name="password" autoComplete="current-password" required disabled={session.busy} /></label>
+        <button className="account-action" type="submit" disabled={session.busy}>{session.busy ? "Signing in…" : "Sign in"}</button>
+      </form>}
+    {session.error && <p className="account-error" role="alert">{session.error}</p>}
   </section>;
 }
 
@@ -89,7 +84,7 @@ function SessionShell({ store, practice }: { store?: ProfileStore; practice: Rea
         setResult(undefined); setAttempt(count => count + 1);
       }}>Retry</button></div>;
   return <AppShell profile={profile ?? undefined}>
-    <AppRoutes practice={practice} profile={<ProfilePage profile={profile ?? undefined} profileControls={controls} />} />
+    <AppRoutes practice={practice} profile={<ProfilePage profileControls={controls} />} />
   </AppShell>;
 }
 
