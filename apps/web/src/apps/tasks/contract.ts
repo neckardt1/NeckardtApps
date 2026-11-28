@@ -32,12 +32,34 @@ export interface TaskSnapshot {
   focus: { taskId: string; state: "promoted" | "deprioritized" }[];
 }
 
+export interface TaskActivity {
+  event_id: string;
+  happened_at: string;
+  action: string;
+  by_you: boolean;
+  is_undo: boolean;
+  from_date: string | null;
+  from_time: string | null;
+  to_date: string | null;
+  to_time: string | null;
+}
+
+export interface CompletedTask {
+  task_id: string;
+  list_id: string;
+  title: string;
+  completed_at: string;
+}
+
 export interface TasksAdapter {
   read(): Promise<TaskSnapshot>;
   create(listId: string, requestId: string, fields: TaskFields): Promise<string>;
-  edit(task: Task, fields: TaskFields): Promise<void>;
-  reschedule(task: Task, date: string | null, time: string | null): Promise<void>;
-  complete(task: Task): Promise<void>;
-  promote(task: Task): Promise<void>;
-  deprioritize(task: Task): Promise<void>;
+  history(taskId: string, before?: string): Promise<TaskActivity[]>;
+  completed(before?: CompletedTask): Promise<CompletedTask[]>;
+  undo(eventId: string): Promise<void>;
+  edit(task: Task, fields: TaskFields): Promise<string | null>;
+  reschedule(task: Task, date: string | null, time: string | null): Promise<string | null>;
+  complete(task: Task): Promise<string | null>;
+  promote(task: Task): Promise<string | null>;
+  deprioritize(task: Task): Promise<string | null>;
 }

@@ -225,3 +225,40 @@
   .tasks-page { padding-inline: .65rem; }
   .tasks-title { font-size: .93rem; }
 }
+
+.tasks-toast {
+  position: fixed;
+  z-index: 5;
+  inset-inline-start: max(1rem, env(safe-area-inset-left));
+  bottom: calc(var(--mobile-nav-height, 0px) + var(--guide-height, 0px) + .55rem);
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  min-height: 44px;
+  max-width: min(26rem, calc(100% - 2rem - env(safe-area-inset-right)));
+  padding: .1rem .4rem .1rem .9rem;
+  border-radius: .6rem;
+  background: var(--tasks-ink);
+  color: var(--tasks-surface);
+  font-size: .89rem;
+  box-shadow: 0 3px 12px #0003;
+}
+.tasks-toast button, .tasks-page-link, .tasks-history summary { min-height: 44px; font-weight: 600; }
+.tasks-toast button { padding: .35rem .7rem; color: light-dark(#ffbda7, #85321f); }
+.tasks-toast button:focus-visible { outline-color: currentColor; }
+.tasks-history { margin-top: .75rem; border-top: 1px solid var(--tasks-line); }
+.tasks-history summary { align-content: center; cursor: pointer; }
+.tasks-closed-history { padding: .8rem 1.1rem max(1rem, env(safe-area-inset-bottom)); overflow-y: auto; }
+.tasks-closed-history h3 { font-size: 1rem; }
+.tasks-activity-list { list-style: none; padding: 0; }
+.tasks-activity-list li { display: grid; gap: .15rem; padding-block: .62rem; overflow-wrap: anywhere; }
+.tasks-activity-list li + li { border-top: 1px solid var(--tasks-line); }
+.tasks-activity-list strong { font-size: .92rem; font-weight: 600; }
+.tasks-activity-list :is(small, span) { color: var(--tasks-muted); font-size: .82rem; }
+.tasks-completed-link { border-top: 1px solid var(--tasks-line); margin-top: .6rem; padding-top: .4rem; }
+.tasks-closed-task { display: grid; align-content: center; gap: .15rem; text-align: left; min-height: 44px; }
+.tasks-app .tasks-page-link { color: var(--tasks-accent); text-decoration: underline; }
+.tasks-toast span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+@media (max-width: 720px), (orientation: landscape) and (max-height: 480px) and (pointer: coarse) {
+  .tasks-toast { inset-inline: auto max(.75rem, env(safe-area-inset-right)); }
+}
