@@ -158,15 +158,22 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     min-height: 44px; border-radius: 6px; padding: 2px 0; color: var(--tasks-muted); font-size: .75rem; line-height: 1.2;
   }
-  .tasks-mobile-tabs button[aria-current="page"] { color: var(--tasks-accent); background: var(--tasks-tint); font-weight: 650; }
+  .tasks-mobile-tabs button[aria-current="page"] { color: var(--tasks-accent); font-weight: 650; }
+  .tasks-mobile-tabs svg { box-sizing: content-box; padding: 1px .45rem; border-radius: 1rem; }
+  .tasks-mobile-tabs [aria-current="page"] svg { background: var(--tasks-tint); }
   .tasks-refresh { grid-column: 2; grid-row: 1; }
   .tasks-heading :is(.tasks-icon-button,.tasks-add) { min-height: 44px; min-width: 44px; }
   .tasks-app .tasks-add {
-    background: var(--tasks-accent);
-    color: light-dark(white, #321a14);
+    background: light-dark(#b6402f, #bd4937);
+    color: white;
+    border: 1px solid transparent;
     border-radius: 50%;
     padding: 0;
+    margin-inline-end: .2rem;
+    box-shadow: 0 1px 3px #24140f26;
   }
+  .tasks-add svg { width: 25px; height: 25px; stroke-width: 1.9; }
+  .tasks-app .tasks-add:focus-visible { outline-color: var(--tasks-ink); outline-offset: 2px; }
   .tasks-add span { display: none; }
   .tasks-add:active:not(:disabled) { filter: brightness(.88); }
   .tasks-heading time { grid-column: 1; grid-row: 2; font-size: .9rem; font-weight: 600; }
@@ -220,6 +227,7 @@
     padding: .5rem 1rem max(.5rem, env(safe-area-inset-bottom));
     border-top: 1px solid var(--tasks-line);
   }
+  .tasks-form-actions .tasks-primary { border-radius: 2rem; padding-inline: 1rem; }
 }
 @media (max-width: 360px) {
   .tasks-page { padding-inline: .65rem; }

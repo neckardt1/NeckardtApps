@@ -78,11 +78,13 @@
   .habit-practice { min-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top)); }
   .habit-practice .action-dock { margin-top: auto; padding-bottom: .65rem; }
   .practice-deck {
+    container: practice-deck / inline-size;
     display: grid;
     grid-template:
       "status status" 1fr
-      "browse round" auto / 1fr 1.1fr;
-    gap: 0 .65rem;
+      "browse round" auto / minmax(0, 1fr) fit-content(56%);
+    gap: 0 .5rem;
+    padding-inline: min(5vw, 2.6rem);
     padding-bottom: .75rem;
     reading-flow: grid-rows;
   }
@@ -92,18 +94,47 @@
     align-self: start;
     margin-bottom: 1rem;
   }
-  .practice-deck .deck-row > button { grid-area: round; }
-  .practice-deck .deck-row .primary { width: 100%; padding-inline: .6rem; }
+  .practice-deck .deck-row > button {
+    grid-area: round;
+    align-self: center;
+    min-height: max(44px, 2.875rem);
+    padding: .6rem .9rem;
+    border-radius: 2rem;
+    overflow-wrap: anywhere;
+  }
+  .practice-deck .deck-row .primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding-inline: .75rem;
+  }
+  .practice-deck .deck-row .primary::before {
+    content: "";
+    flex: none;
+    border-block: .34rem solid transparent;
+    border-left: .52rem solid currentColor;
+  }
   .practice-deck .browse-link {
     grid-area: browse;
-    justify-content: center;
-    min-height: 3.4rem;
-    padding: .6rem;
-    border: 1px solid var(--control-border);
-    border-radius: .55rem;
-    text-align: center;
+    justify-self: start;
+    align-self: center;
+    min-height: 44px;
+    padding: .4rem .15rem;
+    border: 0;
+    color: var(--muted);
+    font-size: .875rem;
+    text-decoration: underline;
+    text-underline-offset: .2em;
+    text-decoration-color: var(--control-border);
+    overflow-wrap: anywhere;
   }
   .practice-deck .browse-link span { display: none; }
+}
+@container practice-deck (max-width: 16.5em) {
+  .practice-deck .browse-link { grid-area: 2 / 1 / 3 / -1; }
+  .practice-deck .deck-row > button { grid-area: 3 / 1 / 4 / -1; justify-self: end; }
+  .practice-deck .deck-row .primary::before { display: none; }
 }
 @media (max-width: 720px) and (orientation: portrait) {
   .habit-practice .action-dock { position: sticky; }
