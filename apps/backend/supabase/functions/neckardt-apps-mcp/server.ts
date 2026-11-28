@@ -3,14 +3,18 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { JWTVerifyGetKey } from "jose";
 import { createTokenVerifier, scopes } from "./auth.ts";
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { type CallToolRequest, type JSONRPCRequest, CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { linkTool, getHabitPracticeLink } from "./apps/habit-practice/tools.ts";
+import { cardTools } from "./apps/habit-practice/cards.ts";
+import { taskTools } from "./apps/tasks/tools.ts";
+import { DataToolError, type DataRpc } from "./data-tool.ts";
 
+const dataTools = [...cardTools, ...taskTools];
 const path = "/neckardt-apps-mcp";
 const metadataPath = path + "/.well-known/oauth-protected-resource";
 const website = "https://apps.neckardt.com";
 
-export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, events?: ReturnType<typeof createEvents>) {
+export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, events?: ReturnType<typeof createEvents>, dataRpc?: DataRpc) {
   const origin = new URL(projectUrl).origin;
   const issuer = origin + "/auth/v1";
   const resource = origin + "/functions/v1" + path;
@@ -49,7 +53,7 @@ export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, ev
     const advertised = allowedEvents ? capabilities : { tools: {} };
     const server = new Server({ name: "neckardt-apps-mcp", version: "0.1.0", websiteUrl: website },
       { capabilities: advertised });
-    server.fallbackRequestHandler = async req => {
+    server.fallbackRequestHandler = async (req: JSONRPCRequest) => {
       if (req.method === "server/discover")
         return { resultType: "complete", supportedVersions: ["2026-07-28"], capabilities: advertised };
       if (!allowedEvents) throw new McpError(ErrorCode.MethodNotFound, "Method not found");
@@ -59,16 +63,38 @@ export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, ev
         throw new McpError(ErrorCode.InternalError, "Event service unavailable");
       }
     };
-    server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [linkTool] }));
-    server.setRequestHandler(CallToolRequestSchema, ({ params }) => {
-      if (params.name !== linkTool.name || Object.keys(params.arguments ?? {}).some(k => k !== "debrief") ||
-          (params.arguments?.debrief !== undefined && typeof params.arguments.debrief !== "boolean"))
-        throw new McpError(ErrorCode.InvalidParams, "Invalid Habit Practice link arguments.");
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+      let allowed: unknown = [];
+      if (authenticated && dataRpc) {
+        try { allowed = await dataRpc(authenticated.client, authenticated.subject, "tools/list", {}); }
+        catch { console.warn("MCP data tool registry unavailable during discovery."); }
+      }
+      const granted = dataTools.filter(tool => Array.isArray(allowed) && allowed.includes(tool.definition.name));
+      return { tools: [linkTool, ...granted.map(tool => tool.definition)] };
+    });
+    server.setRequestHandler(CallToolRequestSchema, async ({ params }: CallToolRequest) => {
+      const args = params.arguments ?? {};
+      const tool = dataTools.find(tool => tool.definition.name === params.name);
+      if (!tool && params.name !== linkTool.name)
+        throw new McpError(ErrorCode.InvalidParams, "Unknown tool.");
       if (!authenticated) return {
         isError: true, content: [{ type: "text", text: "Connect Neckardt Apps to continue." }],
         _meta: { "mcp/www_authenticate": [challenge] },
       };
-      return getHabitPracticeLink();
+      if (!tool) {
+        if (Object.keys(args).some(k => k !== "debrief") || (args.debrief !== undefined && typeof args.debrief !== "boolean"))
+          throw new McpError(ErrorCode.InvalidParams, "Invalid Habit Practice link arguments.");
+        return getHabitPracticeLink();
+      }
+      if (!dataRpc) throw new McpError(ErrorCode.MethodNotFound, "Tool unavailable.");
+      const input = tool.parse(args);
+      try {
+        const result = await dataRpc(authenticated.client, authenticated.subject, params.name, input);
+        return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (error) {
+        const message = error instanceof DataToolError ? error.message : "Data service unavailable. Verify the result before retrying.";
+        return { isError: true, content: [{ type: "text", text: message }] };
+      }
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: 65536,

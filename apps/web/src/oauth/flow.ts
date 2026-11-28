@@ -1,6 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@neckardt/backend/database';
 
+const dataPermissions = {
+  get_cards: "Read your Habit Practice prompts, answers, pair links, active status and due dates.",
+  create_cards: "Create Habit Practice cards and read back the cards it saves.",
+  list_tasks: "Read active tasks in your Private and available Household lists and your personal Focus choices.",
+  create_task: "Create tasks in your Private and available Household lists.",
+  update_task: "Edit tasks in your Private and available Household lists.",
+  complete_task: "Complete tasks in your Private and available Household lists.",
+  set_task_focus: "Change your personal Focus choices for visible tasks.",
+} as const;
+
 export type Canary = { clientId: string; callback: string; userDigest: string };
 type Client = SupabaseClient<Database>;
 type OAuth = Client['auth']['oauth'];
@@ -63,7 +73,11 @@ export async function openRequest(client: Client, id: string, canary: Canary, em
   const { data: policy, error: lookupError } = await clientPolicy(client, data.client.id, user.id, data.scope);
   if (lookupError) throw new Error('Could not load the connection settings. Start a new connection to try again.');
   if (!policy || !validCallback(policy.callback_url) || policy.callback_url !== data.redirect_uri) throw new Error(mismatch);
-  return { ...data, kind: 'suite' as const, name: policy.display_name, subscriptions: policy.subscriptions };
+  const permissions = (policy.data_tools ?? []).map(name => {
+    if (!Object.hasOwn(dataPermissions, name)) throw new Error(mismatch);
+    return dataPermissions[name as keyof typeof dataPermissions];
+  });
+  return { ...data, kind: 'suite' as const, name: policy.display_name, subscriptions: policy.subscriptions, permissions };
 }
 
 export async function decide(oauth: OAuth, id: string, callback: string, action: Action) {
