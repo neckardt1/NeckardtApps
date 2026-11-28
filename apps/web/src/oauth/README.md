@@ -6,25 +6,51 @@ and Deny. Its session is held in memory, separate from the site's Account sessio
 
 ## Neckardt Apps MCP
 
-Any signed-in, non-anonymous project user can authorize the Habit Practice link tool. The token
-hook keeps that user's subject on issue and refresh and binds the token to the suite MCP endpoint.
-The connector can return the link regardless of the user's separate Habit Practice enrollment.
-A user can separately request an automatic completion subscription in Dot. It receives aggregate
-counts from rounds opened by that owner’s first-party session while the subscription is active.
-A separate detailed subscription includes card names, prompts, answers, grades and due dates for that destination. Unsubscribing revokes it. Existing registrations keep their original one-round sharing scope.
+Supabase issues and refreshes public PKCE grants for the shared MCP resource. The consent page
+and token hook read the same client registration policy. The hook signs the MCP audience, client
+identity and subscription permission into each access token. The MCP verifies those claims for
+each request. Its restricted token role has no Data API privileges. Supabase Auth can still return
+the account profile, including email, to the OAuth client, even for `openid` alone.
 
-The suite accepts `openid` alone or the exact set `openid email offline_access` that ChatGPT
-requests. For the latter, consent covers access to email and verification status through Supabase
-OIDC and permission to refresh the connection. The MCP access token retains its link-only role and
-audience. The canary consent page accepts only `openid`.
+### Register an integration
 
-For rollout, apply the reviewed `authorize_neckardt_apps_mcp` and
-`allow_suite_chatgpt_identity_scopes` migrations. Set the public
-`NECKARDT_APPS_OAUTH_CLIENT_ID` to the registered suite client ID in the MCP function's environment
-and in GitHub Actions repository variables. Set the Actions variable `NECKARDT_APPS_OAUTH_CALLBACK_URL`
-to the exact redirect shown on the ChatGPT suite connection and registered in Supabase. Deploy Pages,
-then start a fresh connection from ChatGPT and call `get_habit_practice_link`. The migration pins the
-production issuer and public client ID. Registering a replacement requires updating that policy.
+1. In Supabase **Authentication → OAuth Apps**, manually create a public client with token
+   endpoint authentication `none` and the integration's single exact HTTPS callback.
+2. Add one row in `neckardt_mcp.clients` using the public client ID, display name and identical
+   callback. For an owner-only pilot, use an inner join on the intended verified Auth user so that
+   an unresolved owner produces zero rows. Verify exactly one inserted row. This parameterized
+   statement shows the four operator inputs in order.
+
+   ```sql
+   insert into neckardt_mcp.clients (client_id, display_name, callback_url, owner_id)
+   select c.id, $2, c.redirect_uris, u.id
+   from auth.oauth_clients c
+   join auth.users u on u.id = $4 and u.email_confirmed_at is not null and not u.is_anonymous
+   where c.id = $1 and c.redirect_uris = $3 and c.deleted_at is null
+     and c.registration_type = 'manual' and c.client_type = 'public' and c.token_endpoint_auth_method = 'none'
+   returning client_id, display_name;
+   ```
+
+   Defaults allow `openid` and the Habit Practice link. A null `owner_id` explicitly enables all
+   signed-in, non-anonymous users. `scopes` sets the exact expanded bundle a client may request in
+   addition to plain `openid`. The ChatGPT row allows `openid email offline_access` and enables
+   `subscriptions` for the existing Dot completion events. The event transport accepts its existing
+   verified delivery destination. Permission changes affect subsequent token issues and refreshes.
+   Use a fresh registration and consent when expanding the access a user previously approved.
+3. Give the integration its public ID and the suite resource URL. Start **Connect** in the
+   integration so it creates the PKCE verifier and state. New clients using existing capabilities
+   need no Pages rebuild, Edge deployment or client-specific environment variables.
+
+Users can disconnect a grant under **Account → Manage connections**. Supabase revokes the user's
+sessions for that client. Its refresh tokens stop working, while the MCP accepts an already-issued
+access token until expiry. Existing Dot webhook subscriptions have their own unsubscribe and expiry.
+If Supabase returns only a redirect for a previous grant, disconnect that app and start Connect
+again to review the registered client and callback. The sign-in for consent and grant management
+uses a separate in-memory session.
+
+Deploy the registry migration and the shared MCP function for this release. The verifier requires
+the signed permission claim, so previously issued ChatGPT tokens need their normal refresh or a
+reconnect. The existing public ChatGPT ID and grant remain usable.
 
 ## Recall canary
 

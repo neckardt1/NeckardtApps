@@ -10,12 +10,12 @@ const path = "/neckardt-apps-mcp";
 const metadataPath = path + "/.well-known/oauth-protected-resource";
 const website = "https://apps.neckardt.com";
 
-export function createHandler(projectUrl: string, clientId?: string, testKeys?: JWTVerifyGetKey, events?: ReturnType<typeof createEvents>) {
+export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, events?: ReturnType<typeof createEvents>) {
   const origin = new URL(projectUrl).origin;
   const issuer = origin + "/auth/v1";
   const resource = origin + "/functions/v1" + path;
   const metadataUrl = origin + "/functions/v1" + metadataPath;
-  const accepts = createTokenVerifier(issuer, resource, clientId, testKeys);
+  const accepts = createTokenVerifier(issuer, resource, testKeys);
   const challenge = `Bearer resource_metadata="${metadataUrl}", scope="openid"`;
   const headers = { "WWW-Authenticate": challenge, "Cache-Control": "no-store" };
 
@@ -33,23 +33,27 @@ export function createHandler(projectUrl: string, clientId?: string, testKeys?: 
     }
     if (requestPath !== path) return new Response(null, { status: 404 });
     const browserOrigin = request.headers.get("Origin");
-    if (browserOrigin && browserOrigin !== website && browserOrigin !== "https://chatgpt.com")
-      return new Response(null, { status: 403 });
-
     const authorization = request.headers.get("Authorization");
     const authenticated = authorization === null ? null : await accepts(authorization);
     if ((authorization !== null && !authenticated) ||
         (!authenticated && ["GET", "HEAD"].includes(request.method))) {
       return new Response(null, { status: 401, headers });
     }
+    if (browserOrigin && browserOrigin !== website && browserOrigin !== authenticated?.origin)
+      return new Response(null, authenticated ? { status: 403 } : { status: 401, headers });
     if (request.method !== "POST")
       return new Response(null, { status: 405, headers: { ...headers, Allow: "POST" } });
 
     // Discovery works before consent. Every tool call authenticates its own request.
+    const allowedEvents = authenticated && !authenticated.subscriptions ? undefined : events;
+    const advertised = allowedEvents ? capabilities : { tools: {} };
     const server = new Server({ name: "neckardt-apps-mcp", version: "0.1.0", websiteUrl: website },
-      { capabilities: events ? capabilities : { tools: {} } });
-    if (events) server.fallbackRequestHandler = async req => {
-      try { return await events.handle(req.method, req.params, authenticated); }
+      { capabilities: advertised });
+    server.fallbackRequestHandler = async req => {
+      if (req.method === "server/discover")
+        return { resultType: "complete", supportedVersions: ["2026-07-28"], capabilities: advertised };
+      if (!allowedEvents) throw new McpError(ErrorCode.MethodNotFound, "Method not found");
+      try { return await allowedEvents.handle(req.method, req.params, authenticated?.subject ?? null); }
       catch (error) {
         if (error instanceof McpError) throw error;
         throw new McpError(ErrorCode.InternalError, "Event service unavailable");

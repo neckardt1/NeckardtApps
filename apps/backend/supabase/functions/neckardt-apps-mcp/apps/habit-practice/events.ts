@@ -74,8 +74,6 @@ export { capabilities };
 
 export function createEvents(db:Rpc, dispatchSecret:string | undefined, send:Sender = sendCallback as Sender) {
   async function handle(method:string, params:unknown, owner:string | null) {
-    if (method === "server/discover")
-      return { resultType:"complete", supportedVersions:["2026-07-28"], capabilities };
     if (method === "events/list") return { events:[event] };
     if (method !== "events/subscribe" && method !== "events/unsubscribe")
       throw new McpError(ErrorCode.MethodNotFound, "Method not found");

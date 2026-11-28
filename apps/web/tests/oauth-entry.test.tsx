@@ -37,9 +37,9 @@ const snapshot = (storage: Storage) => Object.fromEntries(
 
 test.each([
   { kind: 'canary', scope: 'openid' },
-  { kind: 'suite', scope: 'openid' },
-  { kind: 'suite', scope: 'openid email offline_access' }
-])('the $kind entry explains and approves $scope while preserving Account identity', async ({ kind, scope }) => {
+  { kind: 'suite', scope: 'openid', subscriptions: false },
+  { kind: 'suite', scope: 'openid email offline_access', subscriptions: true }
+])('the $kind entry explains and approves $scope while preserving Account identity', async ({ kind, scope, subscriptions = false }) => {
   vi.resetModules();
   const { getSiteClient } = await import('../src/shell/site-client');
   const { makeSiteSessionApi } = await import('../src/shell/session');
@@ -73,8 +73,6 @@ test.each([
   vi.stubEnv('VITE_CANARY_USER_DIGEST', '30ffc7cc343265aa0f8bf7c138b8d3d8752630a527e66c95eafbe261f1c48d06');
   vi.stubEnv('VITE_CANARY_CLIENT_ID', canaryClientId);
   vi.stubEnv('VITE_CANARY_CALLBACK_URL', canaryCallback);
-  vi.stubEnv('VITE_SUITE_CLIENT_ID', suiteClientId);
-  vi.stubEnv('VITE_SUITE_CALLBACK_URL', suiteCallback);
   history.replaceState({}, '', `/oauth/consent/?authorization_id=${authorizationId}`);
   const redirect = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
   const calls: { path: string; body: unknown; bearer: string | null }[] = [];
@@ -91,6 +89,10 @@ test.each([
         token_type: 'bearer', expires_in: 3600, user: member });
     }
     expect(bearer).toBe('Bearer synthetic-consent-access');
+    if (url.pathname === '/rest/v1/rpc/neckardt_mcp_client') {
+      expect(body).toEqual({ requested_client: clientId, requested_user: member.id, requested_scope: scope });
+      return Response.json([{ display_name: subscriptions ? 'ChatGPT' : 'Muse', callback_url: suiteCallback, subscriptions }]);
+    }
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}` && init?.method === 'GET') {
       return Response.json({ authorization_id: authorizationId, user: member, client: { id: clientId, name: kind === 'suite' ? 'Neckardt Apps MCP' : 'Synthetic canary' },
         scope, redirect_uri: callback });
@@ -117,15 +119,19 @@ test.each([
   form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-consent-password';
   await act(async () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    await vi.waitFor(() => expect(calls).toHaveLength(kind === 'suite' ? 3 : 2));
   });
   expect(host.textContent).toContain('Allow access?');
   expect(host.textContent).toContain(member.email);
   if (kind === 'suite') expect(host.textContent).toContain('get the link to Habit Practice');
   expect(host.textContent?.includes('email address and its verification status')).toBe(scope.includes('email'));
-  expect(host.textContent?.includes('refresh this connection')).toBe(scope.includes('offline_access'));
+  expect(host.textContent?.includes('refresh this connection')).toBe(kind === 'suite');
+  expect(host.textContent?.includes('Supabase account profile')).toBe(kind === 'suite');
+  expect(host.textContent?.includes('card names, prompts')).toBe(subscriptions);
+  if (kind === 'suite') expect(host.querySelector('strong')?.textContent).toBe(subscriptions ? 'ChatGPT' : 'Muse');
   expect(calls.map(call => call.path)).toEqual([
-    '/auth/v1/token?grant_type=password', `/auth/v1/oauth/authorizations/${authorizationId}`
+    '/auth/v1/token?grant_type=password', `/auth/v1/oauth/authorizations/${authorizationId}`,
+    ...(kind === 'suite' ? ['/rest/v1/rpc/neckardt_mcp_client'] : [])
   ]);
   expect(redirect).not.toHaveBeenCalled();
   expect(snapshot(localStorage)).toEqual(localBefore);
@@ -135,7 +141,7 @@ test.each([
     allow.click();
     await vi.waitFor(() => expect(redirect).toHaveBeenCalledExactlyOnceWith(`${callback}?code=synthetic-code&state=synthetic-state`));
   });
-  expect(calls).toHaveLength(3);
+  expect(calls).toHaveLength(kind === 'suite' ? 4 : 3);
   expect((await normalClient.auth.getSession()).data.session?.user.id).toBe(account.id);
   expect(observed.mock.calls.every(([user]) => user?.id === account.id)).toBe(true);
   const consentClient = captured.clients.find(client => client !== normalClient)!;
@@ -145,4 +151,45 @@ test.each([
   expect(JSON.parse(localStorage.getItem(roundKey)!)).toEqual(pending);
   expect(writes.mock.calls.some(([key, value]) => key === 'neckardt-apps-oauth-consent'
     || /synthetic-consent-(?:access|refresh|password)/.test(value) || value.includes(member.email))).toBe(false);
+});
+
+test('Manage connections revokes only the selected native grant by its public ID', async () => {
+  vi.resetModules();
+  const config = { url: 'https://abcdefghijklmnopqrst.supabase.co', publishableKey: 'sb_publishable_test' };
+  vi.stubGlobal('__SITE_PUBLIC_CONFIG__', config);
+  history.replaceState({}, '', '/oauth/consent/?manage');
+  const user = { id: crypto.randomUUID(), email: 'owner@example.invalid' };
+  const muse = crypto.randomUUID(), chat = crypto.randomUUID(), revoked: string[] = [];
+  const apps = [{ id: muse, name: 'Muse' }, { id: chat, name: 'Neckardt Apps MCP' }];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = new URL(String(input));
+    expect(url.origin).toBe(config.url);
+    if (url.pathname === '/auth/v1/token') return Response.json({
+      access_token:'synthetic-access', refresh_token:'synthetic-refresh', expires_in:3600, token_type:'bearer', user
+    });
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-access');
+    if (url.pathname === '/rest/v1/rpc/neckardt_mcp_client') {
+      const id = JSON.parse(String(init?.body)).requested_client;
+      return Response.json([{ display_name:id === muse ? 'Muse' : 'ChatGPT' }]);
+    }
+    expect(url.pathname).toBe('/auth/v1/user/oauth/grants');
+    if (init?.method === 'DELETE') {
+      revoked.push(url.searchParams.get('client_id')!);
+      return new Response(null, {status:204});
+    }
+    return Response.json(apps.map(client => ({ client, granted_at:'2026-01-01T00:00:00Z', scopes:['openid'] })));
+  });
+  const host = document.createElement('main'); host.id = 'root'; document.body.append(host);
+  await act(async () => { await import('../src/oauth/main'); });
+  const form = host.querySelector('form')!;
+  form.querySelector<HTMLInputElement>('[name="email"]')!.value = user.email;
+  form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-password';
+  await act(async () => { form.dispatchEvent(new Event('submit', { bubbles:true, cancelable:true })); });
+  const button = (name: string) => [...host.querySelectorAll('button')].find(item => item.textContent === 'Disconnect ' + name);
+  expect(revoked).toEqual([]);
+  expect(button('ChatGPT')).toBeDefined();
+  await act(async () => { button('Muse')!.click(); });
+  expect(revoked).toEqual([muse]);
+  expect(button('Muse')).toBeUndefined();
+  expect(button('ChatGPT')).toBeDefined();
 });
