@@ -63,7 +63,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
   });
   await t.test("a grant for the suite returns the launcher's existing Habit Practice URL", async () => {
     const { result } = await (await rpc("tools/call", call, await token())).json();
-    const app = apps.find(app => app.name === "Habit Practice");
+    const app = apps.find(app => app.id === "recall");
     assert.deepEqual(result.structuredContent, { url: new URL(app.path, "https://apps.neckardt.com").href });
     assert.equal(result.content[0].text, result.structuredContent.url);
   });
