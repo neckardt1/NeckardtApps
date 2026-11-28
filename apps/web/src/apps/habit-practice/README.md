@@ -40,8 +40,17 @@ on conflict (opportunity_id) do nothing;
 
 ## Saved rounds and recovery
 
-The practice home offers Start round or Continue round. Browse all cards searches the owner’s entire deck, including inactive cards and actions without an available check-in. After the final
-response is acknowledged, the browser records the round’s completion and shows its summary.
+The deck previews eligible check-ins and due recall cards before starting. Choose 1, 5, 10 or 20
+recall cards (default 5). Check-ins have their own queue. Continue round restores the original
+items and shows the remaining counts.
+
+Browse all cards searches both sides across the entire deck. Each row shows recall timing or
+check-in eligibility. Expand a card to see its partner or pause it individually. To pause a group,
+filter the list, choose **Select cards**, select the results, then choose **Pause**. Filter by
+**Paused** to resume them. Both cards in a pair must be active for check-ins. The cue can still
+appear for recall while its action is paused. Pausing and resuming keep due dates and review history.
+
+After the final response is acknowledged, the browser records the round’s completion and shows its summary.
 If the tab closes during a save, Continue round restores the outstanding work. Starting a new round checks for newly due cards. An active automatic Dot subscription receives new completed rounds
 through the existing notification service.
 

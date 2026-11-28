@@ -78,6 +78,7 @@ function fixture({ count = 2, send, due }: {
   const persisted = new Map<string, ReviewEvent>();
   const api: RecallApi = {
     origin,
+    roundPreview: async () => ({ due_reviews: count, check_ins: 0, next_review_at: null }),
     due: vi.fn(async () => {
       const owner = auth.current()?.id;
       if (!owner) throw Error('Synthetic signed-out read');
@@ -388,7 +389,7 @@ test('an A to B to A auth change invalidates the old drain and replays original 
 
 test('the card browser drops a late catalog when the identity changes away and back', async () => {
   const f = fixture();
-  const card = { card_id: 'sample', front: 'Old catalog', back: 'answer', active: true, kind: 'fact', due_at: '2026-11-28' };
+  const card = { card_id: 'sample', front: 'Old catalog', back: 'answer', active: true, kind: 'fact', due_at: '2026-11-28', cue_card_id: null, check_in_available: false };
   const pending = deferred([card]);
   const browse = vi.fn<NonNullable<RecallApi['browse']>>()
     .mockReturnValue(pending.promise);

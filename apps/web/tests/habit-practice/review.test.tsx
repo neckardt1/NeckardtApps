@@ -226,7 +226,7 @@ test('a cached server round keeps its server event IDs when the backend becomes 
   const client = api({ due, rounds: { latest: async () => [], open, finish: async () => [] } });
   await remount(client);
   await remount(client);
-  expect(open).toHaveBeenCalledWith('server-round');
+  expect(open).toHaveBeenCalledWith('server-round', 5);
   expect(due).not.toHaveBeenCalled();
   const saved = JSON.parse(localStorage.getItem('recall.round.v3.https://fixture.invalid.owner')!);
   expect(saved.cards[0].event_id).toBe('server-event');

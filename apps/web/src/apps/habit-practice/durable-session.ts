@@ -1,6 +1,6 @@
 import { grades, type DueCard, type Grade, type ReviewEvent } from './review-session.ts';
 import { restoreRound } from './server-round.ts';
-import { MissingRoundRpc, type ActionEvent, type Opportunity, type RecallApi, type RoundItem } from './recall-api.ts';
+import { defaultReviewLimit, MissingRoundRpc, type ActionEvent, type Opportunity, type RecallApi, type RoundItem } from './recall-api.ts';
 
 export type Save = { kind: 'review'; event: ReviewEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' | 'superseded' }
   | { kind: 'action'; event: ActionEvent; status: 'pending' | 'failed' | 'conflict' | 'saved' | 'superseded' };
@@ -50,22 +50,26 @@ export function readStoredRound(storage: StoragePort, key: string): Round | null
   return parsed;
 }
 
+export function unfinished(round: Round | null, finishedServerRound?: string): round is Round {
+  if (!round || round.finished) return false;
+  // Another device can finish this manifest while this browser still has it open.
+  if (round.server && round.id === finishedServerRound && verified(round)) return false;
+  return !!(round.started || round.cards.length || round.opportunities.length || round.saves.length);
+}
+
 export function hasUnfinishedRound(origin: string, owner: string, finishedServerRound?: string) {
   const scope = `${origin}.${owner}`;
   for (const version of ['v2', 'v3']) {
     const round = readStoredRound(localStorage, `recall.round.${version}.${scope}`);
-    if (!round || round.finished) continue;
-    // A second device can finish this manifest while the first still has it open.
-    if (round.server && round.id === finishedServerRound && verified(round)) continue;
-    if (round.started || round.cards.length || round.opportunities.length || round.saves.length) return true;
+    if (unfinished(round, finishedServerRound)) return true;
   }
   return Object.keys(localStorage).some(key => key.startsWith(`recall.live.v1.${scope}.`));
 }
 
 // One atomic record contains progress, queued writes, and verified acknowledgements.
 // Separate Web Locks serialize local mutations and network draining across tabs.
-export function makeDurableSession({ storage, key, api, lock = browserLock, onChange = () => {}, active = () => true }: {
-  storage: StoragePort; key: string; api: RecallApi; lock?: Lock;
+export function makeDurableSession({ storage, key, api, reviewLimit = defaultReviewLimit, lock = browserLock, onChange = () => {}, active = () => true }: {
+  storage: StoragePort; key: string; api: RecallApi; reviewLimit?: number; lock?: Lock;
   onChange?: (round: Round | null) => void; active?: () => boolean;
 }) {
   const read = () => readStoredRound(storage, key);
@@ -94,7 +98,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         let rows: RoundItem[];
         try {
           // Open reuses the owner's active round atomically, including on a new device.
-          rows = await remote.open(before?.server ? before.id : crypto.randomUUID());
+          rows = await remote.open(before?.server ? before.id : crypto.randomUUID(), reviewLimit);
         } catch (error) {
           if (!active()) return;
           if (!(error instanceof MissingRoundRpc) || before?.server) throw error;
@@ -133,7 +137,7 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
       const result = await update(r => {
         if (r && (r.started || r.cards.length || r.opportunities.length || r.saves.length)) return r;
         const blocked = new Set(legacy.map(s => s.event.card_id));
-        return { version: 2, id: crypto.randomUUID(), cards: cards.filter(c => !blocked.has(c.card_id)).slice(0, 5),
+        return { version: 2, id: crypto.randomUUID(), cards: cards.filter(c => !blocked.has(c.card_id)).slice(0, reviewLimit),
           opportunities, cardIndex: 0, opportunityIndex: 0, revealed: false, started: false, finished: false, saves: legacy };
       });
       // Old keys are removed only after their events are safely in the atomic record.
@@ -173,11 +177,12 @@ export function makeDurableSession({ storage, key, api, lock = browserLock, onCh
         return r;
       });
     },
-    async clearFinished(id: string) {
+    async clearFinished(id: string, completedRoundId?: string) {
       return lock(key, async () => {
         if (!active()) return;
         const r = read();
-        if (r?.id !== id || !r.finished || !verified(r)) return;
+        if (r?.id !== id || !verified(r)) return;
+        if (!r.finished && !(r.server && r.id === completedRoundId)) return;
         if (r.server) storage.setItem(key + '.dismissed', r.id);
         storage.removeItem(key);
         onChange(null);

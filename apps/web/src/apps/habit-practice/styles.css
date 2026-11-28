@@ -112,3 +112,20 @@
 @media (max-width: 720px) and (orientation: portrait) {
   .habit-practice .action-dock { position: sticky; }
 }
+
+.practice-deck .round-size { display: inline-flex; align-items: center; gap: .75rem; margin-top: .8rem; color: var(--muted); font-size: .875rem; }
+.practice-deck .round-size select { min-height: 2.75rem; padding: .4rem .65rem; border: 1px solid var(--control-border); border-radius: .45rem; background: var(--card); color: var(--ink); font: inherit; }
+.catalog .catalog-controls label:first-child { flex-basis: 100%; }
+.catalog-count, .selection-actions, .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1rem; }
+.catalog-count { justify-content: space-between; }
+.catalog-selection { padding: .5rem .75rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--paper); }
+.selection-actions .secondary { min-height: 2.75rem; }
+.catalog-row { display: flex; align-items: flex-start; border-top: 1px solid var(--line); }
+.catalog-card { flex: 1; min-width: 0; border: 0; }
+.catalog-card summary small { line-height: 1.45; }
+.catalog .card-check { display: grid; place-items: center; width: 2.75rem; min-height: 3.5rem; flex-shrink: 0; cursor: pointer; }
+.catalog .card-check input { width: 1.15rem; height: 1.15rem; accent-color: var(--green); }
+.catalog .card-actions { margin: .25rem 0 .5rem; }
+@media (max-width: 720px) {
+  .catalog-selection { position: sticky; top: env(safe-area-inset-top); z-index: 1; }
+}

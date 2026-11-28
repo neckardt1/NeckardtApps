@@ -8,7 +8,9 @@ import { RatingButtons } from './RatingButtons.tsx';
 import { GuideFooter } from '../../shell/daily-guide';
 
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
-export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHome?: () => void; onGuideExit?: () => void }) {
+export function App({ api, onHome, onGuideExit, reviewLimit, completedRoundId }: {
+  api: RecallApi | null; onHome?: () => void; onGuideExit?: () => void; reviewLimit?: number; completedRoundId?: string;
+}) {
   const session = useSiteSession();
   const sessionIsCurrent = session.isCurrent;
   const owner = session.status === 'signed-in' ? session.user?.id ?? null : null;
@@ -47,8 +49,8 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
     setMessage('');
     try {
       let existing = state.store.read();
-      if (existing?.finished) {
-        await state.store.clearFinished(existing.id);
+      if (existing && (existing.finished || (existing.server && existing.id === completedRoundId))) {
+        await state.store.clearFinished(existing.id, completedRoundId);
         if (!isCurrent(state)) return;
         if (api.rounds && !state.server && !state.fallback) {
           resetStorage(value => value + 1);
@@ -97,7 +99,7 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
     const key = server ? `recall.round.v3.${api.origin}.${owner}` : legacyKey;
     const state: Runtime = { fallback, server, owner, active: true, request: 0, store: null!, sessionIsCurrent };
     try {
-      state.store = makeDurableSession({ storage: window.localStorage, key, api,
+      state.store = makeDurableSession({ storage: window.localStorage, key, api, reviewLimit,
         active: () => isCurrent(state),
         onChange: value => { if (isCurrent(state)) setSnapshot(value ? { owner, round: value } : null); }
       });
@@ -124,7 +126,7 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('online', onOnline);
     };
-  }, [api, owner, sessionIsCurrent, storageGeneration, legacyScope]);
+  }, [api, owner, sessionIsCurrent, storageGeneration, legacyScope, reviewLimit, completedRoundId]);
 
   async function mutate(operation: (store: DurableSession, state: Runtime) => Promise<unknown>, focus = true) {
     const state = runtime.current;
@@ -180,6 +182,7 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
   const superseded = round?.summary?.superseded ?? 0;
   const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && hasWork && !round.finished;
+  const previewNext = onHome && round && (round.finished || (!hasWork && !loading && !message));
   useEffect(() => {
     if (onGuideExit && round && !loading && !message && sessionIsCurrent() && (round.finished || !hasWork)) onGuideExit();
   }, [onGuideExit, round, loading, message, hasWork, sessionIsCurrent]);
@@ -196,7 +199,7 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
         <h1>Habit Practice</h1><p>Open Account to sign in and review your cards.</p>
       </div>}
       {api && owner && <>
-        {(!showReview || (!opportunity && !card)) && homeButton}
+        {!previewNext && (!showReview || (!opportunity && !card)) && homeButton}
         <div ref={content} tabIndex={-1} className="screen-content">
           {round?.finished ? <div className="saved-screen">
             <h1>Saved.</h1>
@@ -228,7 +231,8 @@ export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHom
           {round?.server && conflict > 0 && <button className="text-button" disabled={busy} onClick={() => void mutate(store => store.syncRound(), false)}>Check saved answers</button>}
         </div>}
         <div className="action-dock">
-          {round?.finished ? <button className="primary" disabled={busy} onClick={() => void mutate(async (store, state) => {
+          {previewNext ? <button className="primary" disabled={busy} onClick={onHome}>Preview next round</button>
+            : round?.finished ? <button className="primary" disabled={busy} onClick={() => void mutate(async (store, state) => {
             await store.clearFinished(round.id);
             if (!isCurrent(state)) return;
             if (api.rounds && !state.server) {
