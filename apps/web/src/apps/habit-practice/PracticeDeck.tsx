@@ -56,7 +56,7 @@ function Deck({ api, owner }: { api: RecallApi; owner: string }) {
   if (screen === 'review') return <App api={api} onHome={home} />;
   if (screen === 'browse') return <CardBrowser api={api} onHome={home} />;
   return <section className="habit-practice practice-deck" aria-label="Habit Practice">
-    <h1>Habit Practice</h1>
+    <h1 className="visually-hidden">Habit Practice</h1>
     <div className="deck-row">
       <div><h2>Practice round</h2><p role="status">{{
         checking: 'Checking for a saved round…', start: 'Ready to practice.',

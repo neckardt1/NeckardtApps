@@ -1,7 +1,8 @@
 .habit-practice { width: min(100%, 39rem); margin: 0 auto; min-height: calc(100svh - 4rem - 1px - env(safe-area-inset-top)); padding: clamp(2.75rem, 9vh, 5.5rem) clamp(1.4rem, 6.4vw, 2.6rem) 0; display: flex; flex-direction: column; }
 .habit-practice .today-card, .habit-practice .review-card, .habit-practice .saved-screen { overflow-wrap: anywhere; }
 .habit-practice h1, .habit-practice h2, .habit-practice .prompt { font-family: Georgia, "Times New Roman", serif; font-weight: 400; letter-spacing: -.035em; line-height: 1.12; margin: 0; overflow-wrap: anywhere; }
-.habit-practice h1 { font-size: clamp(3.4rem, 12vw, 4.5rem); }
+.habit-practice h1 { font-size: 1.375rem; }
+.habit-practice :is(.today-card, .saved-screen) h1, .catalog > h1 { font-family: inherit; font-weight: 600; letter-spacing: -.02em; }
 .habit-practice .prompt, .habit-practice .review-card h1 { font-size: clamp(1.5rem, 1.2rem + 1.6vw, 2rem); line-height: 1.2; letter-spacing: -.02em; }
 .habit-practice h1:focus, .habit-practice .prompt:focus, .habit-practice .answer-panel:focus, .habit-practice [data-review-focus]:focus { outline: none; }
 .habit-practice .today-card > p, .habit-practice .saved-screen > p { margin: 1.2rem 0 0; color: var(--muted); font-size: 1.0625rem; }
@@ -59,7 +60,8 @@
 
 .habit-practice .deck-back { align-self: flex-start; margin-bottom: .5rem; }
 .practice-deck .deck-row, .practice-deck .browse-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 0; border-top: 1px solid var(--line); }
-.practice-deck .deck-row { margin-top: 2rem; }
+.practice-deck, .catalog, .habit-practice:has(.today-card, .saved-screen) { padding-top: clamp(1.25rem, 4vh, 2.5rem); }
+.practice-deck .deck-row { border-top: 0; padding-top: 0; }
 .practice-deck .deck-row .primary { width: auto; padding-inline: 1rem; }
 .practice-deck .deck-row p { margin: .35rem 0 0; color: var(--muted); }
 .practice-deck .browse-link { border-inline: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--green); font: inherit; text-align: left; }

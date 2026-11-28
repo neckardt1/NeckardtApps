@@ -8,7 +8,7 @@ const Tasks = lazy(() => import("./apps/tasks/Tasks.tsx"));
 export function AppRoutes({ practice, profile }: { practice: ReactNode; profile: ReactNode }) {
   return <Routes>
     <Route path="/index.html?" element={<section className="launcher">
-      <h1>Home</h1>
+      <h1 className="visually-hidden">Home</h1>
       <Link className="home-directory-link" to="/apps/">All apps</Link>
     </section>} />
     <Route path="/apps/index.html?" element={<Launcher />} />

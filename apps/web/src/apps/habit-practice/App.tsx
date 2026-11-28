@@ -189,7 +189,7 @@ export function App({ api, onHome }: { api: RecallApi | null; onHome?: () => voi
         <h1>Account unavailable.</h1><p>Open Account for details, then try again.</p>
       </div>}
       {api && session.status === 'signed-out' && <div className="today-card">
-        <h1>Welcome back.</h1><p>Open Account to sign in and review your cards.</p>
+        <h1>Habit Practice</h1><p>Open Account to sign in and review your cards.</p>
       </div>}
       {api && owner && <>
         {(!showReview || (!opportunity && !card)) && homeButton}

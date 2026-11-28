@@ -9,7 +9,7 @@ export async function checkBrowserRoutes(origin) {
     const page = await browser.newPage();
     await page.route("**/*", route => new URL(route.request().url()).origin === origin
       ? route.continue() : route.abort());
-    const practice = page.getByRole("heading", { name: "Welcome back." });
+    const practice = page.getByRole("heading", { name: "Habit Practice", exact: true });
     const checkPractice = async url => {
       await practice.waitFor();
       assert.equal(page.url(), url);
