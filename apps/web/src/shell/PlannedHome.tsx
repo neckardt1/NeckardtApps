@@ -26,7 +26,7 @@ export default function PlannedHome({ guide }: { guide: Guide }) {
   const reminder = !guide.dismissed && practice !== "clear";
   return <>
     <TaskSurface renderHome={rows => rows || reminder ? <>
-      <header className="home-focus-heading"><h2>Focus</h2><Link to="/tasks/">All tasks</Link></header>
+      <header className="home-focus-heading"><h2>Top tasks</h2><Link to="/tasks/">All tasks</Link></header>
       {rows}
       {reminder && (practice === "checking" ? <p className="home-practice-status" role="status">Checking practice…</p>
         : <PracticeReminder guide={guide} unknown={practice === "unknown"} />)}
