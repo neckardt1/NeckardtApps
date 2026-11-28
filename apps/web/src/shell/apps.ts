@@ -1,3 +1,5 @@
+export const tasksRoute = "/tasks/index.html?";
+
 export const apps = [{
   id: "recall",
   name: "Habit Practice",
