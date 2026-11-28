@@ -18,5 +18,5 @@ async function rpc(action: string, payload: Record<string, unknown>) {
   return response.json();
 }
 
-Deno.serve(createHandler(url, Deno.env.get("NECKARDT_APPS_OAUTH_CLIENT_ID"), undefined,
+Deno.serve(createHandler(url, undefined,
   createEvents(rpc, Deno.env.get("HABIT_NOTIFY_DISPATCH_SECRET"))));

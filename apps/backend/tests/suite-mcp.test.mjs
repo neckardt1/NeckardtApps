@@ -14,10 +14,10 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
   const clientId = randomUUID();
   const { publicKey, privateKey } = await generateKeyPair("ES256");
   const keys = createLocalJWKSet({ keys: [{ ...await exportJWK(publicKey), kid: "test" }] });
-  const handler = createHandler(origin, clientId, keys);
+  const handler = createHandler(origin, keys);
   const issuer = origin + "/auth/v1";
   const claims = { sub: randomUUID(), session_id: randomUUID(), role: "neckardt_apps_oauth",
-    client_id: clientId, is_anonymous: false, aud: endpoint, iss: issuer };
+    client_id: clientId, neckardt_mcp: { subscriptions:true, origin:"https://chatgpt.com" }, is_anonymous: false, aud: endpoint, iss: issuer };
 
   async function token(overrides = {}) {
     return new SignJWT({ ...claims, ...overrides }).setProtectedHeader({ alg: "ES256", kid: "test" })
@@ -60,12 +60,11 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
   await t.test("a first-party, canary, or mismatched token cannot call the tool", async () => {
     for (const different of [{ role: "authenticated", aud: "authenticated" }, { role: "recall_canary_oauth" },
       { aud: endpoint + "/other" }, { aud: [endpoint, "authenticated"] }, { iss: origin + "/other" },
-      { client_id: randomUUID() }, { is_anonymous: true }]) {
+      { client_id: "invalid" }, { session_id: "invalid" }, { neckardt_mcp: undefined },
+      { neckardt_mcp: { subscriptions:"true", origin:"https://chatgpt.com" } }, { is_anonymous: true }]) {
       const response = await rpc("tools/call", call, await token(different));
       assert.equal(response.status, 401, JSON.stringify(different));
     }
-    const unbound = createHandler(origin, undefined, keys);
-    assert.equal((await rpc("tools/call", call, await token(), unbound)).status, 401);
   });
   await t.test("one connected owner registers a verified callback and receives an aggregate once", async () => {
     const secret = "whsec_" + randomBytes(32).toString("base64");
@@ -99,7 +98,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
       emitted.push(message);
       return {status:200,body:""};
     });
-    const serve = createHandler(origin,clientId,keys,events);
+    const serve = createHandler(origin,keys,events);
     const call = async (method,params,bearer) => (await rpc(method,params,bearer,serve)).json();
     const auth = await token();
     assert.deepEqual((await call("initialize",{protocolVersion:"2025-11-25",capabilities:{},
@@ -117,6 +116,18 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.ok((await call("events/subscribe",params)).error);
     assert.ok((await call("events/subscribe",{...params,arguments:{owner_id:randomUUID()}},auth)).error);
     assert.equal(requests.length,0);
+    const pilot = await token({ client_id: randomUUID(), neckardt_mcp: { subscriptions:false, origin:"https://agent.example.invalid" } });
+    assert.equal((await call("tools/call", {name:"get_habit_practice_link",arguments:{}}, pilot)).result.structuredContent.url,
+      "https://apps.neckardt.com/recall/");
+    assert.deepEqual((await call("server/discover",{},pilot)).result.capabilities, {tools:{}});
+    for (const method of ["events/list","events/subscribe","events/unsubscribe"])
+      assert.equal((await call(method,params,pilot)).error.code,-32601);
+    assert.equal(requests.length,0);
+    const withOrigin = origin => serve(new Request(endpoint, {method:"POST", headers: {Origin:origin,
+      Authorization:"Bearer "+pilot, "Content-Type":"application/json", Accept:"application/json, text/event-stream"},
+      body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list",params:{}})}));
+    assert.equal((await withOrigin("https://agent.example.invalid")).status,200);
+    assert.equal((await withOrigin("https://other.example.invalid")).status,403);
     const registered = (await call("events/subscribe",params,auth)).result;
     assert.equal(registered.id,subscribed.id);
     assert.equal(subscribed.owner_id,claims.sub);
@@ -136,6 +147,7 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
       headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/json"},
       body:JSON.stringify({delivery_id:deliveryId})}));
     assert.equal((await deliver(auth)).status,401);
+    assert.equal((await deliver(pilot)).status,401);
     assert.equal((await deliver(dispatch)).status,204);
     assert.equal((await deliver(dispatch)).status,204);
     assert.equal(emitted.length,1);

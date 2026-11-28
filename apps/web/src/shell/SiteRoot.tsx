@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode } from "react";
+import { Link } from "react-router";
 import { AppShell } from "./AppShell.tsx";
 import { SessionProvider, useSiteSession, type SessionApi } from "./session.tsx";
 import "./shell.css";
@@ -21,6 +22,7 @@ function AccountPanel() {
       : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>
       : session.status === "signed-in" ? <>
         <p className="account-note">Signed in</p>
+        <Link reloadDocument to="/oauth/consent/?manage">Manage connections</Link>
         <button className="account-action" type="button" disabled={session.busy} onClick={() => void session.signOut()}>
           {session.busy ? "Signing out…" : "Sign out"}
         </button>

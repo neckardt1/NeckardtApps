@@ -44,6 +44,13 @@ export async function checkBrowserRoutes(origin) {
       await page.getByRole("button", { name: "Continue" }).waitFor();
       assert.equal(page.url(), consent);
       assert.equal(await page.getByRole("button", { name: "Account" }).count(), 0);
+      for (const mode of [consent, root + "oauth/consent/?manage"]) {
+        await page.setContent('<iframe title="Connection settings"></iframe>');
+        await page.locator("iframe").evaluate((frame, url) => { frame.src = url; }, mode);
+        const frame = page.frameLocator("iframe");
+        await frame.getByText("Open Neckardt Apps in its own tab to manage or approve connections.").waitFor();
+        assert.equal(await frame.locator("input,button").count(), 0);
+      }
     }
   } finally {
     await browser.close();
