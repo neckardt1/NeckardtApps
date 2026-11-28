@@ -7,12 +7,16 @@
   --green: #344f40;
   --sage: #edf0e6;
   --card: #fffdf8;
+  --on-green: light-dark(#fffefa, #17251b);
+  --green-hover: light-dark(#294333, #c4e4c7);
+  --control-border: light-dark(#b3bcae, #727e71);
+  --warn: light-dark(#8c3e2b, #ffad98);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 }
 @media (prefers-color-scheme: dark) {
-  :root:has(.tasks-route) {
+  :root {
     color-scheme: dark;
     --paper: #191b19;
     --ink: #eceee9;
@@ -56,22 +60,22 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .account-note { margin: 0 0 .9rem; color: var(--muted); font-size: .9375rem; }
 .account-note:last-child { margin-bottom: 0; }
 .account-form label { display: block; margin: .9rem 0; font-size: .9375rem; }
-.account-form input { font-size: max(1rem, 16px); display: block; width: 100%; min-height: 2.75rem; margin-top: .35rem; padding: .55rem .65rem; border: 1px solid light-dark(#b3bcae, #727e71); border-radius: .4rem; background: var(--card); color: var(--ink); }
-.account-action { display: block; width: 100%; min-height: 2.75rem; margin-top: 1rem; padding: .65rem .9rem; border: 1px solid var(--green); border-radius: .45rem; background: var(--green); color: light-dark(#fffefa, #17251b); font-size: .9375rem; font-weight: 550; }
-.account-action:hover:not(:disabled) { background: light-dark(#294333, #c4e4c7); }
-.account-error { margin: .9rem 0 0; color: light-dark(#8c3e2b, #ffad98); font-size: .875rem; overflow-wrap: anywhere; }
+.account-form input { font-size: max(1rem, 16px); display: block; width: 100%; min-height: 2.75rem; margin-top: .35rem; padding: .55rem .65rem; border: 1px solid var(--control-border); border-radius: .4rem; background: var(--card); color: var(--ink); }
+.account-action { display: block; width: 100%; min-height: 2.75rem; margin-top: 1rem; padding: .65rem .9rem; border: 1px solid var(--green); border-radius: .45rem; background: var(--green); color: var(--on-green); font-size: .9375rem; font-weight: 550; }
+.account-action:hover:not(:disabled) { background: var(--green-hover); }
+.account-error { margin: .9rem 0 0; color: var(--warn); font-size: .875rem; overflow-wrap: anywhere; }
 .launcher { max-width: 43rem; margin: 0 auto; padding: clamp(3rem, 10vh, 6rem) clamp(1.25rem, 5vw, 2rem) max(2rem, env(safe-area-inset-bottom)); }
 .launcher h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: clamp(3rem, 10vw, 4.2rem); line-height: 1.1; letter-spacing: -.035em; }
 .launcher-intro { margin: 1rem 0 2.2rem; color: var(--muted); font-size: 1.0625rem; }
 .app-list { list-style: none; padding: 0; margin: 0; }
 .app-card { display: flex; align-items: center; gap: 1rem; min-height: 6.2rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); color: var(--ink); text-decoration: none; }
-.app-card:hover { border-color: #aebdab; background: #f5f7ef; }
+.app-card:hover { border-color: light-dark(#aebdab, #727e71); background: light-dark(#f5f7ef, #30362f); }
 .app-icon { display: grid; place-items: center; flex: 0 0 auto; width: 2.7rem; height: 2.7rem; border-radius: .6rem; background: var(--sage); color: var(--green); }
 .app-icon svg { width: 1.6rem; height: 1.6rem; }
 .app-copy { display: flex; flex-direction: column; flex: 1; gap: .2rem; min-width: 0; }
 .app-name { font-size: 1.0625rem; font-weight: 600; }
 .app-description { font-size: .9375rem; color: var(--muted); }
-.app-status { align-self: flex-start; padding: .2rem .55rem; border-radius: 2rem; background: var(--sage); color: #53614f; font-size: .8125rem; white-space: nowrap; }
+.app-status { align-self: flex-start; padding: .2rem .55rem; border-radius: 2rem; background: var(--sage); color: light-dark(#53614f, #c2cfbd); font-size: .8125rem; white-space: nowrap; }
 @media (max-width: 380px) {
   .app-card { flex-wrap: wrap; gap: .8rem; padding: 1rem; }
   .app-copy { flex-basis: calc(100% - 3.5rem); }
