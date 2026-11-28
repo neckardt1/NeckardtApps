@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -13,13 +13,20 @@ test("Tasks account and write contract", async t => {
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(`
-    create role authenticated; create role anon; create role service_role; create role neckardt_apps_oauth;
+    create role authenticated; create role anon; create role service_role; create role supabase_auth_admin; create role neckardt_apps_oauth;
     create schema auth; create table auth.users (id uuid primary key);
     create function auth.uid() returns uuid language sql stable as $$
       select (nullif(current_setting('request.jwt.claims', true), '')::jsonb->>'sub')::uuid
     $$;
   `);
-  await db.exec(await readFile(new URL("../supabase/migrations/20261128093356_household_tasks.sql", import.meta.url), "utf8"));
+  const migrations = new URL("../supabase/migrations/", import.meta.url);
+  const activityMigration = "20261128113521_task_activity.sql";
+  const pending = [];
+  for (const file of (await readdir(migrations)).filter(name => name.endsWith(".sql")).sort()) {
+    const sql = await readFile(new URL(file, migrations), "utf8");
+    if (file >= activityMigration) pending.push(sql);
+    else await db.exec(sql);
+  }
 
   const [a, b, outsider] = [randomUUID(), randomUUID(), randomUUID()];
   await db.query("insert into auth.users values ($1),($2),($3)", [a,b,outsider]);
@@ -47,6 +54,114 @@ test("Tasks account and write contract", async t => {
   assert.deepEqual((await read(a)).lists, [{id:privateA,kind:"private"}, {id:shared,kind:"household"}]);
   assert.deepEqual((await read(b)).lists, [{id:privateB,kind:"private"}, {id:shared,kind:"household"}]);
   assert.notEqual(privateA, privateB);
+
+  const legacy = await create(a, shared, fields("Before tracking"));
+  await complete(a, legacy, 1);
+  for (const sql of pending) await db.exec(sql);
+  const history = (who, task, before = null) => asUser(who, "select * from public.tasks_history($1,$2,$3)", [who,task,before]);
+  const closed = (who, at = null, id = null) => asUser(who, "select * from public.tasks_completed($1,$2,$3)", [who,at,id]);
+  const change = async (who, task, version, action, data = null) => (await asUser(who,
+    "select public.tasks_change($1,$2,$3,$4,$5) as receipt", [who,task,version,action,JSON.stringify(data)]))[0].receipt;
+  const undo = (who, receipt) => asUser(who, "select public.tasks_undo($1,$2)", [who,receipt]);
+
+  await t.test("completed tasks and history respect enrollment, and tracking starts at rollout", async () => {
+    assert.deepEqual(await history(b, legacy), []);
+    assert.equal((await closed(b))[0].task_id, legacy);
+    const task = await create(a, privateA, fields("Private activity"));
+    const done = await change(a, task, 1, "completed");
+    for (const other of [b,outsider]) {
+      await assert.rejects(history(other,task), denied);
+      await assert.rejects(undo(other,done), denied);
+      assert(!(await closed(other)).some(row => row.task_id === task));
+    }
+    await assert.rejects(asUser(a, "select * from tasks_private.activity"), denied);
+    for (const sql of ["select * from public.tasks_history($1,$2)", "select public.tasks_undo($1,$2)"]) {
+      await assert.rejects(asUser(a, sql, [b, done]), denied);
+      await assert.rejects(asUser(a, sql, [a, done], {client_id: randomUUID()}), denied);
+    }
+    await assert.rejects(undo(a,(await history(a,task)).find(e=>e.action==="created").event_id),denied);
+  });
+
+  await t.test("shared edits and punts record dates, compare revisions and undo only once", async () => {
+    const original = fields("Shared plan", {plannedDate:"2032-06-01",plannedTime:"13:30",deadlineDate:"2032-07-01"});
+    const task = await create(a,shared,original);
+    const punt = await change(a,task,1,"edited",{plannedDate:"2032-06-08",plannedTime:null});
+    const latest = (await history(b,task))[0];
+    assert.deepEqual([latest.action,latest.by_you,latest.from_date,latest.from_time,latest.to_date,latest.to_time],
+      ["rescheduled",false,"2032-06-01","13:30","2032-06-08",null]);
+    assert(Number.isFinite(new Date(latest.happened_at).getTime()));
+    await assert.rejects(undo(b,punt),denied);
+    const edit = await change(b,task,2,"edited",{...original,title:"Later edit",plannedDate:"2032-06-08",plannedTime:null});
+    await assert.rejects(undo(a,punt),conflict);
+    await undo(b,edit);
+    await assert.rejects(undo(a,punt),conflict); // Reverting a later edit still advances the version.
+    assert.equal((await get(a,task)).title,"Shared plan");
+    const completion = await change(a,task,4,"completed");
+    assert((await closed(b)).some(row=>row.task_id===task));
+    assert.equal((await history(b,task))[0].action,"completed");
+    assert.equal(await get(a,task),undefined);
+    await undo(a,completion);
+    await change(b,task,6,"edited",{plannedDate:null,plannedTime:null});
+    await undo(a,completion); // Retry after a lost undo response has no side effects.
+    assert.equal((await get(a,task)).version,7);
+    assert.equal((await get(a,task)).deadlineDate,original.deadlineDate);
+    assert.deepEqual((await history(a,task)).map(e=>[e.action,e.is_undo]), [
+      ["rescheduled",false],["completed",true],["completed",false],["edited",true],
+      ["edited",false],["rescheduled",false],["created",false]]);
+    const reverted = await change(a,task,7,"edited",{plannedDate:"2032-06-09",plannedTime:"12:00"});
+    await undo(a,reverted);
+    assert.equal((await get(a,task)).plannedDate,null);
+    const expired = await change(a,task,9,"completed");
+    await db.query("update tasks_private.activity set happened_at=now()-interval '5 minutes' where id=$1",[expired]);
+    await assert.rejects(undo(a,expired),{code:"PT410"});
+    assert.equal(await get(a,task),undefined);
+  });
+
+  await t.test("Focus undo restores personal order and rejects superseded choices without leaking activity", async () => {
+    const first = await create(a,shared,fields("First"));
+    const task = await create(a,shared,fields("Focus activity"));
+    const choices = async who => (await read(who)).focus.filter(x=>[first,task].includes(x.taskId)).map(x=>x.taskId);
+    const original = await change(a,task,1,"promoted");
+    await change(a,first,1,"promoted");
+    const move = await change(a,task,1,"promoted");
+    const other = await change(b,task,1,"promoted");
+    await assert.rejects(undo(a,original),conflict);
+    await undo(a,move);
+    assert.deepEqual(await choices(a),[first,task]);
+    await assert.rejects(undo(a,original),conflict);
+    assert.deepEqual(await choices(b),[task]);
+    await undo(b,other);
+    assert.deepEqual(await choices(b),[]);
+    const events = await history(b,task);
+    assert.deepEqual(events.map(e=>[e.action,e.by_you]),[["promoted",true],["promoted",true],["created",false]]);
+    assert.deepEqual(await history(b,task,move),[]);
+    await assert.rejects(undo(b,move),denied);
+    const drop = await change(a,task,1,"deprioritized");
+    await update(b,task,1,{plannedDate:"2032-06-09",plannedTime:null});
+    await assert.rejects(undo(a,drop),conflict);
+    assert.equal((await get(a,task)).plannedDate,"2032-06-09");
+  });
+
+  await t.test("older activity and completions remain reachable across page boundaries", async () => {
+    const task = await create(a,privateA,fields("Long history"));
+    for (let version=1;version<=50;version++) await update(a,task,version,fields(`Edit ${version}`));
+    const latest = await history(a,task);
+    assert.equal(latest.length,50);
+    assert.deepEqual((await history(a,task,latest.at(-1).event_id)).map(e=>e.action),["created"]);
+    const ids = [];
+    for (let i=0;i<51;i++) {
+      const id = await create(a,privateA,fields(`Closed ${i}`));
+      ids.push(id);
+      await complete(a,id,1);
+    }
+    // The ID breaks ties even if many rows close in the same transaction.
+    await db.query("update tasks_private.items set completed_at='2044-01-01Z' where id=any($1::uuid[])",[ids]);
+    const page = await closed(a);
+    assert.equal(page.length,50);
+    const last = page.at(-1);
+    const older = await closed(a,last.completed_at,last.task_id);
+    assert.deepEqual([...page,...older].map(row=>row.task_id).filter(id=>ids.includes(id)),ids.sort().reverse());
+  });
 
   await t.test("ordinary accounts can neither read nor mutate one another's private data", async () => {
     for (const [owner, other, list] of [[a,b,privateA], [b,a,privateB]]) {
