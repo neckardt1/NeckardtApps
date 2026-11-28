@@ -96,7 +96,7 @@ export default async function guidedHome(worker) {
     await button("Skip practice").click();
     await button("Dismiss Habit Practice for today").click();
     await page.reload();
-    await page.getByText("Nothing in Focus.", { exact: true }).waitFor();
+    await page.getByText("No picks left for today.", { exact: true }).waitFor();
     assert.equal(await reminder.count(), 0);
 
     await page.clock.setFixedTime(new Date("2026-03-08T08:00:01Z"));
@@ -112,7 +112,7 @@ export default async function guidedHome(worker) {
       await cdp.send("Input.dispatchTouchEvent", { type: i ? "touchMove" : "touchStart", touchPoints: [{ x: x - dx, y }] });
     }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.getByText("Nothing in Focus.", { exact: true }).waitFor();
+    await page.getByText("No picks left for today.", { exact: true }).waitFor();
     assert.equal(finishCalls.length, 0, "leaving and dismissing must preserve the actual round");
 
     await page.clock.setFixedTime(new Date());

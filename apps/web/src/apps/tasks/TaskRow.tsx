@@ -6,11 +6,11 @@ import { TaskIcon } from "./icons";
 import { useTaskSwipe } from "./useTaskSwipe";
 
 type Props = {
-  task: Task; list: TaskList; today: string; inFocus: boolean; gated: boolean; busy: boolean; expanded: boolean;
+  task: Task; list: TaskList; today: string; atHome: boolean; inFocus: boolean; gated: boolean; busy: boolean; expanded: boolean;
   onEdit: () => void; onSchedule: (keyboard: boolean) => void; onPromote: () => void; onDrop: () => void; onComplete: () => void;
 };
 
-function RowMenu({ inFocus, gated, busy, onPromote, onDrop, onComplete }: Pick<Props, "inFocus" | "gated" | "busy" | "onPromote" | "onDrop" | "onComplete">) {
+function RowMenu({ atHome, inFocus, gated, busy, onPromote, onDrop, onComplete }: Pick<Props, "atHome" | "inFocus" | "gated" | "busy" | "onPromote" | "onDrop" | "onComplete">) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const popover = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ function RowMenu({ inFocus, gated, busy, onPromote, onDrop, onComplete }: Pick<P
         const step: Record<string, number> = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: buttons.length - 1 };
         if (Object.hasOwn(step, event.key)) { event.preventDefault(); buttons.at((step[event.key] + buttons.length) % buttons.length)?.focus(); }
       }}>
-      {!gated && <button role="menuitem" type="button" onClick={() => choose(onPromote)}><TaskIcon name="focus" />{inFocus ? "Move to top of Focus" : "Prioritize"}</button>}
+      {!gated && <button role="menuitem" type="button" onClick={() => choose(onPromote)}><TaskIcon name="focus" />{!inFocus ? "Prioritize" : atHome ? "Move to top" : "Move to top of Focus"}</button>}
       {inFocus && <button role="menuitem" type="button" onClick={() => choose(onDrop)}><TaskIcon name="deprioritize" />Deprioritize</button>}
       <button role="menuitem" type="button" onClick={() => choose(onComplete)}><TaskIcon name="check" />Complete task</button>
     </div>
@@ -54,7 +54,7 @@ function RowMenu({ inFocus, gated, busy, onPromote, onDrop, onComplete }: Pick<P
 }
 
 export function TaskRow(props: Props) {
-  const { task, list, today, inFocus, gated, busy, expanded, onEdit, onSchedule, onPromote, onDrop, onComplete } = props;
+  const { task, list, today, atHome, inFocus, gated, busy, expanded, onEdit, onSchedule, onPromote, onDrop, onComplete } = props;
   const metaId = useId();
   const swipeDropsFocus = expanded && inFocus;
   const wrap = useTaskSwipe(side => {
@@ -86,7 +86,7 @@ export function TaskRow(props: Props) {
         <button type="button" className="tasks-icon-button" aria-label="Edit task" title="Edit task" disabled={busy} onClick={onEdit}><TaskIcon name="edit" /></button>
         <button type="button" className="tasks-icon-button" id={"task-date-toggle-" + task.id} aria-label="Set date" title="Set date" disabled={busy} aria-expanded={expanded}
           onClick={() => onSchedule(true)}><TaskIcon name="today" /></button>
-        <RowMenu {...{ inFocus, gated, busy, onPromote, onDrop, onComplete }} />
+        <RowMenu {...{ atHome, inFocus, gated, busy, onPromote, onDrop, onComplete }} />
       </div>
     </div>
   </div>;
