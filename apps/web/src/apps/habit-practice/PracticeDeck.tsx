@@ -2,18 +2,13 @@ import { useLayoutEffect, useState } from 'react';
 import { useSiteSession } from '../../shell/session.tsx';
 import { App } from './App.tsx';
 import { CardBrowser } from './CardBrowser.tsx';
-import { readStoredRound } from './durable-session.ts';
+import { hasUnfinishedRound } from './durable-session.ts';
 import { MissingRoundRpc, type RecallApi } from './recall-api.ts';
 
 type Status = 'checking' | 'start' | 'continue' | 'unavailable';
 
 async function roundStatus(api: RecallApi, owner: string): Promise<Status> {
-  const scope = `${api.origin}.${owner}`;
-  for (const version of ['v2', 'v3']) {
-    const round = readStoredRound(localStorage, `recall.round.${version}.${scope}`);
-    if (round && !round.finished && (round.started || round.cards.length || round.opportunities.length || round.saves.length)) return 'continue';
-  }
-  if (Object.keys(localStorage).some(key => key.startsWith(`recall.live.v1.${scope}.`))) return 'continue';
+  if (hasUnfinishedRound(api.origin, owner)) return 'continue';
   try {
     const rows = await api.rounds?.latest();
     return rows?.[0]?.finished_at === null ? 'continue' : 'start';

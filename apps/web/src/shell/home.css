@@ -1,0 +1,109 @@
+.daily-home {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 10svh, 6rem) clamp(1rem, 4vw, 2rem) 3rem;
+}
+.home-start, .home-finished {
+  min-height: min(58svh, 29rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+}
+.home-start button {
+  min-height: 3rem;
+  padding: .65rem 1.65rem;
+  border: 1px solid var(--green);
+  border-radius: .6rem;
+  background: var(--green);
+  color: var(--on-green);
+  font-weight: 600;
+}
+.home-start button:hover { background: var(--green-hover); }
+.daily-home .home-focus {
+  display: block;
+  min-height: 0;
+  background: var(--paper);
+  --tasks-surface: var(--paper);
+}
+.home-focus-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.home-focus-heading h2, .home-finished p {
+  color: var(--ink);
+  font: 400 clamp(1.65rem, 6vw, 2.15rem)/1.2 Georgia, serif;
+  letter-spacing: -.03em;
+}
+.home-focus-heading a, .home-finished a, .home-focus .home-link-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: .9rem;
+  text-underline-offset: .2em;
+}
+.home-practice-status, .practice-reminder { color: var(--muted); }
+.home-practice-status { padding-block: .75rem; font-size: .875rem; }
+.practice-reminder { border-bottom: 1px solid var(--line); }
+.tasks-rows + .practice-reminder { border-top: 1px solid var(--line); }
+.practice-reminder .tasks-row { min-height: 3.5rem; }
+.practice-reminder a, .practice-reminder button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: inherit;
+}
+.practice-reminder a {
+  flex: 1;
+  gap: .8rem;
+  padding-inline: .65rem;
+  text-decoration: none;
+  font-size: .94rem;
+}
+.practice-reminder button { min-width: 44px; justify-content: center; }
+.practice-reminder a:hover { text-decoration: underline; }
+
+:root:has(.guide-footer) { --guide-height: 3.5rem; }
+.site-main:has(.guide-footer) {
+  padding-bottom: var(--guide-height);
+}
+.site-main:has(.guide-footer) .habit-practice {
+  min-height: calc(100svh - var(--mobile-nav-height, 4rem) - var(--guide-height) - env(safe-area-inset-top));
+}
+.habit-practice:has(.guide-footer) .action-dock {
+  bottom: calc(var(--mobile-nav-height, 0px) + var(--guide-height));
+  padding-bottom: .65rem;
+}
+.guide-footer {
+  position: fixed;
+  z-index: 4;
+  inset: auto 0 var(--mobile-nav-height, 0px);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--paper);
+}
+.guide-footer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 43rem);
+  height: calc(var(--guide-height) - 1px);
+  margin-inline: auto;
+  padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+  font: 500 .8125rem/1.25 system-ui, sans-serif;
+}
+.site-main .guide-footer button {
+  min-height: 44px;
+  padding: .5rem .85rem;
+  border: 0;
+  border-radius: .45rem;
+  background: var(--sage);
+  color: var(--green);
+  font: 600 .9375rem/1.2 system-ui, sans-serif;
+}
+.guide-footer p { margin: 0; padding: .5rem 1rem; color: var(--warn); }

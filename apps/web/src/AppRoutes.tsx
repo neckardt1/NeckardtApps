@@ -2,15 +2,13 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Link, Route, Routes } from "react-router";
 import { Sites } from "./apps/sites/Sites.tsx";
 import { Launcher } from "./shell/Launcher.tsx";
+import { Home } from "./shell/Home.tsx";
 
 const Tasks = lazy(() => import("./apps/tasks/Tasks.tsx"));
 
 export function AppRoutes({ practice, profile }: { practice: ReactNode; profile: ReactNode }) {
   return <Routes>
-    <Route path="/index.html?" element={<section className="launcher">
-      <h1 className="visually-hidden">Home</h1>
-      <Link className="home-directory-link" to="/apps/">All apps</Link>
-    </section>} />
+    <Route path="/index.html?" element={<Home />} />
     <Route path="/apps/index.html?" element={<Launcher />} />
     <Route path="/recall/index.html?" element={practice} />
     <Route path="/tasks/index.html?" element={<Suspense fallback={<p role="status">Loading Tasks…</p>}><Tasks /></Suspense>} />

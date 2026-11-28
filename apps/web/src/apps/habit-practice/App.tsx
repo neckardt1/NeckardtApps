@@ -5,9 +5,10 @@ import { allAnswered, currentKey, makeDurableSession, type DurableSession, type 
 import { useSiteSession } from '../../shell/session.tsx';
 import { FormattedText } from './FormattedText.tsx';
 import { RatingButtons } from './RatingButtons.tsx';
+import { GuideFooter } from '../../shell/daily-guide';
 
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
-export function App({ api, onHome }: { api: RecallApi | null; onHome?: () => void }) {
+export function App({ api, onHome, onGuideExit }: { api: RecallApi | null; onHome?: () => void; onGuideExit?: () => void }) {
   const session = useSiteSession();
   const sessionIsCurrent = session.isCurrent;
   const owner = session.status === 'signed-in' ? session.user?.id ?? null : null;
@@ -179,6 +180,9 @@ export function App({ api, onHome }: { api: RecallApi | null; onHome?: () => voi
   const superseded = round?.summary?.superseded ?? 0;
   const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && hasWork && !round.finished;
+  useEffect(() => {
+    if (onGuideExit && round && !loading && !message && sessionIsCurrent() && (round.finished || !hasWork)) onGuideExit();
+  }, [onGuideExit, round, loading, message, hasWork, sessionIsCurrent]);
 
   const homeButton = onHome && <button className="text-button deck-back" disabled={busy} onClick={onHome}>← Practice home</button>;
 
@@ -245,6 +249,7 @@ export function App({ api, onHome }: { api: RecallApi | null; onHome?: () => voi
               else if (runtime.current) void load(runtime.current);
             }}>Check again</button>}
         </div>
+        {onGuideExit && <GuideFooter step={2} onClick={onGuideExit} disabled={busy} />}
       </>}
     </section>;
 }

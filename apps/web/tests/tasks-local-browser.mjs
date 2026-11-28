@@ -110,6 +110,58 @@ async function gesture(page, row, path) {
 const swipe = (page, task, direction) => gesture(page, title(page, task),
   [[0, 0], [12, 4], [29, 9], [49, 20], [76, 37], [99, 52]].map(([x, y]) => [x * direction, y]));
 
+async function checkHomeWidget(account, listId) {
+  const { page } = account;
+  const names = [1, 2, 3, 4].map(n => `Home task ${n} ${run}`);
+  for (const name of names) {
+    const result = await account.rpc("create", { p_list: listId, p_request: randomUUID(), p_fields: {
+      title: name, plannedDate: null, plannedTime: null, deadlineDate: null, deadlineTime: null,
+      showAfterDate: null, showAfterTime: null,
+    } });
+    assert(result.ok);
+  }
+  const home = () => page.getByRole("link", { name: "Home", exact: true }).click();
+  await home();
+  await button(page, "Pick tasks").click();
+  const focus = page.getByRole("region", { name: "Focus", exact: true });
+  for (const name of names) {
+    await swipe(page, name, 1);
+    await title(focus, name).waitFor();
+  }
+  const ordered = await focus.locator(".tasks-title").allTextContents();
+  assert.deepEqual(ordered.slice(0, 4), names.toReversed());
+  await button(page, "Done").click();
+  await page.waitForURL(url => !url.pathname.endsWith("/tasks/"));
+  await home();
+  await title(page, names[3]).waitFor();
+  assert.deepEqual(await page.locator(".tasks-title").allTextContents(), ordered.slice(0, 3));
+  await page.reload();
+  await title(page, names[3]).click();
+  const editor = page.getByRole("dialog", { name: "Edit task" });
+  const revised = names[3] + " edited";
+  await editor.getByLabel("Title", { exact: true }).fill(revised);
+  await button(editor, "Save changes").click();
+  await title(page, revised).waitFor();
+  await page.getByRole("checkbox", { name: "Complete " + revised, exact: true }).click();
+  await title(page, names[0]).waitFor();
+  assert.deepEqual(await page.locator(".tasks-title").allTextContents(), ordered.slice(1, 4));
+  await swipe(page, names[1], -1);
+  await button(page.getByRole("region", { name: "Reschedule " + names[1] }), "Tomorrow").click();
+  await page.getByRole("link", { name: "All tasks", exact: true }).click();
+  await title(focus, names[1]).waitFor();
+  assert.equal((await account.read()).tasks.find(t => t.title === names[1]).plannedDate, shiftDate(today, 1));
+  await home();
+  for (const index of [2, 1, 0]) {
+    await page.getByRole("checkbox", { name: "Complete " + names[index], exact: true }).click();
+    await title(page, names[index]).waitFor({ state: "hidden" });
+  }
+  assert(!(await account.read()).tasks.some(t => names.includes(t.title) || t.title === revised));
+  await button(page, "Apps").click();
+  await page.getByRole("dialog", { name: "Apps" }).getByRole("link", { name: "Tasks", exact: true }).click();
+  await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+  console.log("Home kept Today’s Focus order, edited and rescheduled real tasks, and promoted the fourth row into view after completion.");
+}
+
 try {
   execFileSync(process.execPath, [build, out], { stdio: "inherit", env: { ...process.env,
     NECKARDT_APPS_SUPABASE_URL: fixture.publicOrigin, NECKARDT_APPS_SUPABASE_PUBLISHABLE_KEY: fixture.publishableKey,
@@ -124,6 +176,7 @@ try {
   const listId = (i, kind) => snapshots[i].lists.find(l => l.kind === kind).id;
   assert.notEqual(listId(0, "private"), listId(1, "private"));
   assert.equal(listId(0, "household"), listId(1, "household"));
+  await checkHomeWidget(b, listId(1, "private"));
   for (const [i, account] of [a, b].entries()) {
     const own = `Private ${i} ${run}`;
     const dialog = await beginCreate(account.page, own, "Private");
@@ -268,6 +321,10 @@ try {
   assert.equal(await title(ap, `Private 0 ${run}`).count(), 0);
   console.log("Shared completion, replay after completion, direct-route reload and sign-out passed.");
 } finally {
+  for (const context of browser?.contexts() ?? []) {
+    await context.route("**/*", route => route.abort());
+    await Promise.all(context.pages().map(page => page.unrouteAll({ behavior: "wait" })));
+  }
   await browser?.close();
   if (files) await new Promise(resolve => files.close(resolve));
   await rm(tmp, { recursive: true, force: true });

@@ -50,6 +50,18 @@ export function readStoredRound(storage: StoragePort, key: string): Round | null
   return parsed;
 }
 
+export function hasUnfinishedRound(origin: string, owner: string, finishedServerRound?: string) {
+  const scope = `${origin}.${owner}`;
+  for (const version of ['v2', 'v3']) {
+    const round = readStoredRound(localStorage, `recall.round.${version}.${scope}`);
+    if (!round || round.finished) continue;
+    // A second device can finish this manifest while the first still has it open.
+    if (round.server && round.id === finishedServerRound && verified(round)) continue;
+    if (round.started || round.cards.length || round.opportunities.length || round.saves.length) return true;
+  }
+  return Object.keys(localStorage).some(key => key.startsWith(`recall.live.v1.${scope}.`));
+}
+
 // One atomic record contains progress, queued writes, and verified acknowledgements.
 // Separate Web Locks serialize local mutations and network draining across tabs.
 export function makeDurableSession({ storage, key, api, lock = browserLock, onChange = () => {}, active = () => true }: {

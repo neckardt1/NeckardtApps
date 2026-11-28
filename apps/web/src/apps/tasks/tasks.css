@@ -141,9 +141,9 @@
 .tasks-drawer .tasks-navigation { padding: .7rem; }
 
 @media (max-width: 720px), (orientation: landscape) and (max-height: 480px) and (pointer: coarse) {
-  :root:has(.tasks-app) {
+  :root:has(.tasks-heading-actions) {
     --tasks-actions-height: max(3.5rem, 56px);
-    scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--tasks-actions-height));
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--tasks-actions-height) + var(--guide-height, 0px));
   }
   .tasks-app { display: block; min-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top)); }
   .tasks-sidebar, .tasks-row-actions { display: none; }
@@ -158,7 +158,7 @@
   .tasks-heading-actions {
     position: fixed;
     z-index: 3;
-    inset: auto 0 var(--mobile-nav-height);
+    inset: auto 0 calc(var(--mobile-nav-height) + var(--guide-height, 0px));
     min-height: var(--tasks-actions-height);
     margin: 0;
     padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
