@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
 import { taskTimeZone } from "./contract";
 import { gateOpen, pacificDate, todaySections, weekTasks } from "./model";
@@ -22,7 +22,12 @@ function Navigation({ lists, view, choose }: { lists: TaskList[]; view: string; 
   </nav>;
 }
 
-export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCurrent: () => boolean }) {
+export type TaskLayout = {
+  renderHome?: (focusRows: ReactNode) => ReactNode;
+  footer?: (busy: boolean) => ReactNode;
+};
+
+export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout & { adapter: TasksAdapter; isCurrent: () => boolean }) {
   const [snapshot, setSnapshot] = useState<TaskSnapshot | null>(null);
   const [view, setView] = useState("today");
   const [navOpen, setNavOpen] = useState(false);
@@ -61,6 +66,19 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
     void read();
     return () => { mounted.current = false; readNumber.current++; };
   }, [read]);
+  const atHome = !!renderHome;
+  useEffect(() => {
+    if (!atHome || panel) return;
+    const refresh = () => {
+      if (!document.hidden && !writeLock.current) { setNotice(null); void read(); }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [atHome, panel, read]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     function tick() {
@@ -183,6 +201,21 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
   const edited = editor?.kind === "edit" ? editor.task : undefined;
   const focusAction = !edited || !gateOpen(edited, now) ? undefined : focusIds.has(edited.id)
     ? { label: "Deprioritize", run: () => drop(edited) } : { label: "Prioritize", run: () => promote(edited) };
+  const dialog = editor && <TaskEditor key={editor.kind === "create" ? editor.requestId : editor.task.id + "/" + editor.task.version}
+    task={edited} listId={editor.kind === "create" ? editor.listId : editor.task.listId} lists={lists}
+    busy={writing || (conflict && loading)} error={notice?.error ? notice.text : null} conflict={conflict}
+    latest={snapshot?.tasks.find(task => task.id === edited?.id)} focusAction={focusAction}
+    onClose={close} onSave={save} onLoadLatest={edit} />;
+  const feedback = <>
+    <div role="status" className="visually-hidden">{notice && !notice.error ? notice.text : ""}</div>
+    {notice?.error && !editor && <p role="alert" className="tasks-error">{notice.text}</p>}
+  </>;
+  if (renderHome) {
+    const content = !snapshot ? loading ? <p role="status">Loading tasks…</p>
+      : <button className="home-link-action" onClick={() => { setNotice(null); void read(); }}>Refresh</button>
+      : focus.length ? rows(focus.slice(0, 3)) : null;
+    return <div className="tasks-app home-focus">{renderHome(content)}{feedback}{dialog}</div>;
+  }
   return <div className="tasks-app">
     <aside className="tasks-sidebar"><div className="tasks-brand"><TaskIcon name="tasks" size={22} />Tasks</div>
       <Navigation lists={lists} view={view} choose={chooseView} /></aside>
@@ -199,8 +232,7 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
             <TaskIcon name="add" /><span>Add task</span></button>}
         </div>
       </header>
-      <div role="status" className="visually-hidden">{notice && !notice.error ? notice.text : ""}</div>
-      {notice?.error && !editor && <p role="alert" className="tasks-error">{notice.text}</p>}
+      {feedback}
       {!snapshot ? loading && <p className="tasks-empty" role="status">Loading tasks…</p>
         : !lists.length ? <p className="tasks-empty">Tasks isn’t enabled for this account.</p>
         : currentList ? rows(snapshot.tasks.filter(task => task.listId === currentList.id))
@@ -211,10 +243,7 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
     </div>
     {navOpen && <TasksDialog title="Tasks" drawer onClose={() => setNavOpen(false)}>
       <Navigation lists={lists} view={view} choose={chooseView} /></TasksDialog>}
-    {editor && <TaskEditor key={editor.kind === "create" ? editor.requestId : editor.task.id + "/" + editor.task.version}
-      task={edited} listId={editor.kind === "create" ? editor.listId : editor.task.listId} lists={lists}
-      busy={writing || (conflict && loading)} error={notice?.error ? notice.text : null} conflict={conflict}
-      latest={snapshot?.tasks.find(task => task.id === edited?.id)} focusAction={focusAction}
-      onClose={close} onSave={save} onLoadLatest={edit} />}
+    {dialog}
+    {footer?.(busy || !snapshot || !!panel || navOpen)}
   </div>;
 }
