@@ -85,7 +85,11 @@ export function AppShell({ profile, children }: Props) {
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
-        <Link className="chrome-button home-link" to="/" onClick={() => setOpen(false)}>Home</Link>
+        <Link className="chrome-button home-link" to="/" aria-label="Home" onClick={() => setOpen(false)}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9" strokeLinejoin="round" />
+          </svg><span>Home</span>
+        </Link>
         {currentApp && <Link to={currentApp.path} className="chrome-button app-home-link"
           aria-label={`${currentApp.name} home`} aria-disabled={appBusy || undefined}
           replace={!location.state?.appView && location.pathname === currentApp.path && !location.search && !location.hash}
