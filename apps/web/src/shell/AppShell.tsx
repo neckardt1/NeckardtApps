@@ -88,6 +88,7 @@ export function AppShell({ account: accountContent, accountIdentity, children }:
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
+        <Link className="chrome-button home-link" to="/" onClick={() => setOpen(null)}>Home</Link>
         <button ref={appsButton} type="button" className="chrome-button" aria-expanded={open === "apps"}
           aria-controls={open === "apps" ? `${id}-apps` : undefined} aria-haspopup="dialog"
           onClick={() => setOpen(open === "apps" ? null : "apps")}><AppsIcon /><span>Apps</span><Chevron /></button>
