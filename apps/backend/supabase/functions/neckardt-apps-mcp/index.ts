@@ -23,8 +23,8 @@ async function rpc(action: string, payload: Record<string, unknown>) {
   return response.json();
 }
 
-const dataRpc: DataRpc = async (client, actor, operation, args) => {
-  const response = await post("neckardt_mcp_data", { p_client: client, p_actor: actor, operation, args });
+const dataRpc: DataRpc = async (client, actor, operation, args, session, receipts) => {
+  const response = await post("neckardt_mcp_data", { p_client: client, p_actor: actor, operation, args, p_session: session, p_receipts: receipts });
   if (response.status === 403) throw new DataToolError("Tool or item unavailable for this connection.");
   if (response.status === 409) throw new DataToolError("Conflicting ID or version. Read back the item before retrying.");
   if (response.status === 422 || response.status === 400) throw new DataToolError("Invalid card or task fields.");

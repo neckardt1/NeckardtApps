@@ -66,7 +66,7 @@ export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, ev
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       let allowed: unknown = [];
       if (authenticated && dataRpc) {
-        try { allowed = await dataRpc(authenticated.client, authenticated.subject, "tools/list", {}); }
+        try { allowed = await dataRpc(authenticated.client, authenticated.subject, "tools/list", {}, authenticated.session, authenticated.receipts); }
         catch { console.warn("MCP data tool registry unavailable during discovery."); }
       }
       const granted = dataTools.filter(tool => Array.isArray(allowed) && allowed.includes(tool.definition.name));
@@ -89,7 +89,7 @@ export function createHandler(projectUrl: string, testKeys?: JWTVerifyGetKey, ev
       if (!dataRpc) throw new McpError(ErrorCode.MethodNotFound, "Tool unavailable.");
       const input = tool.parse(args);
       try {
-        const result = await dataRpc(authenticated.client, authenticated.subject, params.name, input);
+        const result = await dataRpc(authenticated.client, authenticated.subject, params.name, input, authenticated.session, authenticated.receipts);
         return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
       } catch (error) {
         const message = error instanceof DataToolError ? error.message : "Data service unavailable. Verify the result before retrying.";

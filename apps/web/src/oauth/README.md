@@ -36,13 +36,13 @@ the account profile, including email, to the OAuth client, even for `openid` alo
    addition to plain `openid`. The ChatGPT row allows `openid email offline_access` and enables
    `subscriptions` for the existing Dot completion events. The event transport accepts its existing
    verified delivery destination. Permission changes affect subsequent token issues and refreshes.
-   Use a fresh registration and consent when expanding the access a user previously approved.
-   For a separately approved data integration, use a **new owner-bound client** and specify its exact
-   `data_tools` at registration. Consent lists each tool's access, including shared Household effects.
-   The MCP checks this list for the signed client and subject at each data call. Removing a tool takes
-   effect on the next call with an existing token. Adding one requires fresh registration and consent.
-   The registry migration initializes every existing client with an empty list. Deploy and verify the
-   migration, MCP, and consent page before registering a data client.
+   For data access on an existing registration, offer the app scope in `neckardt_mcp.account_apps`
+   for the verified user and client (`habit_cards` or `tasks`). The signed-in user opens **Manage
+   connections**, reviews the recipient and scopes, and selects **Allow app access** for that session.
+   Supabase's existing grant and callback stay in place. A refreshed token for that session can use
+   deployed tools in the approved scopes. Disconnecting the native grant ends that access. Removing
+   the account's app offer also revokes it. Existing narrow, registration-level tool grants retain
+   their original limits.
 3. Give the integration its public ID and the suite resource URL. Start **Connect** in the
    integration so it creates the PKCE verifier and state. New clients using existing capabilities
    need no Pages rebuild, Edge deployment or client-specific environment variables.

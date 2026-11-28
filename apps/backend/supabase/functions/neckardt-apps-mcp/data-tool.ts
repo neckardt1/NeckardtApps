@@ -5,7 +5,7 @@ import { scopes } from "./auth.ts";
 export class DataToolError extends Error {}
 
 type Fields = Record<string, unknown>;
-export type DataRpc = (client: string, actor: string, operation: string, args: Fields) => Promise<unknown>;
+export type DataRpc = (client: string, actor: string, operation: string, args: Fields, session: string, receipts: string[]) => Promise<unknown>;
 
 export function dataTool<S extends z.ZodObject>(
   name: string, description: string, schema: S, annotations: Tool["annotations"],

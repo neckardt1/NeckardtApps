@@ -157,13 +157,17 @@ test.each([
     || /synthetic-consent-(?:access|refresh|password)/.test(value) || value.includes(member.email))).toBe(false);
 });
 
-test('Manage connections revokes only the selected native grant by its public ID', async () => {
+test('Manage connections allows scopes only on click and disconnects only the selected grant', async () => {
   vi.resetModules();
   const config = { url: 'https://abcdefghijklmnopqrst.supabase.co', publishableKey: 'sb_publishable_test' };
   vi.stubGlobal('__SITE_PUBLIC_CONFIG__', config);
   history.replaceState({}, '', '/oauth/consent/?manage');
   const user = { id: crypto.randomUUID(), email: 'owner@example.invalid' };
   const muse = crypto.randomUUID(), chat = crypto.randomUUID(), revoked: string[] = [];
+  const option = { client_id:muse, callback_url:'https://muse.example.invalid/cb', session_id:crypto.randomUUID(),
+    connected_at:'2026-01-01T00:00:00Z', consent_id:crypto.randomUUID(), granted_at:'2026-01-01T00:00:00Z',
+    apps:['habit_cards','tasks'], approved:false };
+  let approvals = 0;
   const apps = [{ id: muse, name: 'Muse' }, { id: chat, name: 'Neckardt Apps MCP' }];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = new URL(String(input));
@@ -175,6 +179,13 @@ test('Manage connections revokes only the selected native grant by its public ID
     if (url.pathname === '/rest/v1/rpc/neckardt_mcp_client') {
       const id = JSON.parse(String(init?.body)).requested_client;
       return Response.json([{ display_name:id === muse ? 'Muse' : 'ChatGPT' }]);
+    }
+    if (url.pathname.endsWith('/rpc/neckardt_mcp_connection_options')) return Response.json([option]);
+    if (url.pathname.endsWith('/rpc/neckardt_mcp_allow_apps')) {
+      expect(JSON.parse(String(init?.body))).toEqual({p_client:muse,p_session:option.session_id,p_consent:option.consent_id,
+        p_granted_at:option.granted_at,p_callback:option.callback_url,p_apps:option.apps});
+      approvals++;
+      return new Response(null,{status:204});
     }
     expect(url.pathname).toBe('/auth/v1/user/oauth/grants');
     if (init?.method === 'DELETE') {
@@ -190,6 +201,13 @@ test('Manage connections revokes only the selected native grant by its public ID
   form.querySelector<HTMLInputElement>('[name="password"]')!.value = 'synthetic-password';
   await act(async () => { form.dispatchEvent(new Event('submit', { bubbles:true, cancelable:true })); });
   const button = (name: string) => [...host.querySelectorAll('button')].find(item => item.textContent === 'Disconnect ' + name);
+  const allow = [...host.querySelectorAll('button')].find(item => item.textContent === 'Allow app access for Muse');
+  expect(host.textContent).toContain('Household changes are shared');
+  expect(host.textContent).toContain('approve their exact wording');
+  expect(approvals).toBe(0);
+  await act(async () => { allow!.click(); });
+  expect(approvals).toBe(1);
+  expect(host.textContent).toContain('App access allowed.');
   expect(revoked).toEqual([]);
   expect(button('ChatGPT')).toBeDefined();
   await act(async () => { button('Muse')!.click(); });
