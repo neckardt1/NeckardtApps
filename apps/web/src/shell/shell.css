@@ -107,26 +107,24 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
     border-top: 1px solid var(--line);
     border-bottom: 0;
   }
-  .topbar-inner { flex-direction: row-reverse; reading-flow: flex-visual; min-height: var(--mobile-nav-row); gap: 1rem; padding: 0 1rem; }
-  .home-link { margin-right: 0; }
-  .account-link { margin: 0 auto 0 0; min-width: 2.75rem; justify-content: center; }
-  .account-name { display: none; }
-  .chrome-button .chevron { transform: rotate(180deg); }
+  .topbar-inner {
+    display: grid;
+    grid-template-columns: 44px minmax(44px, 1fr) auto minmax(44px, 1fr) 44px;
+    grid-template-areas: "account current apps home home";
+    reading-flow: grid-rows;
+    min-height: var(--mobile-nav-row);
+    padding: 0 4px;
+  }
+  .topbar-inner .chrome-button { min-width: 44px; min-height: 44px; padding: 0; font-size: .875rem; line-height: 1.2; }
+  .account-link :is(.account-avatar, .account-icon) { max-width: 100%; }
+  .account-link { grid-area: account; justify-content: center; margin: 0; }
+  .account-name, .apps-toggle svg { display: none; }
+  .app-home-link { grid-area: current; margin: 0; overflow-wrap: anywhere; }
+  .apps-toggle { grid-area: apps; justify-content: center; }
+  .home-link { grid-area: home; justify-self: end; justify-content: center; margin: 0; }
   .chrome-popover.apps {
     inset: auto 1rem calc(100% + .25rem) auto;
     width: min(21rem, calc(100% - 2rem));
     max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top) - 1rem);
   }
-  .topbar-inner:has(.app-home-link) {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr) auto repeat(2, 1fr);
-    grid-template-areas: "account apps current . home";
-    gap: 0;
-    reading-flow: grid-rows;
-  }
-  .topbar-inner:has(.app-home-link) .account-link { grid-area: account; }
-  .topbar-inner:has(.app-home-link) .apps-toggle { grid-area: apps; justify-self: start; justify-content: center; }
-  .topbar-inner:has(.app-home-link) .apps-toggle :is(span, .chevron) { display: none; }
-  .app-home-link { grid-area: current; margin: 0; padding-inline: .3rem; }
-  .topbar-inner:has(.app-home-link) .home-link { grid-area: home; justify-self: end; }
 }
