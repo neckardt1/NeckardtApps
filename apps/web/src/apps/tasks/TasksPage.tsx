@@ -199,7 +199,8 @@ export function TasksPage({ adapter, isCurrent }: { adapter: TasksAdapter; isCur
             <TaskIcon name="add" /><span>Add task</span></button>}
         </div>
       </header>
-      {notice && !editor && <p role={notice.error ? "alert" : "status"} className={notice.error ? "tasks-error" : "tasks-notice"}>{notice.text}</p>}
+      <div role="status" className="visually-hidden">{notice && !notice.error ? notice.text : ""}</div>
+      {notice?.error && !editor && <p role="alert" className="tasks-error">{notice.text}</p>}
       {!snapshot ? loading && <p className="tasks-empty" role="status">Loading tasks…</p>
         : !lists.length ? <p className="tasks-empty">Tasks isn’t enabled for this account.</p>
         : currentList ? rows(snapshot.tasks.filter(task => task.listId === currentList.id))

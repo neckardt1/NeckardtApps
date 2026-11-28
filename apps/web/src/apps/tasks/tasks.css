@@ -41,8 +41,7 @@
 .tasks-section h2 { font-size: 1rem; font-weight: 650; letter-spacing: -.025em; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid var(--tasks-line); }
 .tasks-rows { padding: 0; list-style: none; }
 .tasks-rows > li + li { border-top: 1px solid light-dark(#efefeb, #353832); }
-.tasks-empty, .tasks-notice, .tasks-error { padding-block: .7rem; font-size: .88rem; color: var(--tasks-muted); }
-.tasks-notice:not(:empty) { color: light-dark(#45664e, #a1d3a9); }
+.tasks-empty, .tasks-error { padding-block: .7rem; font-size: .88rem; color: var(--tasks-muted); }
 .tasks-app .tasks-error { color: light-dark(#8e3526, #ffab96); }
 .tasks-swipe { position: relative; overflow: hidden; isolation: isolate; }
 .tasks-swipe, .tasks-row, .tasks-app .tasks-copy { touch-action: pan-y pinch-zoom; }
