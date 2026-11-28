@@ -44,8 +44,9 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .topbar { position: relative; z-index: 10; border-bottom: 1px solid var(--line); background: var(--card); padding-top: env(safe-area-inset-top); }
 .topbar-inner { position: relative; display: flex; align-items: center; justify-content: space-between; width: min(100%, 72rem); min-height: 4rem; margin: 0 auto; padding: .35rem clamp(1rem, 4.5vw, 2rem); }
 .chrome-button { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; min-width: 2.75rem; padding: .35rem 0; border: 0; background: transparent; color: light-dark(#293640, #e2e8e6); font-size: .9375rem; font-weight: 550; }
+.home-link svg { display: none; }
 .home-link { text-decoration: none; margin-right: 1rem; }
-.app-home-link { margin-inline: 0 1rem; justify-content: center; color: var(--green); text-decoration: underline; text-underline-offset: .22em; }
+.app-home-link { margin-inline: 0 1rem; justify-content: center; color: var(--green); text-decoration: none; }
 .app-home-link[aria-disabled] { opacity: .6; cursor: wait; }
 .account-link { margin-left: auto; max-width: 54%; text-decoration: none; }
 .chrome-button > svg { width: 1rem; height: 1rem; }
@@ -109,19 +110,24 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
   }
   .topbar-inner {
     display: grid;
-    grid-template-columns: 44px minmax(44px, 1fr) auto minmax(44px, 1fr) 44px;
-    grid-template-areas: "account current apps home home";
+    grid-template-columns: repeat(2, minmax(44px, 1fr)) minmax(44px, max-content) repeat(2, minmax(44px, 1fr));
+    grid-template-areas: "account . current apps home";
     reading-flow: grid-rows;
     min-height: var(--mobile-nav-row);
     padding: 0 4px;
   }
   .topbar-inner .chrome-button { min-width: 44px; min-height: 44px; padding: 0; font-size: .875rem; line-height: 1.2; }
   .account-link :is(.account-avatar, .account-icon) { max-width: 100%; }
-  .account-link { grid-area: account; justify-content: center; margin: 0; }
+  .account-link { grid-area: account; justify-self: start; justify-content: center; margin: 0; }
   .account-name, .apps-toggle svg { display: none; }
   .app-home-link { grid-area: current; margin: 0; overflow-wrap: anywhere; }
   .apps-toggle { grid-area: apps; justify-content: center; }
-  .home-link { grid-area: home; justify-self: end; justify-content: center; margin: 0; }
+  .home-link { grid-area: home; justify-content: flex-end; margin: 0; }
+  .apps-toggle, .home-link { container: suite-control / inline-size; }
+  @container suite-control (width < 2.75rem) {
+    :is(.apps-toggle, .home-link) > span { display: none; }
+    :is(.apps-toggle, .home-link) > svg:first-child { display: block; }
+  }
   .chrome-popover.apps {
     inset: auto 1rem calc(100% + .25rem) auto;
     width: min(21rem, calc(100% - 2rem));

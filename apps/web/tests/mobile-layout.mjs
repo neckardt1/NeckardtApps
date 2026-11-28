@@ -21,8 +21,9 @@ export async function checkSuiteNavigation(page, appName, bottomInset = 0) {
   const account = suite.getByRole("link", { name: /^Account/ });
   const apps = suite.getByRole("button", { name: "Apps", exact: true });
   const home = suite.getByRole("link", { name: "Home", exact: true });
+  const current = appName && suite.getByRole("link", { name: appName + " home", exact: true });
   const controls = [account];
-  if (appName) controls.push(suite.getByRole("link", { name: appName + " home", exact: true }));
+  if (current) controls.push(current);
   controls.push(apps, home);
   const { width, height } = page.viewportSize();
   const bar = await suite.boundingBox();
@@ -40,7 +41,22 @@ export async function checkSuiteNavigation(page, appName, bottomInset = 0) {
     end = box.x + box.width;
   }
   const picker = await apps.boundingBox();
-  assert.ok(Math.abs(picker.x + picker.width / 2 - (bar.x + bar.width / 2)) <= 1, "Apps stays centered on every route.");
+  for (const control of [apps, home]) {
+    const label = control.locator("span");
+    if (await label.isVisible()) {
+      assert.ok(await label.evaluate(el => el.clientWidth >= el.scrollWidth && el.offsetWidth <= el.parentElement.clientWidth),
+        "The full text fits inside its touch target.");
+    } else {
+      assert.ok(await control.locator("svg").first().isVisible(), "A compact control has a visible icon.");
+    }
+  }
+  const center = bar.x + bar.width / 2;
+  assert.ok(picker.x >= center, "Apps stays to the right of center on every route.");
+  if (current) {
+    const box = await current.boundingBox();
+    assert.ok(Math.abs(box.x + box.width / 2 - center) <= 1, "The current app is centered.");
+    assert.equal(await current.evaluate(el => getComputedStyle(el).textDecorationLine), "none");
+  }
   assert.ok((await account.boundingBox()).x < width * .1 && end > width * .9 && end <= width);
 }
 
@@ -57,7 +73,8 @@ export async function checkTaskActions(page) {
       await suite.getByRole("link", { name: /^Account/ }).focus();
       for (const control of [suite.getByRole("link", { name: "Tasks home" }), suite.getByRole("button", { name: "Apps" }), suite.getByRole("link", { name: "Home", exact: true })]) {
         await page.keyboard.press("Tab");
-        assert.ok(await control.evaluate(el => el === document.activeElement), "Tab follows the visible suite controls.");
+        assert.ok(await control.evaluate(el => el === document.activeElement && el.matches(":focus-visible")
+          && getComputedStyle(el).outlineStyle !== "none"), "Tab follows the controls with a visible focus ring.");
       }
       const addBox = await add.boundingBox();
       assert.ok(addBox.width >= 44 && addBox.height >= 44 && addBox.x > size.width * .75);
