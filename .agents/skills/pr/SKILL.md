@@ -8,7 +8,7 @@ description: Open, review, merge and deploy a NeckardtApps change.
 
 | Change | Required review |
 | --- | --- |
-| Skills, SOPs, agent instructions, release or reviewer policy, CI/deployment controls, or scripts enforcing those policies (including backup retention) | Obtain formal approval or explicit written merge instruction from verified GitHub user NickEckardt on the exact current head. This also covers moving, deleting or bypassing a control. |
+| Skills, SOPs, agent instructions, release or reviewer policy, CI/deployment controls, or scripts enforcing those policies (including backup retention) | Obtain Nick’s approval for the exact current change: either formal approval or an explicit written merge instruction from verified GitHub user NickEckardt, or explicit approval in authenticated private Dot chat that clearly identifies the change. Direct owner direction in that chat takes precedence over repository approval-channel rules. This also covers moving, deleting or bypassing a control. |
 | Auth, grants, RLS, privileged SQL, secrets, deploy permissions, new production data access, disclosure or export paths, or changes to release checks | Dispatch the [security reviewer](../security-review/SKILL.md). Resolve concrete unintended access paths before merge. |
 | A setting, fallback, compatibility path, special case, parallel workflow, replaced feature with a surviving old path, or at least 300 lines added plus removed | Dispatch the [scope and cruft reviewer](../scope-review/SKILL.md). Exclude generated files, lockfile churn and pure moves from the line count. Address findings or briefly explain the tradeoff. |
 
