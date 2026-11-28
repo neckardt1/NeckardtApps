@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import type { AccountProfile } from "./profile.ts";
+import { AppTileIcon } from "./AppTileIcon.tsx";
 import { apps } from "./apps.ts";
 
 type Props = {
@@ -71,6 +72,11 @@ export function AppShell({ profile, children }: Props) {
     };
   }, [open]);
 
+  function closeApps() {
+    setOpen(false);
+    appsButton.current?.focus();
+  }
+
   return <div className="site-page">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
@@ -86,11 +92,18 @@ export function AppShell({ profile, children }: Props) {
         </NavLink>
         {open && <div ref={panel} id={`${id}-apps`} className="chrome-popover apps" role="dialog"
           aria-label="Apps" tabIndex={-1} data-popover-open="true">
-          <nav aria-label="Apps" onClick={() => setOpen(false)}>
-            <Link className="popover-link" to="/">All apps</Link>
-            {apps.map(app => <Link className="popover-link app-menu-link" key={app.id} to={app.path}>
-              <span>{app.name}</span><span className="menu-status">Open</span>
-            </Link>)}
+          <nav aria-label="Apps">
+            <div className="app-tile-grid">
+              {apps.map(app => <NavLink className="app-tile" key={app.id} to={app.path} onClick={closeApps}>
+                <AppTileIcon id={app.id} />
+                <span>{app.name}</span>
+              </NavLink>)}
+            </div>
+            <Link className="all-apps-link" to="/apps/" onClick={closeApps}>All apps
+              <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M3 8h9m-4-4 4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
           </nav>
         </div>}
       </div>

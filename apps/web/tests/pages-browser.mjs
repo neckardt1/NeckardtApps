@@ -29,7 +29,7 @@ export async function checkBrowserRoutes(origin) {
 
       const before = documents.length;
       await page.getByRole("link", { name: "Home", exact: true }).click();
-      await page.getByRole("heading", { name: "Your apps" }).waitFor();
+      await page.getByRole("heading", { name: "Home" }).waitFor();
       assert.equal(page.url(), root);
       await page.goBack();
       await checkPractice(deep);
@@ -45,6 +45,16 @@ export async function checkBrowserRoutes(origin) {
       assert.equal(await page.title(), "Profile");
       await page.goBack();
       await checkPractice(deep);
+
+      await page.getByRole("button", { name: "Apps" }).click();
+      await page.getByRole("dialog", { name: "Apps" }).getByRole("link", { name: "All apps" }).click();
+      await page.getByRole("heading", { name: "All apps" }).waitFor();
+      assert.equal(page.url(), root + "apps/");
+      await page.reload({ waitUntil: "commit" });
+      await page.getByRole("heading", { name: "All apps" }).waitFor();
+      await page.getByRole("link", { name: "Home", exact: true }).click();
+      await page.getByRole("heading", { name: "Home" }).waitFor();
+      assert.equal(page.url(), root);
 
       const alias = root + "recall/index.html";
       await page.goto(alias, { waitUntil: "commit" });

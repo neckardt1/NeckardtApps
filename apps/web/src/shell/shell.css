@@ -50,11 +50,18 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .account-icon { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: light-dark(#edf0f1, #39413e); }
 .account-icon svg { width: 1rem; height: 1rem; }
 .chrome-popover { position: absolute; top: calc(100% - .1rem); width: min(21rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem - env(safe-area-inset-top)); overflow-y: auto; overscroll-behavior: contain; padding: .4rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--card); box-shadow: 0 .5rem 1.5rem #27382c17; }
-.chrome-popover.apps { left: clamp(1rem, 4.5vw, 2rem); }
-.popover-link { display: flex; align-items: center; gap: .8rem; min-height: 2.75rem; padding: .6rem .7rem; border-radius: .3rem; color: var(--ink); text-decoration: none; font-size: .9375rem; }
-.popover-link:hover { background: var(--sage); }
-.app-menu-link { justify-content: space-between; }
-.menu-status { color: var(--muted); font-size: .8125rem; }
+.chrome-popover.apps { left: clamp(1rem, 4.5vw, 2rem); padding: .65rem; border-radius: 1.2rem; }
+.app-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(5.1rem, 100%), 1fr)); gap: .25rem; padding: .2rem 0 .65rem; }
+.app-tile { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: .45rem .15rem; border-radius: .75rem; color: var(--ink); text-decoration: none; text-align: center; font-size: .8125rem; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.app-tile[aria-current="page"] span:last-child { text-decoration: underline; text-underline-offset: .2em; }
+.app-tile:hover, .all-apps-link:hover { background: var(--sage); }
+.app-tile-icon { display: grid; place-items: center; width: 3.5rem; max-width: 100%; aspect-ratio: 1; border-radius: 25%; box-shadow: inset 0 0 0 1px #ffffff26, 0 2px 4px #111a1d20; }
+.app-tile-icon svg { width: 88%; height: 88%; }
+.app-tile-icon.recall { background: linear-gradient(155deg, #55a88f, #176552); }
+.app-tile-icon.sites { background: linear-gradient(155deg, #929bd9, #455c9d); }
+.app-tile-icon.tasks { background: linear-gradient(155deg, #f3a375, #bb593d); }
+.all-apps-link { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; padding: .55rem .65rem; border-top: 1px solid var(--line); color: var(--green); font-size: .875rem; font-weight: 550; text-decoration: none; }
+.all-apps-link svg { width: 1rem; height: 1rem; }
 .profile-page { max-width: 36rem; margin: 0 auto; padding: clamp(2rem, 8vh, 5rem) 1.25rem; }
 .profile-page h1 { margin: 0 0 1.5rem; font: 400 clamp(2.5rem, 7vw, 3.5rem)/1.1 Georgia, serif; }
 .profile-card { padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--line); border-radius: .85rem; background: var(--card); }
@@ -72,8 +79,9 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .app-list { list-style: none; padding: 0; margin: 0; }
 .app-card { display: flex; align-items: center; gap: 1rem; min-height: 6.2rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); color: var(--ink); text-decoration: none; }
 .app-card:hover { border-color: light-dark(#aebdab, #727e71); background: light-dark(#f5f7ef, #30362f); }
-.app-icon { display: grid; place-items: center; flex: 0 0 auto; width: 2.7rem; height: 2.7rem; border-radius: .6rem; background: var(--sage); color: var(--green); }
-.app-icon svg { width: 1.6rem; height: 1.6rem; }
+.app-card .app-tile-icon { flex: none; width: 2.7rem; }
+.home-directory-link { display: inline-flex; align-items: center; min-height: 2.75rem; margin-top: 1.5rem; padding: .5rem 1.25rem; border-radius: .65rem; background: var(--green); color: var(--on-green); font-weight: 600; text-decoration: none; }
+.home-directory-link:hover { background: var(--green-hover); }
 .app-copy { display: flex; flex-direction: column; flex: 1; gap: .2rem; min-width: 0; }
 .app-name { font-size: 1.0625rem; font-weight: 600; }
 .app-description { font-size: .9375rem; color: var(--muted); }

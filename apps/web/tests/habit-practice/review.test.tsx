@@ -108,7 +108,7 @@ test('Apps and Account suppress grades, Escape restores trigger, sign-out hides 
   await key('3'); expect(grade).not.toHaveBeenCalled();
   await tap('Sign out');
   await tap('Apps');
-  await act(async () => target.querySelector<HTMLAnchorElement>('.app-menu-link[href="/recall/"]')!.click());
+  await act(async () => target.querySelector<HTMLAnchorElement>('nav[aria-label="Apps"] a[href="/recall/"]')!.click());
   expect(target.textContent).toContain('Welcome back.'); expect(target.textContent).not.toContain('Answer A');
 });
 
