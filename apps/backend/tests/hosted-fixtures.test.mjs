@@ -82,6 +82,7 @@ test("only disposable users can reset and expire, preserving other owners and th
 
     await db.exec("set role anon");
     await assert.rejects(reset(), { code: "42501" });
+    await assert.rejects(query("select * from public.recall_browse_cards()"), { code: "42501" });
     for (const id of [ordinary, spoofed, mislabeled]) {
       await asUser(id);
       await assert.rejects(reset(), { code: "42501" });
@@ -113,6 +114,18 @@ test("only disposable users can reset and expire, preserving other owners and th
       new Set([ordinary, workerB, spoofed, mislabeled]));
     await asUser(workerB);
     assert.deepEqual(await query("select card_id, revision from public.recall_due()"), [{ card_id: cardB, revision: 0 }]);
+    await db.exec("reset role");
+    const [{ id: action }] = await query(`insert into flashcards_private.cards(owner_id, front, back, kind, active, due_at)
+      values ($1, 'Future action', 'Fixture answer', 'habit-action', false, now() + interval '1 month') returning id`, [workerB]);
+    await asUser(workerB);
+    const listed = await query("select card_id, kind, active from public.recall_browse_cards()");
+    assert.deepEqual(listed, [
+      { card_id: cardB, kind: "fact", active: true }, { card_id: action, kind: "habit-action", active: false }
+    ].sort((a, b) => a.card_id.localeCompare(b.card_id)));
+    assert.deepEqual(await query("select card_id from public.recall_browse_cards($1)", [listed[0].card_id]),
+      [{ card_id: listed[1].card_id }]);
+    await asUser(ordinary);
+    assert.deepEqual(await query("select card_id from public.recall_browse_cards()"), [{ card_id: originalCard }]);
   } finally {
     await db.close();
   }
