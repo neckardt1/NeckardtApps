@@ -24,6 +24,7 @@ export default async function longCard(worker) {
   try {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(origin + "/recall/?dot=1");
+    await page.getByRole("button", { name: "Start round" }).click();
     const prompt = page.getByRole("heading", { name: longFront });
     await prompt.waitFor();
     await page.getByRole("button", { name: "Reveal answer" }).click();

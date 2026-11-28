@@ -13,7 +13,7 @@ Habit Practice uses that marker and the matching generated address to authorize 
 
 ## Feature-specific checks
 
-Use `--scenario automatic-review` to verify that the regular review URL opens on the first
+Use `--scenario automatic-review` to verify that starting a round reaches the first
 prompt and the final grade reaches the Saved screen. The webhook path runs with synthetic
 subscriptions and a local database in the compiled-site browser test.
 

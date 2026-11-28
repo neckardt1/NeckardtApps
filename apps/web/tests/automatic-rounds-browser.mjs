@@ -73,6 +73,7 @@ export async function checkAutomaticRounds(origin, remote) {
       const { page, context } = await openBrowser(browser, origin, remote, db, owner, fault);
       try {
         await page.setViewportSize({width:375,height:667});
+        await page.getByRole("button", { name: "Start round" }).click();
         await page.getByRole("heading",{name:front,exact:true}).waitFor();
         const button = name => page.getByRole("button",{name,exact:true});
         for (const step of ["Start review","Request Dot debrief","Finish"]) assert.equal(await button(step).count(), 0);
