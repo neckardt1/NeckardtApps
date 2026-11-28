@@ -19,19 +19,43 @@ export async function checkBottomAction(page, control, { right = false } = {}) {
 export async function checkTaskActions(page) {
   const original = page.viewportSize();
   const add = page.getByRole("button", { name: "Add task", exact: true });
-  const views = page.getByRole("button", { name: "Task views", exact: true });
+  const views = page.getByRole("navigation", { name: "Task views" });
   try {
     for (const size of phones) {
       await page.setViewportSize(size);
-      await checkBottomAction(page, add, { right: true });
-      await checkBottomAction(page, views);
-      await views.click();
-      const drawer = page.getByRole("dialog", { name: "Tasks", exact: true });
-      const household = await drawer.getByRole("button", { name: "Household" }).boundingBox();
-      assert.ok(household && household.y > size.height / 2 && household.height >= 44);
-      await page.keyboard.press("Escape");
+      const bar = await page.locator(".topbar").boundingBox();
+      assert.ok(bar.y >= 0 && bar.y + bar.height < size.height / 3);
+      const addBox = await add.boundingBox();
+      assert.ok(addBox.width >= 44 && addBox.height >= 44 && addBox.x > size.width * .75);
+      let end = 0;
+      for (const name of ["Inbox", "Today", "Upcoming", "Browse"]) {
+        const tab = views.getByRole("button", { name, exact: true });
+        const box = await tab.boundingBox();
+        assert.ok(box.x >= end && box.width >= 44 && box.height >= 44);
+        assert.ok(box.y >= size.height - 90 && box.y + box.height <= size.height);
+        assert.ok(Math.abs(box.y + box.height / 2 - addBox.y - addBox.height / 2) < 2);
+        assert.ok(await tab.evaluate(el => {
+          const rect = el.getBoundingClientRect();
+          return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        }));
+        end = box.x + box.width;
+        await tab.click();
+        await page.getByRole("heading", { name, exact: true }).waitFor();
+        assert.equal(await tab.getAttribute("aria-current"), "page");
+      }
+      assert.ok(end <= addBox.x + 1);
+      const directory = page.getByRole("navigation", { name: "Task lists" });
+      assert.deepEqual(await directory.getByRole("button").allTextContents(), ["Private", "Household"]);
+      for (const choice of await directory.getByRole("button").all()) {
+        const box = await choice.boundingBox();
+        assert.ok(box.y >= size.height / 2 && box.height >= 44 && box.y + box.height <= addBox.y);
+      }
+      await directory.getByRole("button", { name: "Household" }).click();
+      await page.getByRole("heading", { name: "Household" }).waitFor();
+      assert.equal(await views.getByRole("button", { name: "Browse" }).getAttribute("aria-current"), "page");
       await add.click();
       const editor = page.getByRole("dialog", { name: "New task" });
+      assert.equal(await editor.locator("option:checked").textContent(), "Household");
       assert.ok(await editor.getByLabel("Title").evaluate(el => el === document.activeElement));
       await page.setViewportSize({ width: size.width, height: 320 });
       await editor.getByLabel("Show after date").scrollIntoViewIfNeeded();
@@ -41,6 +65,7 @@ export async function checkTaskActions(page) {
       await save.click({ trial: true });
       await page.keyboard.press("Escape");
       assert.ok(await add.evaluate(el => el === document.activeElement));
+      await views.getByRole("button", { name: "Today" }).click();
     }
   } finally { if (original) await page.setViewportSize(original); }
 }

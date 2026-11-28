@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { gateOpen, pacificDate, shiftDate, todaySections, weekTasks } from "../src/apps/tasks/model.ts";
+import { gateOpen, inboxTasks, pacificDate, shiftDate, todaySections, upcomingSections } from "../src/apps/tasks/model.ts";
 
 const task = (id, fields = {}) => ({
   id, listId: "household", title: id, version: 1,
@@ -52,10 +52,31 @@ test("personal choices order uncapped Focus ahead of date suggestions and retain
   assert(next.focus.some(t => t.id === "unfinished"));
 });
 
-test("This Week includes Monday through Sunday using civil planned dates or an independent deadline", () => {
+test("Upcoming groups each active task at its next Pacific date across weeks, months and years", () => {
   const saved = snapshot([
-    task("before", { plannedDate: "2026-03-01" }), task("after", { plannedDate: "2026-03-09" }),
-    task("monday", { plannedDate: "2026-03-02" }), task("sunday", { deadlineDate: today }), task("undated"),
+    task("past", { plannedDate: "2026-03-01" }), task("undated"),
+    task("far", { deadlineDate: "2027-01-03" }), task("today", { plannedDate: today }),
+    task("monday", { plannedDate: "2026-03-09", deadlineDate: "2026-04-01" }),
+    task("deadline first", { plannedDate: "2026-04-08", deadlineDate: "2026-03-10" }),
+    task("past plan", { plannedDate: "2026-03-05", deadlineDate: "2026-03-15" }),
+    task("past deadline", { plannedDate: "2026-04-01", deadlineDate: "2026-03-04" }),
+    task("deferred", { showAfterDate: "2026-04-02", showAfterAt: "2026-04-02T07:00:00Z" }),
   ]);
-  assert.deepEqual(ids(weekTasks(saved, new Date("2026-03-09T00:30Z"))), ["monday", "sunday"]);
+  const agenda = now => upcomingSections(saved, new Date(now)).map(({ date, tasks }) => [date, ids(tasks)]);
+  assert.deepEqual(agenda("2026-03-09T00:30Z"), [
+    [today, ["today"]], ["2026-03-09", ["monday"]], ["2026-03-10", ["deadline first"]],
+    ["2026-03-15", ["past plan"]], ["2026-04-01", ["past deadline"]],
+    ["2026-04-02", ["deferred"]], ["2027-01-03", ["far"]],
+  ]);
+  assert.deepEqual(agenda("2026-04-01T07:00Z")[0], ["2026-04-01", ["past deadline", "monday"]]);
+});
+
+test("Inbox collects unscheduled private tasks when their Show after gate opens", () => {
+  const privateTask = (id, fields) => task(id, { listId: "mine", ...fields });
+  const saved = { ...snapshot([
+    privateTask("capture"), privateTask("scheduled", { plannedDate: today }), privateTask("due", { deadlineDate: today }),
+    privateTask("deferred", { showAfterDate: today, showAfterAt: "2026-03-09T02:00:00Z" }), task("shared"),
+  ]), lists: [{ id: "mine", kind: "private" }, { id: "household", kind: "household" }] };
+  assert.deepEqual(ids(inboxTasks(saved, new Date("2026-03-08T16:00Z"))), ["capture"]);
+  assert.deepEqual(ids(inboxTasks(saved, new Date("2026-03-09T02:00Z"))), ["capture", "deferred"]);
 });

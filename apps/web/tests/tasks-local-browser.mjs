@@ -78,7 +78,7 @@ async function startAccount(origin, user, mobile) {
 
 async function view(account, name) {
   const { page } = account;
-  if (account.mobile) await button(page, "Task views").click();
+  if (account.mobile && ["Private", "Household"].includes(name)) await button(page, "Browse").click();
   await button(page, name).click();
   await page.getByRole("heading", { name, exact: true }).first().waitFor();
 }
@@ -91,7 +91,7 @@ async function beginCreate(page, name, list) {
   await button(page, "Add task").first().click();
   const dialog = page.getByRole("dialog", { name: "New task" });
   await dialog.getByLabel("Title", { exact: true }).fill(name);
-  await dialog.getByRole("combobox").selectOption({ label: list });
+  if (list) await dialog.getByRole("combobox").selectOption({ label: list });
   return dialog;
 }
 async function gesture(page, row, path) {
@@ -179,7 +179,9 @@ try {
   await checkHomeWidget(b, listId(1, "private"));
   for (const [i, account] of [a, b].entries()) {
     const own = `Private ${i} ${run}`;
-    const dialog = await beginCreate(account.page, own, "Private");
+    await view(account, "Inbox");
+    const dialog = await beginCreate(account.page, own);
+    assert.equal(await dialog.locator("option:checked").textContent(), "Private");
     await button(dialog, "Add task").click();
     await title(account.page, own).waitFor();
     const row = (await account.read()).tasks.find(t => t.title === own);
@@ -187,6 +189,8 @@ try {
     assert(!(await other.read()).tasks.some(t => t.id === row.id));
     assert.equal((await other.rpc("complete", { p_task: row.id, p_version: row.version })).status, 403);
   }
+  await refresh(bp);
+  assert.equal(await title(bp, `Private 0 ${run}`).count(), 0);
   console.log("Two password sessions entered Tasks from Home; private API isolation passed in both directions.");
 
   await view(a, "Household");
@@ -215,6 +219,11 @@ try {
   assert(!(await a.read()).tasks.some(t => t.title === shared));
   console.log("Dropped create receipt, edited in the second browser, retried identical create and retained the edit.");
 
+  await view(b, "Upcoming");
+  await title(bp, edited).waitFor(); // Planned ten days out, past the end of the current week.
+  await view(b, "Inbox");
+  assert.equal(await title(bp, edited).count(), 0);
+  await view(b, "Household");
   await swipe(bp, edited, -1);
   const datePanel = bp.getByRole("region", { name: "Reschedule " + edited });
   await datePanel.waitFor();

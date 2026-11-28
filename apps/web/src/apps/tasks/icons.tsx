@@ -1,10 +1,11 @@
 const paths = {
+  inbox: "m3 14 3-9h12l3 9v5H3z M3 14h5l2 3h4l2-3h5",
   today: "M4 6h16v14H4z M8 3v5m8-5v5M4 10h16m-11 4h4",
   week: "M3 6h18v14H3z M7 3v5m10-5v5M3 10h18m-13 4h2m4 0h2",
   private: "M6 10h12v10H6z M8 10V7a4 4 0 0 1 8 0v3",
   household: "m3 11 9-8 9 8M5 10v11h5v-7h4v7h5V10",
   tasks: "M4 6l1.5 1.5L9 4m3 2h8M4 13l1.5 1.5L9 11m3 2h8m-8 6h8",
-  menu: "M4 6h16M4 12h16M4 18h16",
+  browse: "M3 4h7v7H3z M14 4h7v7h-7z M3 15h7v6H3z M14 15h7v6h-7z",
   add: "M12 4v16M4 12h16",
   close: "m6 6 12 12M6 18 18 6",
   bell: "M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 20a2.5 2.5 0 0 0 4 0",

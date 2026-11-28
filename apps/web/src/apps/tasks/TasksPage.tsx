@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
 import { taskTimeZone } from "./contract";
-import { gateOpen, pacificDate, todaySections, weekTasks } from "./model";
+import { gateOpen, inboxTasks, pacificDate, todaySections, upcomingSections } from "./model";
 import { TaskCalendar, dateLabel } from "./TaskCalendar";
-import { TaskEditor, TasksDialog, listName, type FormDraft, type SaveResult } from "./TaskEditor";
+import { TaskEditor, listName, type FormDraft, type SaveResult } from "./TaskEditor";
 import { TaskRow } from "./TaskRow";
 import { TaskIcon } from "./icons";
 import "./tasks.css";
@@ -12,14 +12,22 @@ type Panel = { kind: "create"; listId: string; requestId: string } | { kind: "ed
   | { kind: "date"; task: Task; keyboard: boolean };
 type Notice = { text: string; error?: boolean };
 const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: taskTimeZone });
+const agendaDate = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const views = [
+  { id: "inbox", label: "Inbox", icon: "inbox" },
+  { id: "today", label: "Today", icon: "today" },
+  { id: "upcoming", label: "Upcoming", icon: "week" },
+  { id: "browse", label: "Browse", icon: "browse" },
+] as const;
 
-function Navigation({ lists, view, choose }: { lists: TaskList[]; view: string; choose: (view: string) => void }) {
-  const item = (id: string, label: string, icon: "today" | "week" | "private" | "household") =>
-    <button type="button" key={id} aria-current={view === id ? "page" : undefined} onClick={() => choose(id)}><TaskIcon name={icon} />{label}</button>;
-  return <nav aria-label="Task views" className="tasks-navigation">
-    {item("today", "Today", "today")}{item("week", "This Week", "week")}
-    {lists.length > 0 && <><h3>Lists</h3>{lists.map(list => item(list.id, listName(list), list.kind))}</>}
-  </nav>;
+function ViewButtons({ active, choose }: { active: string; choose: (view: string) => void }) {
+  return views.map(({ id, label, icon }) => <button type="button" key={id}
+    aria-current={active === id ? "page" : undefined} onClick={() => choose(id)}><TaskIcon name={icon} />{label}</button>);
+}
+
+function ListButtons({ lists, view, choose }: { lists: TaskList[]; view: string; choose: (view: string) => void }) {
+  return lists.map(list => <button type="button" key={list.id} aria-current={view === list.id ? "page" : undefined}
+    onClick={() => choose(list.id)}><TaskIcon name={list.kind} />{listName(list)}</button>);
 }
 
 export type TaskLayout = {
@@ -30,7 +38,6 @@ export type TaskLayout = {
 export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout & { adapter: TasksAdapter; isCurrent: () => boolean }) {
   const [snapshot, setSnapshot] = useState<TaskSnapshot | null>(null);
   const [view, setView] = useState("today");
-  const [navOpen, setNavOpen] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -98,7 +105,6 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
   }
   function chooseView(selected: string) {
     setView(selected);
-    setNavOpen(false);
     close();
     window.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -134,7 +140,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
 
   const lists = snapshot?.lists ?? [];
   const currentList = lists.find(list => list.id === view);
-  const title = currentList ? listName(currentList) : view === "week" ? "This Week" : "Today";
+  const title = currentList ? listName(currentList) : views.find(item => item.id === view)?.label ?? "Today";
   const day = pacificDate(now);
   const { focus, everythingElse } = snapshot ? todaySections(snapshot, now) : { focus: [], everythingElse: [] };
   const focusIds = new Set(focus.map(task => task.id));
@@ -184,19 +190,32 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       </li>;
     })}</ul>;
   }
-  function section(label: string, tasks: Task[], empty: string) {
+  function section(label: string, tasks: Task[], empty = "") {
     return <section className="tasks-section" key={label} aria-label={label}><h2>{label}</h2>
       {tasks.length ? rows(tasks) : <p className="tasks-empty">{empty}</p>}
     </section>;
   }
-  const week = new Map<string, Task[]>();
-  if (snapshot && view === "week") {
-    for (const task of weekTasks(snapshot, now)) {
-      const day = (task.plannedDate ?? task.deadlineDate)!;
-      const group = week.get(day) ?? [];
-      group.push(task);
-      week.set(day, group);
+  function viewContent() {
+    if (!snapshot) return loading && <p className="tasks-empty" role="status">Loading tasks…</p>;
+    if (!lists.length) return <p className="tasks-empty">Tasks isn’t enabled for this account.</p>;
+    if (view === "browse") return <nav aria-label="Task lists" className="tasks-navigation tasks-directory">
+      <h2>Lists</h2><ListButtons lists={lists} view={view} choose={chooseView} />
+    </nav>;
+    if (view === "inbox") {
+      const tasks = inboxTasks(snapshot, now);
+      return <><p className="tasks-empty">{tasks.length ? "Unscheduled tasks from your Private list." : "No unscheduled tasks in your Private list."}</p>
+        {tasks.length > 0 && rows(tasks)}</>;
     }
+    if (currentList) {
+      const tasks = snapshot.tasks.filter(task => task.listId === currentList.id);
+      return tasks.length ? rows(tasks) : <p className="tasks-empty">No tasks in this list.</p>;
+    }
+    if (view === "upcoming") {
+      const upcoming = upcomingSections(snapshot, now);
+      return upcoming.length ? upcoming.map(({ date, tasks }) => section(agendaDate.format(new Date(date + "T12:00:00Z")), tasks))
+        : <p className="tasks-empty">No upcoming tasks.</p>;
+    }
+    return <>{section("Focus", focus, "Prioritize a task to bring it here.")}{section("Everything Else", everythingElse, "All caught up here.")}</>;
   }
   const edited = editor?.kind === "edit" ? editor.task : undefined;
   const focusAction = !edited || !gateOpen(edited, now) ? undefined : focusIds.has(edited.id)
@@ -218,32 +237,25 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
   }
   return <div className="tasks-app">
     <aside className="tasks-sidebar"><div className="tasks-brand"><TaskIcon name="tasks" size={22} />Tasks</div>
-      <Navigation lists={lists} view={view} choose={chooseView} /></aside>
+      <nav aria-label="Task views" className="tasks-navigation"><ViewButtons active={view} choose={chooseView} />
+        {lists.length > 0 && <><h3>Lists</h3><ListButtons lists={lists} view={view} choose={chooseView} /></>}
+      </nav></aside>
     <div className="tasks-page">
       <header className="tasks-heading">
         <h1>{title}</h1>
         {view === "today" && <time dateTime={day}>{dateLabel(day)}<span className="tasks-heading-weekday"> · {weekday.format(now)}</span></time>}
+        <button type="button" className="tasks-icon-button tasks-refresh" aria-label="Refresh" title="Refresh" disabled={busy}
+          onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
         <div className="tasks-heading-actions">
-          <button type="button" className="tasks-icon-button tasks-mobile-nav" aria-haspopup="dialog" aria-expanded={navOpen}
-            onClick={() => setNavOpen(true)}><TaskIcon name="menu" />Task views</button>
-          <button type="button" className="tasks-icon-button" aria-label="Refresh" title="Refresh" disabled={busy}
-            onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
+          <nav aria-label="Task views" className="tasks-mobile-tabs"><ViewButtons active={currentList ? "browse" : view} choose={chooseView} /></nav>
           {lists.length > 0 && <button type="button" className="tasks-add" aria-label="Add task" title="Add task" disabled={busy} onClick={create}>
             <TaskIcon name="add" /><span>Add task</span></button>}
         </div>
       </header>
       {feedback}
-      {!snapshot ? loading && <p className="tasks-empty" role="status">Loading tasks…</p>
-        : !lists.length ? <p className="tasks-empty">Tasks isn’t enabled for this account.</p>
-        : currentList ? rows(snapshot.tasks.filter(task => task.listId === currentList.id))
-        : view === "week" ? week.size ? [...week].map(([date, tasks]) => section(dateLabel(date), tasks, ""))
-          : <p className="tasks-empty">No tasks planned for this week.</p>
-        : <>{section("Focus", focus, "Prioritize a task to bring it here.")}{section("Everything Else", everythingElse, "All caught up here.")}</>}
-      {currentList && !snapshot?.tasks.some(task => task.listId === currentList.id) && <p className="tasks-empty">No tasks in this list.</p>}
+      {viewContent()}
     </div>
-    {navOpen && <TasksDialog title="Tasks" drawer onClose={() => setNavOpen(false)}>
-      <Navigation lists={lists} view={view} choose={chooseView} /></TasksDialog>}
     {dialog}
-    {footer?.(busy || !snapshot || !!panel || navOpen)}
+    {footer?.(busy || !snapshot || !!panel)}
   </div>;
 }
