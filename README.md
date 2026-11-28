@@ -6,6 +6,7 @@ Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
   at `/recall/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
 - [Private sites](/apps/web/src/apps/sites/Sites.tsx) at `/sites` displays owner- and viewer-scoped HTML. Use the [publishing skill](.agents/skills/publish-site/SKILL.md) to create pages and manage access.
 - [Tasks](apps/web/src/apps/tasks/) at `/tasks/` uses the existing Account sign-in. Two enrolled accounts each have a private list and share Household. Focus choices belong to each account.
+  The [planned recurrence behavior](apps/web/src/apps/tasks/RECURRENCE.md) includes a monthly rent example.
 - [Backend](apps/backend/supabase/) contains the SQL migrations and Supabase Edge Functions.
   Generate types with `npm run db:types` at the root before checking or deploying an Edge
   Function. Run Supabase CLI commands from `apps/backend/`.
