@@ -47,11 +47,27 @@ export default async function practiceHome(worker) {
     await home.click();
     await button("Continue round").waitFor();
     await page.reload();
+    const resume = button("Continue round");
     for (const size of phones) {
       await page.setViewportSize(size);
-      await checkBottomAction(page, button("Continue round"), { right: true });
+      await checkBottomAction(page, resume, { right: true });
     }
-    await button("Continue round").click();
+    const largerText = await page.addStyleTag({ content: ":root { font-size: 200%; }" });
+    for (const size of phones) {
+      await page.setViewportSize(size);
+      await checkBottomAction(page, resume, { right: true });
+      const browse = await button("Browse all cards").boundingBox();
+      const round = await resume.boundingBox();
+      assert.ok(browse.y >= 0 && browse.y + browse.height <= round.y);
+      const lines = await resume.evaluate(el => {
+        const label = document.createRange();
+        label.selectNodeContents(el);
+        return label.getClientRects().length;
+      });
+      assert.ok(lines <= 2, "Continue round wraps at a word boundary with enlarged text.");
+    }
+    await largerText.evaluate(el => el.remove());
+    await resume.click();
     await page.getByRole("heading", { name: card }).waitFor();
     await page.getByText("Fixture answer", { exact: true }).waitFor();
     for (const size of phones) {
