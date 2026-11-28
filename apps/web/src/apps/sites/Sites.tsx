@@ -7,7 +7,7 @@ import { useSiteSession } from "../../shell/session.tsx";
 declare const __SITE_PUBLIC_CONFIG__: unknown;
 type View = { title: string; links: { href: string; title: string }[]; html?: string; message?: string };
 const policy = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";
-const frameHead = `<!doctype html><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width, initial-scale=1">`;
+const frameHead = `<!doctype html><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1">`;
 
 async function load(slug: string | undefined, path: string): Promise<View> {
   const config = readPublicSupabaseConfig(__SITE_PUBLIC_CONFIG__);
@@ -49,7 +49,7 @@ function SiteContent({ slug, path }: { slug?: string; path: string }) {
       {view.links.map(link => <li key={link.href}><Link to={link.href}>{link.title}</Link></li>)}
     </ul></nav>}
     {view.html !== undefined && <iframe sandbox="" referrerPolicy="no-referrer" title={view.title}
-      style={{ width: "100%", height: "75dvh", border: 0, background: "white" }} srcDoc={frameHead + view.html} />}
+      style={{ width: "100%", height: "75dvh", border: 0, background: "Canvas" }} srcDoc={frameHead + view.html} />}
   </>;
 }
 

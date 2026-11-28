@@ -5,4 +5,4 @@
 .consent dd { margin: .25rem 0 1rem; overflow-wrap: anywhere; }
 .decisions { display: flex; gap: .65rem; }
 .decisions button { flex: 1; min-height: 2.75rem; border: 1px solid var(--green); border-radius: .45rem; color: var(--ink); background: var(--card); }
-.decisions .primary { color: white; background: var(--green); }
+.decisions .primary { color: var(--on-green); background: var(--green); }
