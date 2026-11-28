@@ -56,9 +56,10 @@ async function escape() {
 }
 function assertPublicLauncher() {
   expect(target.querySelector("h1")?.textContent).toBe("All apps");
-  expect(target.querySelector(".app-name")?.textContent).toBe("Habit Practice");
-  expect(target.querySelector(".app-status")?.textContent).toBe("Open");
-  expect(target.querySelector(".app-card")?.getAttribute("href")).toBe("/recall/");
+  const links = target.querySelectorAll('nav[aria-labelledby="launcher-title"] a');
+  expect([...links].map(link => [link.textContent, link.getAttribute("href")])).toEqual([
+    ["Habits", "/recall/"], ["Sites", "/sites"], ["Tasks", "/tasks/"]
+  ]);
 }
 
 test("the launcher remains public while account loading, signed out, failed, or unavailable", async () => {
@@ -94,7 +95,7 @@ test("Apps manages focus and dismissal when navigating to Profile or interacting
   expect(header.querySelector("h1")).toBeNull();
   await tap("Apps");
   expect(button("Apps").getAttribute("aria-expanded")).toBe("true");
-  expect(document.activeElement?.textContent).toBe("Habit Practice");
+  expect(document.activeElement?.textContent).toBe("Habits");
   expect(target.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   await escape();
   expect(document.activeElement).toBe(button("Apps"));
@@ -166,7 +167,7 @@ test.each(["/", "/NeckardtApps/"])("the Apps menu links stay inside the site at 
   await tap("Apps");
   const links = target.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Apps"] a');
   expect([...links].map(link => [link.textContent, link.getAttribute("href")])).toEqual([
-    ["Habit Practice", base + "recall/"], ["Private sites", base + "sites"],
+    ["Habits", base + "recall/"], ["Sites", base + "sites"],
     ["Tasks", base + "tasks/"], ["All apps", base + "apps/"]
   ]);
 });

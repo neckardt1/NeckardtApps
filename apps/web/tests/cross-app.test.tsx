@@ -104,7 +104,7 @@ async function mount(page: 'launcher' | 'recall', auth: SessionApi, api: RecallA
 async function follow(page: 'launcher' | 'recall', base = '/') {
   const link = page === 'launcher'
     ? [...host.querySelectorAll<HTMLAnchorElement>('a')].find(el => el.textContent?.trim() === 'All apps')
-    : host.querySelector<HTMLAnchorElement>('a.app-card');
+    : host.querySelector<HTMLAnchorElement>('main a.app-tile');
   expect(link).toBeDefined();
   expect(link).not.toBeNull();
   expect(new URL(link!.href).pathname).toBe(`${base}${page === 'recall' ? 'recall/' : 'apps/'}`);

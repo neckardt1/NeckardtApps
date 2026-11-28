@@ -75,22 +75,10 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .account-error { margin: .9rem 0 0; color: var(--warn); font-size: .875rem; overflow-wrap: anywhere; }
 .launcher { max-width: 43rem; margin: 0 auto; padding: clamp(3rem, 10vh, 6rem) clamp(1.25rem, 5vw, 2rem) max(2rem, env(safe-area-inset-bottom)); }
 .launcher h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: clamp(3rem, 10vw, 4.2rem); line-height: 1.1; letter-spacing: -.035em; }
-.launcher-intro { margin: 1rem 0 2.2rem; color: var(--muted); font-size: 1.0625rem; }
-.app-list { list-style: none; padding: 0; margin: 0; }
-.app-card { display: flex; align-items: center; gap: 1rem; min-height: 6.2rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); color: var(--ink); text-decoration: none; }
-.app-card:hover { border-color: light-dark(#aebdab, #727e71); background: light-dark(#f5f7ef, #30362f); }
-.app-card .app-tile-icon { flex: none; width: 2.7rem; }
+.app-directory { max-width: 24rem; }
+.app-directory .app-tile-grid { margin-top: 1.5rem; }
 .home-directory-link { display: inline-flex; align-items: center; min-height: 2.75rem; margin-top: 1.5rem; padding: .5rem 1.25rem; border-radius: .65rem; background: var(--green); color: var(--on-green); font-weight: 600; text-decoration: none; }
 .home-directory-link:hover { background: var(--green-hover); }
-.app-copy { display: flex; flex-direction: column; flex: 1; gap: .2rem; min-width: 0; }
-.app-name { font-size: 1.0625rem; font-weight: 600; }
-.app-description { font-size: .9375rem; color: var(--muted); }
-.app-status { align-self: flex-start; padding: .2rem .55rem; border-radius: 2rem; background: var(--sage); color: light-dark(#53614f, #c2cfbd); font-size: .8125rem; white-space: nowrap; }
-@media (max-width: 380px) {
-  .app-card { flex-wrap: wrap; gap: .8rem; padding: 1rem; }
-  .app-copy { flex-basis: calc(100% - 3.5rem); }
-  .app-status { margin-left: 3.5rem; }
-}
 @media (prefers-reduced-motion: no-preference) {
   button, a { transition: background-color 100ms ease; }
 }
