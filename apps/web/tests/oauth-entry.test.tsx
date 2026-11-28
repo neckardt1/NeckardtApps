@@ -38,8 +38,10 @@ const snapshot = (storage: Storage) => Object.fromEntries(
 test.each([
   { kind: 'canary', scope: 'openid' },
   { kind: 'suite', scope: 'openid', subscriptions: false },
-  { kind: 'suite', scope: 'openid email offline_access', subscriptions: true }
-])('the $kind entry explains and approves $scope while preserving Account identity', async ({ kind, scope, subscriptions = false }) => {
+  { kind: 'suite', scope: 'openid email offline_access', subscriptions: true },
+  { kind: 'suite', scope: 'openid', data_tools: ['get_cards', 'complete_task'] }
+])('the $kind entry explains and approves $scope while preserving Account identity', async ({ kind, scope, subscriptions = false, data_tools = [] }) => {
+  const name = data_tools.length ? 'Data fixture' : subscriptions ? 'ChatGPT' : 'Muse';
   vi.resetModules();
   const { getSiteClient } = await import('../src/shell/site-client');
   const { makeSiteSessionApi } = await import('../src/shell/session');
@@ -91,7 +93,7 @@ test.each([
     expect(bearer).toBe('Bearer synthetic-consent-access');
     if (url.pathname === '/rest/v1/rpc/neckardt_mcp_client') {
       expect(body).toEqual({ requested_client: clientId, requested_user: member.id, requested_scope: scope });
-      return Response.json([{ display_name: subscriptions ? 'ChatGPT' : 'Muse', callback_url: suiteCallback, subscriptions }]);
+      return Response.json([{ display_name: name, callback_url: suiteCallback, subscriptions, data_tools }]);
     }
     if (url.pathname === `/auth/v1/oauth/authorizations/${authorizationId}` && init?.method === 'GET') {
       return Response.json({ authorization_id: authorizationId, user: member, client: { id: clientId, name: kind === 'suite' ? 'Neckardt Apps MCP' : 'Synthetic canary' },
@@ -128,7 +130,9 @@ test.each([
   expect(host.textContent?.includes('refresh this connection')).toBe(kind === 'suite');
   expect(host.textContent?.includes('Supabase account profile')).toBe(kind === 'suite');
   expect(host.textContent?.includes('card names, prompts')).toBe(subscriptions);
-  if (kind === 'suite') expect(host.querySelector('strong')?.textContent).toBe(subscriptions ? 'ChatGPT' : 'Muse');
+  if (kind === 'suite') expect(host.querySelector('strong')?.textContent).toBe(name);
+  expect(host.textContent?.includes('Read your Habit Practice prompts')).toBe(data_tools.includes('get_cards'));
+  expect(host.textContent?.includes('Complete tasks in your Private')).toBe(data_tools.includes('complete_task'));
   expect(calls.map(call => call.path)).toEqual([
     '/auth/v1/token?grant_type=password', `/auth/v1/oauth/authorizations/${authorizationId}`,
     ...(kind === 'suite' ? ['/rest/v1/rpc/neckardt_mcp_client'] : [])

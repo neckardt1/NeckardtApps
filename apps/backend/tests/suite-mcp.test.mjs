@@ -51,6 +51,16 @@ test("the suite MCP resource requires a signed grant for its own audience and OA
     assert.equal(denied.isError, true);
     assert.ok(denied._meta["mcp/www_authenticate"][0].includes(metadataUrl));
   });
+  await t.test("a registry outage keeps link discovery available and closes data calls", async () => {
+    const serve = createHandler(origin, keys, undefined, async () => { throw Error("private fixture error"); });
+    const bearer = await token();
+    const { result } = await (await rpc("tools/list", {}, bearer, serve)).json();
+    assert.deepEqual(result.tools.map(tool => tool.name), [call.name]);
+    assert.ok((await (await rpc("tools/call", call, bearer, serve)).json()).result.structuredContent.url);
+    const data = (await (await rpc("tools/call", {name:"list_tasks",arguments:{}}, bearer, serve)).json()).result;
+    assert.equal(data.isError, true);
+    assert.ok(!JSON.stringify(data).includes("private fixture error"));
+  });
   await t.test("a grant for the suite returns the launcher's existing Habit Practice URL", async () => {
     const { result } = await (await rpc("tools/call", call, await token())).json();
     const app = apps.find(app => app.name === "Habit Practice");

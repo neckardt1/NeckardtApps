@@ -91,6 +91,7 @@ function Consent() {
           <dd>
             {request.kind === 'suite' ? <>
               <p>{request.name} can get the link to Habit Practice.</p>
+              {request.permissions.map(permission => <p key={permission}>{permission}</p>)}
               {request.subscriptions && <p>You can subscribe in your chat to receive counts from new rounds. If you enable card details, that chat receives card names, prompts, answers, grades and due dates until you unsubscribe.</p>}
               <p>{request.name} can also read your Supabase account profile, including your email and any profile details saved there.</p>
               {request.scope.split(' ').includes('email') && <p>The identity grant includes your email address and its verification status.</p>}
