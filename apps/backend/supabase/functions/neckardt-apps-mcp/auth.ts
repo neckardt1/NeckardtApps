@@ -6,7 +6,7 @@ export const scopes = ["openid"];
 export function createTokenVerifier(issuer: string, resource: string, testKeys?: JWTVerifyGetKey) {
   const keys = testKeys ?? createRemoteJWKSet(new URL(issuer + "/.well-known/jwks.json"));
 
-  return async function accepts(authorization: string): Promise<{ subject: string; client: string; subscriptions: boolean; origin: string } | null> {
+  return async function accepts(authorization: string): Promise<{ subject: string; client: string; session: string; receipts: string[]; subscriptions: boolean; origin: string } | null> {
     if (authorization.length > 16384) return null;
     const bearer = /^Bearer ([^\s]+)$/i.exec(authorization);
     if (!bearer) return null;
@@ -22,7 +22,10 @@ export function createTokenVerifier(issuer: string, resource: string, testKeys?:
           typeof payload.session_id !== "string" || !uuid.test(payload.session_id) ||
           !policy || typeof policy !== "object" || !("subscriptions" in policy) || typeof policy.subscriptions !== "boolean" ||
           !("origin" in policy) || typeof policy.origin !== "string") return null;
-      return { subject: payload.sub, client: payload.client_id, subscriptions: policy.subscriptions, origin: policy.origin };
+      const receipts = "app_receipts" in policy ? policy.app_receipts : [];
+      if (!Array.isArray(receipts) || !receipts.every(id => typeof id === "string" && uuid.test(id))) return null;
+      return { subject: payload.sub, client: payload.client_id, session: payload.session_id, receipts,
+        subscriptions: policy.subscriptions, origin: policy.origin };
     } catch {
       return null;
     }

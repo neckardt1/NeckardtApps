@@ -21,8 +21,15 @@ const id = readAuthorizationId(location.search);
 
 const manage = location.search === '?manage';
 
+type ConnectionOption = Database['public']['Functions']['neckardt_mcp_connection_options']['Returns'][number];
+const scopeDescriptions: Record<string, string> = {
+  habit_cards: 'Read Habit Practice card prompts, answers, pair links, status and due dates. Create cards after you approve their exact wording.',
+  tasks: 'Read, create, edit and complete tasks in your Private and available Household lists, and change your personal Focus. Household changes are shared with its members.',
+};
+
 function Consent() {
   const [grants, setGrants] = useState<OAuthGrant[] | null>(null);
+  const [options, setOptions] = useState<ConnectionOption[]>([]);
   const [request, setRequest] = useState<Awaited<ReturnType<typeof openRequest>> | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,6 +61,10 @@ function Consent() {
           if (error) throw new Error('Could not load the connection names. Try again.');
           return policy ? { ...grant, client: { ...grant.client, name: policy.display_name } } : grant;
         })));
+        const scopes = await client.rpc('neckardt_mcp_connection_options');
+        if (scopes.error) {
+          if (scopes.error.code !== 'PGRST202') throw new Error('Could not load app access. Reload to try again.');
+        } else setOptions(scopes.data);
       } else {
         setRequest(await openRequest(client, id!, canary, email, password));
       }
@@ -75,6 +86,22 @@ function Consent() {
       {grants.map(grant => <div key={grant.client.id}>
         <strong>{grant.client.name}</strong>
         <p>Connected {new Date(grant.granted_at).toLocaleDateString()}.</p>
+        {options.filter(option => option.client_id === grant.client.id).map(option =>
+          <div key={option.session_id}>
+            <p>Session started {new Date(option.connected_at).toLocaleString()} · {option.callback_url}</p>
+            <p>Allow current and future tools within these permissions:</p>
+            <ul>{option.apps.map(app => <li key={app}>{scopeDescriptions[app] ?? 'Unrecognized app permission'}</li>)}</ul>
+            {option.approved ? <p>App access allowed. Available after this connection refreshes its token.</p> :
+              <button className="account-action" type="button" disabled={busy || !option.apps.every(app => Object.hasOwn(scopeDescriptions, app))}
+                onClick={() => void run(async () => {
+                  const { error } = await client.rpc('neckardt_mcp_allow_apps', {
+                    p_client: option.client_id, p_session: option.session_id, p_consent: option.consent_id,
+                    p_granted_at: option.granted_at, p_callback: option.callback_url, p_apps: option.apps,
+                  });
+                  if (error) throw new Error('Could not confirm app access. Reload to check this connection.');
+                  setOptions(current => current.map(row => row === option ? { ...row, approved: true } : row));
+                })}>Allow app access for {grant.client.name}</button>}
+          </div>)}
         <button className="account-action" type="button" disabled={busy} onClick={() => void run(async () => {
           const { error } = await client.auth.oauth.revokeGrant({ clientId: grant.client.id });
           if (error) throw new Error('Could not confirm the disconnect. Reload to check your connections.');
@@ -82,7 +109,7 @@ function Consent() {
         })}>Disconnect {grant.client.name}</button>
       </div>)}
       <p>If you use Habit Practice notifications, unsubscribe in the receiving chat to stop those deliveries.</p>
-      <p>Disconnecting stops future token refreshes for that app. Its current MCP access token works until it expires.</p>
+      <p>Disconnecting revokes app access approved here and stops token refreshes. Other permissions on an issued token can last until it expires.</p>
     </> : !id && !manage ? <p>Start a connection from the app you want to connect.</p>
       : request ? <>
         <p><strong>{request.name}</strong> is requesting access as {request.user.email}.</p>

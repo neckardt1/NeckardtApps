@@ -16,10 +16,9 @@ Before invoking `create_cards`, show the exact full batch privately and get appr
 A client passes `approved_exact_wording: true` to attest to that conversation. The server validates the
 batch and verifies the owner and saved content in the transaction. Preserve the same IDs on retry.
 
-Data tools require an explicitly configured, account-bound Supabase OAuth registration.
-Discovery and execution use the verified JWT client and subject to check the current tool list.
-The Edge function uses a service-only RPC for those checks and operations. Registered clients start
-with zero data tools. Each app also enforces its own enrollment and visibility. See the
+Data access on an existing OAuth registration is scoped to the account and the apps approved in
+Manage connections. The Edge function relays the verified client, subject, session and signed approval
+receipts to a service-only RPC. Each app enforces its own enrollment and visibility. See the
 [consent and registration guide](../../../../web/src/oauth/README.md).
 
 The [Habit Practice completion event](apps/habit-practice/events.ts), `habit.practice.round.completed`,

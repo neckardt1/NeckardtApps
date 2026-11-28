@@ -2,6 +2,10 @@
 
 Follow the [PR skill](.agents/skills/pr/SKILL.md) for every change. Nick reviews changes to skills, SOPs and the controls that implement them. The agent handling a PR owns reviewer dispatch, merge and deployment through verification.
 
+Deploy new MCP tools within an integration’s authorized app and account scope to its existing clients.
+Keep identity, ownership and operation-specific confirmations intact. A new account, data scope or
+recipient needs its own authorization.
+
 This is primarily a single-user personal app. Favor fast development over perfection: accept small, reversible failures and prefer actionable logging and easy recovery to defensive code for every edge case. Preserve baseline auth and data integrity.
 
 Treat the committed SQL migrations as the source of truth for the database schema. Generate TypeScript database types locally and keep them out of Git. A clean build must work without hosted Supabase credentials.

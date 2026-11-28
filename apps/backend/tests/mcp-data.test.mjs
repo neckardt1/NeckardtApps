@@ -17,6 +17,10 @@ test("signed suite MCP requests use the registered tools and isolated app data",
     $$;
     create table auth.oauth_clients(id uuid primary key, redirect_uris text, registration_type text default 'manual',
       client_type text default 'public', token_endpoint_auth_method text default 'none', deleted_at timestamptz);
+    create table auth.sessions(id uuid primary key, user_id uuid, oauth_client_id uuid,
+      created_at timestamptz default now(), not_after timestamptz);
+    create table auth.oauth_consents(id uuid primary key, client_id uuid, user_id uuid,
+      granted_at timestamptz default date_trunc('milliseconds',now()), revoked_at timestamptz);
     grant usage on schema auth to authenticated, supabase_auth_admin;
     grant select on auth.oauth_clients to supabase_auth_admin;
   `);
@@ -39,23 +43,23 @@ test("signed suite MCP requests use the registered tools and isolated app data",
   const keys = createLocalJWKSet({ keys: [{ ...await exportJWK(publicKey), kid: "fixture" }] });
   // Use the hook's configured issuer to mint local fixture tokens. All transport and SQL run in process.
   const origin = "https://jjgepkhpvslqwzkquqaf.supabase.co";
-  async function token(client, sub) {
+  async function token(client, sub, session = randomUUID(), issuedAt = Math.floor(Date.now()/1000), method = "oauth_provider/authorization_code") {
     const claims = { sub, client_id:client, iss:origin+"/auth/v1", aud:"authenticated", role:"authenticated",
-      is_anonymous:false, scope:"openid", session_id:randomUUID() };
+      is_anonymous:false, scope:"openid", session_id:session };
     const issued = await db.transaction(async tx => {
       await tx.exec("set local role supabase_auth_admin");
       const result = await tx.query("select public.recall_canary_access_token_hook($1) as grant",
-        [JSON.stringify({user_id:sub, authentication_method:"oauth_provider/authorization_code", claims})]);
+        [JSON.stringify({user_id:sub, authentication_method:method, claims})]);
       return result.rows[0].grant;
     });
     assert.ok(issued.claims, JSON.stringify(issued.error));
     return new SignJWT(issued.claims).setProtectedHeader({alg:"ES256",kid:"fixture"})
-      .setIssuedAt().setExpirationTime("5m").sign(privateKey);
+      .setIssuedAt(issuedAt).setExpirationTime("5m").sign(privateKey);
   }
-  const dataRpc = (client, actor, operation, args) => db.transaction(async tx => {
+  const dataRpc = (client, actor, operation, args, session = null, receipts = null) => db.transaction(async tx => {
     await tx.exec("set local role service_role");
-    return (await tx.query("select public.neckardt_mcp_data($1,$2,$3,$4) as data",
-      [client,actor,operation,JSON.stringify(args)])).rows[0].data;
+    return (await tx.query("select public.neckardt_mcp_data($1,$2,$3,$4,$5,$6) as data",
+      [client,actor,operation,JSON.stringify(args),session,receipts])).rows[0].data;
   });
   const handler = createHandler(origin, keys, undefined, dataRpc);
   async function rpc(bearer, method, params) {
@@ -98,6 +102,70 @@ test("signed suite MCP requests use the registered tools and isolated app data",
       return tx.query("select data_tools from public.neckardt_mcp_client($1,$2,'openid')", [writer,a]);
     });
     assert.deepEqual(consent.rows[0].data_tools,all);
+  });
+
+  await t.test("an existing OAuth session gains only the app scopes its owner accepts on a fresh token", async () => {
+    const client = suite.client_id, session = randomUUID(), anotherSession = randomUUID(), grant = randomUUID();
+    const insertSession = (id,owner) => db.query("insert into auth.sessions(id,user_id,oauth_client_id) values($1,$2,$3)",[id,owner,client]);
+    await insertSession(session,a); await insertSession(anotherSession,a);
+    await db.query("insert into auth.oauth_consents(id,user_id,client_id) values($1,$2,$3)",[grant,a,client]);
+    await db.query("insert into neckardt_mcp.account_apps values($1,$2,'habit_cards')",[a,client]);
+    const browserSession = randomUUID(), revokedBrowser = randomUUID();
+    await db.query("insert into auth.sessions(id,user_id) values($1,$2)",[browserSession,a]);
+    const manage = (owner, statement, params=[], extra={}) => db.transaction(async tx => {
+      await tx.exec("set local role authenticated");
+      await tx.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({
+        sub:owner,aud:"authenticated",role:"authenticated",is_anonymous:false,session_id:browserSession,...extra})]);
+      return (await tx.query(statement,params)).rows;
+    });
+    const options = "select * from public.neckardt_mcp_connection_options()";
+    const allow = "select public.neckardt_mcp_allow_apps($1,$2,$3,$4,$5,$6)";
+    const [choice] = (await manage(a,options)).filter(o=>o.session_id===session);
+    const params = [client,session,grant,choice.granted_at,choice.callback_url,choice.apps];
+    assert.deepEqual(choice.apps,["habit_cards"]); assert.equal(choice.approved,false);
+    const link = ["get_habit_practice_link"];
+    assert.deepEqual(await list(await token(client,a,session)),link);
+    const browserB = randomUUID();
+    await db.query("insert into auth.sessions(id,user_id) values($1,$2)",[browserB,b]);
+    assert.deepEqual(await manage(b,options,[],{session_id:browserB}),[]);
+    await assert.rejects(manage(b,allow,params,{session_id:browserB}),{code:"PT409"});
+    await assert.rejects(manage(a,allow,params,{client_id:client}),{code:"42501"});
+    await assert.rejects(manage(a,allow,params,{amr:[{method:"oauth_provider/authorization_code"}]}),{code:"42501"});
+    // A change in the displayed scopes or recipient invalidates the decision.
+    await assert.rejects(manage(a,allow,[...params.slice(0,5),["habit_cards","tasks"]]),{code:"PT409"});
+    await assert.rejects(manage(a,allow,[...params.slice(0,4),"https://other.invalid",choice.apps]),{code:"PT409"});
+    for (const invalid of [revokedBrowser, null, session, browserB])
+      await assert.rejects(manage(a,allow,params,{session_id:invalid}),{code:"42501"});
+    const oldToken = await token(client,a,session,Math.floor(Date.now()/1000)+10);
+    await manage(a,allow,params);
+    assert.deepEqual(await list(oldToken),link);
+    await denied(oldToken,"get_cards",{});
+    assert.deepEqual(await list(await token(client,a,anotherSession)),link);
+    assert.deepEqual(await list(await token(client,b,session)),link);
+    const fresh = await token(client,a,session,undefined,"token_refresh");
+    assert.deepEqual(await list(fresh),[...link,"get_cards","create_cards"]);
+    assert.deepEqual((await ok(fresh,"get_cards",{})).cards,[]);
+    await denied(fresh,"list_tasks",{});
+    await db.query("insert into neckardt_mcp.account_apps values($1,$2,'tasks')",[a,client]);
+    await assert.rejects(manage(a,allow,params),{code:"PT409"});
+    assert.deepEqual(await list(fresh),[...link,"get_cards","create_cards"]);
+    await manage(a,allow,[...params.slice(0,5),["habit_cards","tasks"]]);
+    assert.deepEqual(await list(fresh),[...link,"get_cards","create_cards"]);
+    const allFresh = await token(client,a,session,undefined,"token_refresh");
+    assert.deepEqual(await list(allFresh),[...link,...all]);
+    await db.query("delete from neckardt_mcp.account_apps where owner_id=$1 and client_id=$2 and app='tasks'",[a,client]);
+    await denied(allFresh,"list_tasks",{});
+    await db.query("update auth.oauth_consents set revoked_at=now() where id=$1",[grant]);
+    assert.deepEqual(await list(allFresh),link);
+    await denied(allFresh,"get_cards",{});
+    assert.deepEqual(await manage(a,options),[]);
+    await db.query("update auth.oauth_consents set revoked_at=null, granted_at=granted_at+interval '1 second' where id=$1",[grant]);
+    await denied(allFresh,"get_cards",{});
+    const updated = (await manage(a,options)).find(row=>row.session_id===session);
+    assert.equal(updated.approved,false);
+    await manage(a,allow,[client,session,grant,updated.granted_at,updated.callback_url,updated.apps]);
+    await denied(allFresh,"get_cards",{});
+    assert.deepEqual(await list(await token(client,a,session,undefined,"token_refresh")),[...link,"get_cards","create_cards"]);
   });
 
   await t.test("approved batches are atomic, exact, retryable and visible only to their owner", async () => {
