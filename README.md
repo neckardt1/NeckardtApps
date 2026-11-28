@@ -4,6 +4,7 @@ Small personal web apps at [apps.neckardt.com](https://apps.neckardt.com/).
 
 - [Web](apps/web/) contains the React/Vite launcher, [Habit Practice](apps/web/src/apps/habit-practice/README.md)
   at `/recall/`, and the separate [OAuth consent page](apps/web/src/oauth/README.md).
+- [Private sites](/apps/web/src/apps/sites/Sites.tsx) at `/sites` displays owner- and viewer-scoped HTML. Use the [publishing skill](.agents/skills/publish-site/SKILL.md) to create pages and manage access.
 - [Backend](apps/backend/supabase/) contains the SQL migrations and Supabase Edge Functions.
   Generate types with `npm run db:types` at the root before checking or deploying an Edge
   Function. Run Supabase CLI commands from `apps/backend/`.

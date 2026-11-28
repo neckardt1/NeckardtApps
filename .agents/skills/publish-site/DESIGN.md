@@ -1,0 +1,1 @@
+Nick asked for private HTML pages shared with specific accounts, including “sites that link to sub-sites.” He chose global slugs and a read-only browser experience: “real users only view, chatgpt writes directly.” The publishing skill uses the same operator SQL connection as card authoring. The operator resolves the requester’s identity before issuing an owner-scoped write.

@@ -9,6 +9,7 @@ import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import defaults from "@neckardt/backend/public-config" with { type: "json" };
+import { checkPrivateSites } from "./sites-browser.mjs";
 import { checkBrowserRoutes } from "./pages-browser.mjs";
 import { checkAutomaticRounds } from "./automatic-rounds-browser.mjs";
 import { checkPairedHabit } from "./paired-habit-browser.mjs";
@@ -130,6 +131,9 @@ test("Pages serves one routed app and a separate OAuth consent document at both 
     await t.test("Chrome opens and refreshes deep links on the built site", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
     }, () => checkBrowserRoutes(origin));
+    await t.test("Private site deep links render in an isolated frame", {
+      skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
+    }, () => checkPrivateSites(origin, fixture.NECKARDT_APPS_SUPABASE_URL));
     await t.test("A paired habit survives a lost answer receipt, duplicate Finish and a second browser", {
       skip: !process.env.CHROME_BIN && !process.env.GITHUB_ACTIONS
     }, () => checkPairedHabit(origin, fixture.NECKARDT_APPS_SUPABASE_URL));
