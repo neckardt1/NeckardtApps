@@ -2,7 +2,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { SiteRoot } from "../src/shell/SiteRoot.tsx";
-import { Launcher } from "../src/shell/Launcher.tsx";
 import { MemoryRouter } from "react-router";
 import type { SessionApi, SessionUser } from "../src/shell/session.tsx";
 
@@ -36,7 +35,7 @@ function session(initial?: SessionUser | null) {
 }
 async function mount(api: SessionApi | null, base = "/") {
   await act(async () => root.render(<MemoryRouter key={base} basename={base} initialEntries={[base]}>
-    <SiteRoot api={api}><Launcher /></SiteRoot>
+    <SiteRoot api={api} practice={null} />
   </MemoryRouter>));
 }
 function button(name: string) {
@@ -45,6 +44,11 @@ function button(name: string) {
   return result!;
 }
 async function tap(name: string) { await act(async () => button(name).click()); }
+async function navigate(name: string) {
+  const link = [...target.querySelectorAll("a")].find(el => el.textContent === name);
+  expect(link, name).toBeDefined();
+  await act(async () => link!.click());
+}
 async function escape() {
   const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
   await act(async () => document.activeElement?.dispatchEvent(event));
@@ -62,25 +66,28 @@ test("the launcher remains public while account loading, signed out, failed, or 
   await mount(controller.api);
   assertPublicLauncher();
   expect(target.querySelector("form")).toBeNull();
-  await tap("Account");
+  await navigate("Account");
   expect(target.textContent).toContain("Checking your session");
-  assertPublicLauncher();
+  expect(target.querySelector("h1")?.textContent).toBe("Profile");
   await act(async () => controller.emit(null));
   expect(target.querySelector("form")).not.toBeNull();
+  await navigate("Home");
   assertPublicLauncher();
   await act(async () => controller.fail(new Error("Synthetic session failure")));
-  expect(target.textContent).toContain("You can still open apps.");
   assertPublicLauncher();
+  await navigate("Account");
+  expect(target.textContent).toContain("You can still open apps.");
   expect(controller.api.signIn).not.toHaveBeenCalled();
   expect(controller.api.signOut).not.toHaveBeenCalled();
   await mount(null);
+  await navigate("Home");
   assertPublicLauncher();
 });
 
-test("Apps and Account manage focus, Escape, switching, outside clicks, and focus leaving", async () => {
+test("Apps manages focus and dismissal when navigating to Profile or interacting outside", async () => {
   await mount(session(null).api);
   const header = target.querySelector("header")!;
-  expect([...header.querySelectorAll(":scope > div > button")].map(element => element.textContent)).toEqual(["Apps", "Account"]);
+  expect([...header.querySelectorAll(":scope > div > button")].map(element => element.textContent)).toEqual(["Apps"]);
   expect(header.querySelector("h1")).toBeNull();
   await tap("Apps");
   expect(button("Apps").getAttribute("aria-expanded")).toBe("true");
@@ -90,13 +97,13 @@ test("Apps and Account manage focus, Escape, switching, outside clicks, and focu
   expect(document.activeElement).toBe(button("Apps"));
   expect(target.querySelector("[data-popover-open]")).toBeNull();
 
-  await tap("Account");
-  expect(document.activeElement).toBe(target.querySelector('input[name="email"]'));
-  await escape();
-  expect(document.activeElement).toBe(button("Account"));
-  await tap("Apps"); await tap("Account");
-  expect(target.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  await tap("Apps"); await navigate("Account");
+  expect(target.querySelector("h1")?.textContent).toBe("Profile");
+  expect(document.activeElement).toBe(target.querySelector("main"));
+  expect(target.querySelector(".account-link")?.getAttribute("aria-current")).toBe("page");
+  expect(target.querySelector('[role="dialog"]')).toBeNull();
   expect(button("Apps").getAttribute("aria-expanded")).toBe("false");
+  await tap("Apps");
   await act(async () => target.querySelector("h1")!.dispatchEvent(new Event("pointerdown", { bubbles: true })));
   expect(target.querySelector("[data-popover-open]")).toBeNull();
   await tap("Apps");
@@ -105,10 +112,10 @@ test("Apps and Account manage focus, Escape, switching, outside clicks, and focu
   expect(document.activeElement).toBe(target.querySelector("main"));
 });
 
-test("optional Account sign-in and sign-out close only after authoritative session changes", async () => {
+test("Profile updates sign-in and sign-out controls only after authoritative session changes", async () => {
   const controller = session(null);
   await mount(controller.api);
-  await tap("Account");
+  await navigate("Account");
   const form = target.querySelector("form")!;
   const email = form.querySelector<HTMLInputElement>('[name="email"]')!;
   const password = form.querySelector<HTMLInputElement>('[name="password"]')!;
@@ -118,16 +125,17 @@ test("optional Account sign-in and sign-out close only after authoritative sessi
   expect(controller.api.signIn).toHaveBeenCalledExactlyOnceWith("fixture@example.invalid", "synthetic-password");
   expect(password.value).toBe("");
   expect(target.querySelector("form")).not.toBeNull();
-  assertPublicLauncher();
+  expect(target.textContent).not.toContain("Manage connections");
   await act(async () => controller.emit({ id: "synthetic-user" }));
-  expect(target.querySelector("[data-popover-open]")).toBeNull();
-  expect(document.activeElement).toBe(button("Account"));
-  await tap("Account"); await tap("Sign out");
+  expect(target.querySelector('a[href="/oauth/consent/?manage"]')?.textContent).toBe("Manage connections");
+  await tap("Sign out");
   expect(controller.api.signOut).toHaveBeenCalledTimes(1);
   expect(target.textContent).toContain("Signed in");
   await act(async () => controller.emit(null));
   expect(target.querySelector("[data-popover-open]")).toBeNull();
-  expect(document.activeElement).toBe(button("Account"));
+  expect(target.textContent).not.toContain("Manage connections");
+  expect(target.querySelector("form")).not.toBeNull();
+  await navigate("Home");
   assertPublicLauncher();
 });
 
@@ -135,7 +143,7 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
   const controller = session(null);
   vi.mocked(controller.api.signIn).mockRejectedValue(new Error("Synthetic credentials rejected"));
   await mount(controller.api);
-  await tap("Account");
+  await navigate("Account");
   const form = target.querySelector("form")!;
   form.querySelector<HTMLInputElement>('[name="email"]')!.value = "fixture@example.invalid";
   form.querySelector<HTMLInputElement>('[name="password"]')!.value = "synthetic-password";
@@ -144,6 +152,7 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
   expect(target.querySelector("form")).not.toBeNull();
   expect(target.textContent).not.toContain("Synthetic credentials rejected");
   expect(target.textContent).not.toMatch(/sign up|create account/i);
+  await navigate("Home");
   assertPublicLauncher();
 });
 

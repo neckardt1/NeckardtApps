@@ -53,13 +53,14 @@ async function startAccount(origin, user, mobile) {
   await page.goto(origin + (mobile ? "/NeckardtApps/tasks/" : "/tasks/"));
   await page.getByText("Sign in under Account to open Tasks.").waitFor();
   await page.getByRole("link", { name: "Home", exact: true }).click();
-  await button(page, "Account").click();
+  await page.getByRole("link", { name: "Account", exact: true }).click();
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill(user.password);
   const tokenReply = page.waitForResponse(r => r.url().includes("/auth/v1/token?grant_type=password"));
   await button(page, "Sign in").click();
   const session = await (await tokenReply).json();
   assert.equal(session.user?.id, user.id, "GoTrue authenticated the expected disposable account");
+  await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("link", { name: /^Tasks\b/ }).click();
   await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
   const rpc = (name, body = {}) => fetch(new URL("/rest/v1/rpc/tasks_" + name, local), {
@@ -257,8 +258,10 @@ try {
   assert.equal(await current(), undefined);
   await ap.reload();
   await ap.getByRole("heading", { name: "Today", exact: true }).waitFor();
-  await ap.getByRole("button", { name: /^Account/ }).click();
+  await ap.getByRole("link", { name: /^Account/ }).click();
   await button(ap, "Sign out").click();
+  await ap.getByLabel("Password", { exact: true }).waitFor();
+  await ap.goBack();
   await ap.getByText("Sign in under Account to open Tasks.").waitFor();
   assert.equal(await title(ap, `Private 0 ${run}`).count(), 0);
   console.log("Shared completion, replay after completion, direct-route reload and sign-out passed.");

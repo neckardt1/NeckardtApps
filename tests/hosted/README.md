@@ -1,7 +1,7 @@
 # Test Habit Practice against hosted Supabase
 
 At the checkout root, run `npm run test:hosted -- --watch`. Vite serves your working tree on
-localhost. Chromium signs in through the Account menu as a new disposable user in the app’s existing
+localhost. Chromium signs in on the Profile page as a new disposable user in the app’s existing
 Supabase project. Press Enter after an edit to seed one due card, reveal it and grade it. The round finishes automatically.
 Vite, Chromium and the signed-in session stay warm. A run checks both the grading receipt and the
 Saved screen. A plain `npm run test:hosted` runs once and exits.

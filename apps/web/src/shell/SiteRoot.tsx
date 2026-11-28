@@ -1,13 +1,19 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
+import { AppRoutes } from "../AppRoutes.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { SessionProvider, useSiteSession, type SessionApi } from "./session.tsx";
 import { ProfileEditor } from "./ProfileEditor.tsx";
 import type { AccountProfile, ProfileStore } from "./profile.ts";
 import "./shell.css";
 
-function AccountPanel({ profileControls }: { profileControls: ReactNode }) {
+function ProfilePage({ profile, profileControls }: { profile?: AccountProfile; profileControls: ReactNode }) {
   const session = useSiteSession();
+  useEffect(() => {
+    document.title = "Profile";
+    return () => { document.title = "Apps"; };
+  }, []);
+
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (session.busy) return;
@@ -19,27 +25,35 @@ function AccountPanel({ profileControls }: { profileControls: ReactNode }) {
       if (password instanceof HTMLInputElement) password.value = "";
     }
   }
-  return <div className="account-panel">
-    {session.status === "loading" ? <p className="account-note" role="status">Checking your session…</p>
-      : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>
-      : session.status === "signed-in" ? <>
-        <p className="account-note">Signed in</p>
-        {profileControls}
-        <Link reloadDocument to="/oauth/consent/?manage">Manage connections</Link>
-        <button className="account-action" type="button" disabled={session.busy} onClick={() => void session.signOut()}>
-          {session.busy ? "Signing out…" : "Sign out"}
-        </button>
-      </> : <form className="account-form" onSubmit={event => void signIn(event)}>
-        <p className="account-note">Sign in to your existing account.</p>
-        <label>Email<input type="email" name="email" autoComplete="username" required disabled={session.busy} /></label>
-        <label>Password<input type="password" name="password" autoComplete="current-password" required disabled={session.busy} /></label>
-        <button className="account-action" type="submit" disabled={session.busy}>{session.busy ? "Signing in…" : "Sign in"}</button>
-      </form>}
-    {session.error && <p className="account-error" role="alert">{session.error}</p>}
-  </div>;
+  return <section className="profile-page" aria-labelledby="profile-title">
+    <h1 id="profile-title">Profile</h1>
+    <div className="profile-card">
+      {session.status === "loading" ? <p className="account-note" role="status">Checking your session…</p>
+        : session.status === "unavailable" ? <p className="account-note">Account is unavailable right now. You can still open apps.</p>
+        : session.status === "signed-in" ? <>
+          <div className="profile-identity">
+            {profile?.picture && <img className="profile-preview" src={profile.picture} alt="" />}
+            <div>{profile?.display_name && <strong>{profile.display_name}</strong>}
+              <p className="account-note">Signed in</p>
+            </div>
+          </div>
+          {profileControls}
+          <Link reloadDocument to="/oauth/consent/?manage">Manage connections</Link>
+          <button className="account-action" type="button" disabled={session.busy} onClick={() => void session.signOut()}>
+            {session.busy ? "Signing out…" : "Sign out"}
+          </button>
+        </> : <form className="account-form" onSubmit={event => void signIn(event)}>
+          <p className="account-note">Sign in to your existing account.</p>
+          <label>Email<input type="email" name="email" autoComplete="username" required disabled={session.busy} /></label>
+          <label>Password<input type="password" name="password" autoComplete="current-password" required disabled={session.busy} /></label>
+          <button className="account-action" type="submit" disabled={session.busy}>{session.busy ? "Signing in…" : "Sign in"}</button>
+        </form>}
+      {session.error && <p className="account-error" role="alert">{session.error}</p>}
+    </div>
+  </section>;
 }
 
-function SessionShell({ store, children }: { store?: ProfileStore; children: ReactNode }) {
+function SessionShell({ store, practice }: { store?: ProfileStore; practice: ReactNode }) {
   const { user, isCurrent } = useSiteSession();
   const userId = user?.id;
   const [result, setResult] = useState<{ identity: typeof isCurrent; profile: AccountProfile | null }>();
@@ -74,10 +88,11 @@ function SessionShell({ store, children }: { store?: ProfileStore; children: Rea
       <button className="profile-edit" type="button" onClick={() => {
         setResult(undefined); setAttempt(count => count + 1);
       }}>Retry</button></div>;
-  return <AppShell accountIdentity={userId ?? null} profile={profile ?? undefined}
-    account={<AccountPanel profileControls={controls} />}>{children}</AppShell>;
+  return <AppShell profile={profile ?? undefined}>
+    <AppRoutes practice={practice} profile={<ProfilePage profile={profile ?? undefined} profileControls={controls} />} />
+  </AppShell>;
 }
 
-export function SiteRoot({ api, children }: { api: SessionApi | null; children: ReactNode }) {
-  return <SessionProvider api={api}><SessionShell store={api?.profiles}>{children}</SessionShell></SessionProvider>;
+export function SiteRoot({ api, practice }: { api: SessionApi | null; practice: ReactNode }) {
+  return <SessionProvider api={api}><SessionShell store={api?.profiles} practice={practice} /></SessionProvider>;
 }

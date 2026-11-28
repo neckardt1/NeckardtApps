@@ -48,14 +48,14 @@ test.each(['signed-out', 'loading', 'unavailable'] as const)('shared %s session 
   expect(target.querySelectorAll('.topbar')).toHaveLength(1);
   expect(target.querySelector('.habit-practice form')).toBeNull();
   expect(target.textContent).not.toContain('Question A');
-  expect(button('Account')).toBeDefined();
+  expect(target.querySelector('.account-link')?.getAttribute('href')).toBe('/profile');
   await tap('Apps');
   expect(target.querySelector('a[href="/"]')).not.toBeNull();
   await key('Escape');
   if (status === 'signed-out') {
     expect(target.textContent).toContain('Open Account to sign in');
     expect(button('Sign in')).toBeUndefined();
-    await tap('Account');
+    await act(async () => target.querySelector<HTMLAnchorElement>('.account-link')!.click());
     expect(target.querySelectorAll('form')).toHaveLength(1);
     expect(button('Sign in')).toBeDefined();
   }
@@ -101,12 +101,14 @@ test('Apps and Account suppress grades, Escape restores trigger, sign-out hides 
   await act(async () => root.render(<ReviewFixture sessionApi={session.api} api={api({ grade })} />));
   expect(button('Sign out')).toBeUndefined();
   await tap('Reveal answer');
-  for (const label of ['Apps', 'Account']) {
-    await tap(label); await key('3'); await key(' '); expect(grade).not.toHaveBeenCalled();
-    await key('Escape'); expect(document.activeElement).toBe(button(label));
-    expect(target.querySelector('[data-popover-open]')).toBeNull();
-  }
-  await tap('Account'); await tap('Sign out');
+  await tap('Apps'); await key('3'); await key(' '); expect(grade).not.toHaveBeenCalled();
+  await key('Escape'); expect(document.activeElement).toBe(button('Apps'));
+  expect(target.querySelector('[data-popover-open]')).toBeNull();
+  await act(async () => target.querySelector<HTMLAnchorElement>('.account-link')!.click());
+  await key('3'); expect(grade).not.toHaveBeenCalled();
+  await tap('Sign out');
+  await tap('Apps');
+  await act(async () => target.querySelector<HTMLAnchorElement>('.app-menu-link[href="/recall/"]')!.click());
   expect(target.textContent).toContain('Welcome back.'); expect(target.textContent).not.toContain('Answer A');
 });
 
