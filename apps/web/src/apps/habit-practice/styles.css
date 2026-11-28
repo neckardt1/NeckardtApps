@@ -18,7 +18,7 @@
 .habit-practice .answer-panel code { background: #dfe5d9; border-radius: .2em; padding: .1em .2em; }
 .habit-practice .answer-panel pre code { font-size: inherit; }
 .habit-practice .answer-panel blockquote { margin: .7em 0; border-left: 2px solid #9ba997; padding-left: .75em; }
-.habit-practice .action-dock { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 1rem 0 max(1.5rem, env(safe-area-inset-bottom)); background: var(--paper); }
+.habit-practice .action-dock { position: sticky; bottom: var(--mobile-nav-height, 0px); z-index: 2; margin-top: auto; padding: 1rem 0 max(1.5rem, env(safe-area-inset-bottom)); background: var(--paper); }
 .habit-practice .action-dock::before { content: ""; display: block; height: 1px; margin-bottom: 1rem; background: var(--line); }
 .habit-practice .primary, .habit-practice .secondary, .habit-practice .ratings button, .habit-practice .choices button:not(.text-button) { min-height: 3.4rem; padding: .75rem .7rem; border: 1px solid #b3bcae; border-radius: .55rem; background: var(--card); color: var(--ink); font-size: .9375rem; font-weight: 550; line-height: 1.25; }
 .habit-practice .primary { display: block; width: 100%; border-color: var(--green); background: var(--green); color: #fffefa; }
@@ -49,7 +49,7 @@
 }
 @media (max-height: 600px) {
   .habit-practice { padding-top: 1.5rem; }
-  .habit-practice .action-dock { position: relative; margin-top: 2rem; }
+  .habit-practice .action-dock { position: static; margin-top: 2rem; }
 }
 
 .habit-practice .screen-content:focus { outline: none; }
