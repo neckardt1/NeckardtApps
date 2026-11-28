@@ -3,8 +3,8 @@ import type { PublicSupabaseConfig } from "../../shell/browser-auth.mts";
 import type { Task, TaskFields, TaskSnapshot, TasksAdapter } from "./contract.ts";
 
 export class TaskConflictError extends Error {
-  constructor() {
-    super("This task changed. Review the latest version before saving again.");
+  constructor(message = "This task changed. Review the latest version before saving again.") {
+    super(message);
     this.name = "TaskConflictError";
   }
 }
@@ -30,20 +30,20 @@ function check(error: { code: string } | null, promoting = false) {
     invalid.name = "TaskValidationError";
     throw invalid;
   }
-  throw new Error("Couldn’t confirm the request. Check your connection and try again.");
+  const uncertain = new Error("Couldn’t confirm the request. Check your connection and try again.");
+  uncertain.name = "TaskRequestError";
+  throw uncertain;
 }
 
 export function tasksAdapter(config: PublicSupabaseConfig, actor: string): TasksAdapter {
   const client = getSiteClient(config);
-  const update = async (task: Task, fields: Partial<TaskFields>) => {
-    const { error } = await client.rpc("tasks_update", {
-      p_actor: actor, p_task: task.id, p_version: task.version, p_fields: { ...fields },
+  const change = async (task: Task, action: string, fields?: Partial<TaskFields>) => {
+    const { data, error } = await client.rpc("tasks_change", {
+      p_actor: actor, p_task: task.id, p_version: task.version, p_action: action,
+      ...(fields && { p_fields: { ...fields } }),
     });
-    check(error);
-  };
-  const focus = async (task: Task, state: "promoted" | "deprioritized") => {
-    const { error } = await client.rpc("tasks_focus", { p_actor: actor, p_task: task.id, p_state: state });
-    check(error, state === "promoted");
+    check(error, action === "promoted");
+    return data;
   };
   return {
     async read() {
@@ -60,13 +60,28 @@ export function tasksAdapter(config: PublicSupabaseConfig, actor: string): Tasks
       if (!data) throw new Error("Couldn’t confirm the new task. Try again.");
       return data;
     },
-    edit: update,
-    reschedule: (task, plannedDate, plannedTime) => update(task, { plannedDate, plannedTime }),
-    async complete(task) {
-      const { error } = await client.rpc("tasks_complete", { p_actor: actor, p_task: task.id, p_version: task.version });
+    async completed(before) {
+      const { data, error } = await client.rpc("tasks_completed", { p_actor: actor,
+        ...(before && { p_before_at: before.completed_at, p_before_id: before.task_id }) });
+      check(error);
+      return data ?? [];
+    },
+    async history(taskId, before) {
+      const { data, error } = await client.rpc("tasks_history", { p_actor: actor, p_task: taskId,
+        ...(before && { p_before: before }) });
+      check(error);
+      return data ?? [];
+    },
+    async undo(eventId) {
+      const { error } = await client.rpc("tasks_undo", { p_actor: actor, p_event: eventId });
+      if (error?.code === "PT409") throw new TaskConflictError("Can’t undo. This task changed again.");
+      if (error?.code === "PT410") throw new Error("The undo window has closed.");
       check(error);
     },
-    promote: task => focus(task, "promoted"),
-    deprioritize: task => focus(task, "deprioritized"),
+    edit: (task, fields) => change(task, "edited", fields),
+    reschedule: (task, plannedDate, plannedTime) => change(task, "edited", { plannedDate, plannedTime }),
+    complete: task => change(task, "completed"),
+    promote: task => change(task, "promoted"),
+    deprioritize: task => change(task, "deprioritized"),
   };
 }

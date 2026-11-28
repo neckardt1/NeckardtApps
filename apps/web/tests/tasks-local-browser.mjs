@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { pacificDate, shiftDate } from "../src/apps/tasks/model.ts";
 import { servePages } from "./serve-pages.mjs";
-import { checkTaskActions } from "./mobile-layout.mjs";
+import { checkBottomAction, checkTaskActions } from "./mobile-layout.mjs";
 
 const fixture = JSON.parse(await readFile(process.argv[2], "utf8"));
 const local = new URL(fixture.url);
@@ -78,7 +78,7 @@ async function startAccount(origin, user, mobile) {
 
 async function view(account, name) {
   const { page } = account;
-  if (account.mobile && ["Private", "Household"].includes(name)) await button(page, "Browse").click();
+  if (account.mobile && ["Private", "Household", "Completed"].includes(name)) await button(page, "Browse").click();
   await button(page, name).click();
   await page.getByRole("heading", { name, exact: true }).first().waitFor();
 }
@@ -145,6 +145,11 @@ async function checkHomeWidget(account, listId) {
   await page.getByRole("checkbox", { name: "Complete " + revised, exact: true }).click();
   await title(page, names[0]).waitFor();
   assert.deepEqual(await page.locator(".tasks-title").allTextContents(), ordered.slice(1, 4));
+  await checkBottomAction(page, button(page, "Undo"), { right: true });
+  await button(page, "Undo").click();
+  await title(page, revised).waitFor();
+  await page.getByRole("checkbox", { name: "Complete " + revised, exact: true }).click();
+  await title(page, names[0]).waitFor();
   await swipe(page, names[1], -1);
   await button(page.getByRole("region", { name: "Reschedule " + names[1] }), "Tomorrow").click();
   await page.getByRole("link", { name: "All tasks", exact: true }).click();
@@ -284,7 +289,7 @@ try {
   const picked = targetDate.toISOString().slice(0, 10);
   await panel.locator(`[data-date="${picked}"]`).click();
   await panel.waitFor({ state: "hidden" });
-  const stale = pending(ap, "tasks_update");
+  const stale = pending(ap, "tasks_change");
   await button(aEdit, "Save changes").click();
   assert.equal((await stale).status(), 409);
   await button(aEdit, "Load latest version").click();
@@ -312,11 +317,65 @@ try {
   console.log("Two-month inline calendar selection, stale version HTTP 409, Pacific timed plan and explicit Show after passed.");
 
   await view(b, "Household");
+  await title(bp, edited).click();
+  await bEdit.locator("summary").filter({ hasText: "Activity" }).click();
+  await bEdit.getByText("Moved to top of Focus", { exact:true }).first().waitFor();
+  await button(bEdit, "Cancel").click();
+
+  await swipe(bp, edited, -1);
+  const schedule = bp.getByRole("region", { name: "Reschedule " + edited });
+  await button(schedule, "Tomorrow").click();
+  await schedule.waitFor({ state: "hidden" });
+  const undo = button(bp, "Undo");
+  await undo.waitFor();
+  const actions = await bp.locator(".tasks-heading-actions").boundingBox();
+  const toast = await bp.locator(".tasks-toast").boundingBox();
+  const undoBox = await undo.boundingBox();
+  assert(undoBox.width >= 44 && undoBox.height >= 44 && undoBox.x > bp.viewportSize().width * .65);
+  assert(toast.y + toast.height <= actions.y && actions.y - toast.y - toast.height < 18, "Undo sits just above the Tasks tabs.");
+  await undo.click();
+  await bp.locator(".tasks-toast").waitFor({ state: "hidden" });
+  assert.equal((await current()).plannedDate, today);
+  assert.equal((await current()).plannedTime, "19:00");
+
+  await swipe(bp, edited, -1);
+  await button(schedule, "Tomorrow").click();
+  await schedule.waitFor({ state: "hidden" });
+  const punted = await current();
+  const newer = await a.rpc("update", {p_task:punted.id,p_version:punted.version,
+    p_fields:{plannedDate:future,plannedTime:"08:00"}});
+  assert(newer.ok);
+  await undo.click();
+  await bp.locator(".tasks-toast").getByText("Can’t undo. This task changed again.").waitFor();
+  assert.equal((await current()).plannedDate, future);
+  assert.equal((await current()).plannedTime, "08:00");
+
+  await bp.getByLabel("Complete " + edited, { exact: true }).click();
+  await title(bp, edited).waitFor({ state: "hidden" });
+  await undo.click();
+  await title(bp, edited).waitFor();
   await bp.getByLabel("Complete " + edited, { exact: true }).click();
   await title(bp, edited).waitFor({ state: "hidden" });
   await view(a, "Household");
   await refresh(ap);
   await title(ap, edited).waitFor({ state: "hidden" });
+  await undo.waitFor();
+  await undo.waitFor({ state:"hidden",timeout:15_000 });
+  await view(b, "Completed");
+  await button(bp, "Activity for " + edited).click();
+  const myTrail = bp.getByRole("dialog", {name:edited});
+  await myTrail.getByText("Moved to top of Focus", {exact:true}).first().waitFor();
+  await button(myTrail, "Close dialog").click();
+  await view(a, "Completed");
+  await button(ap, "Activity for " + edited).click();
+  const trail = ap.getByRole("dialog", {name:edited});
+  await trail.getByText("Undid completion", {exact:true}).waitFor();
+  assert.equal(await trail.getByText("Completed task", {exact:true}).count(),2);
+  assert(await trail.getByText("Rescheduled task", {exact:true}).count() > 0);
+  assert.equal(await trail.getByText("Moved to top of Focus", {exact:true}).count(),0);
+  assert.equal(await current(),undefined);
+  await button(trail, "Close dialog").click();
+  console.log("Undo passed on Home and mobile Tasks, a later Household write won, and Completed history remained accessible after expiry.");
   const replay = await a.rpc("create", receipt);
   assert.equal(await replay.json(), original.id);
   assert.equal(await current(), undefined);

@@ -4,7 +4,7 @@ import { TaskIcon } from "./icons";
 
 export const listName = (list: TaskList) => list.kind === "private" ? "Private" : "Household";
 
-function TasksDialog({ title, children, busy = false, onClose }: {
+export function TasksDialog({ title, children, busy = false, onClose }: {
   title: string; children: ReactNode; busy?: boolean; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -61,10 +61,12 @@ export type FormDraft = { listId: string; fields: TaskFields };
 type Props = {
   task?: Task; listId: string; lists: TaskList[]; busy: boolean; error: string | null; conflict: boolean; latest?: Task;
   onClose: () => void; onSave: (draft: FormDraft) => Promise<SaveResult>; onLoadLatest: (task: Task) => void;
+  history?: ReactNode;
   focusAction?: { label: string; run: () => void };
 };
 
-export function TaskEditor({ task, listId, lists, busy, error, conflict, latest, onClose, onSave, onLoadLatest, focusAction }: Props) {
+export function TaskEditor({ task, listId, lists, busy, error, conflict, latest, onClose, onSave, onLoadLatest, focusAction, history }: Props) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [attempt, setAttempt] = useState<FormDraft | null>(null);
   const [titleError, setTitleError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -100,6 +102,9 @@ export function TaskEditor({ task, listId, lists, busy, error, conflict, latest,
           <DatePair field="deadline" label="Deadline" task={task} />
           <DatePair field="showAfter" label="Show after" task={task} />
         </fieldset>
+        {history && <details className="tasks-history" onToggle={e => setHistoryOpen(e.currentTarget.open)}>
+          <summary>Activity</summary>{historyOpen && history}
+        </details>}
         {(titleError || error) && <p className="tasks-error" role="alert">{titleError || error}</p>}
       </div>
       <div className="tasks-form-actions">

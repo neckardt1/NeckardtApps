@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
+import type { CompletedTask, Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
 import { taskTimeZone } from "./contract";
 import { gateOpen, inboxTasks, pacificDate, todaySections, upcomingSections } from "./model";
 import { TaskCalendar, dateLabel } from "./TaskCalendar";
-import { TaskEditor, listName, type FormDraft, type SaveResult } from "./TaskEditor";
+import { TaskEditor, TasksDialog, listName, type FormDraft, type SaveResult } from "./TaskEditor";
+import { CompletedTasks, TaskHistory } from "./TaskActivity";
+import { TaskToast, type UndoToast } from "./TaskToast";
 import { TaskRow } from "./TaskRow";
 import { TaskIcon } from "./icons";
 import "./tasks.css";
 
 type Panel = { kind: "create"; listId: string; requestId: string } | { kind: "edit"; task: Task }
-  | { kind: "date"; task: Task; keyboard: boolean };
+  | { kind: "history"; task: CompletedTask } | { kind: "date"; task: Task; keyboard: boolean };
 type Notice = { text: string; error?: boolean };
 const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: taskTimeZone });
 const agendaDate = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -41,6 +43,8 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
   const [panel, setPanel] = useState<Panel | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [toast, setToast] = useState<UndoToast | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
   const [writing, setWriting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => new Date());
@@ -109,20 +113,28 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
     window.scrollTo({ top: 0, behavior: "instant" });
   }
 
-  async function write(action: () => Promise<unknown>, success: string): Promise<SaveResult> {
+  async function write(action: () => Promise<string | null | void>, success: string, undoEvent?: string): Promise<SaveResult> {
     if (!mounted.current || !isCurrent() || writeLock.current || loading) return "failed";
     writeLock.current = true;
     setWriting(true);
     setNotice(null);
     try {
-      await action();
+      const eventId = await action();
       if (!mounted.current || !isCurrent()) return "failed";
       close();
-      if (await read()) setNotice({ text: success });
+      setToast(eventId ? { text: success, eventId } : null);
+      setNotice({ text: success });
+      await read();
       return "saved";
     } catch (cause) {
       if (!mounted.current || !isCurrent()) return "failed";
       const error = cause instanceof Error ? cause : Error("Couldn’t confirm this change. Try again.");
+      if (undoEvent) {
+        setToast({ text: error.message, eventId: error.name === "TaskRequestError" ? undoEvent : undefined });
+        setNotice({ text: error.message });
+        if (error.name === "TaskConflictError") await read();
+        return "failed";
+      }
       if (error.name === "TaskConflictError") {
         setConflict(panel?.kind === "edit");
         if (panel?.kind !== "edit") setPanel(null);
@@ -140,7 +152,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
 
   const lists = snapshot?.lists ?? [];
   const currentList = lists.find(list => list.id === view);
-  const title = currentList ? listName(currentList) : views.find(item => item.id === view)?.label ?? "Today";
+  const title = currentList ? listName(currentList) : view === "completed" ? "Completed" : views.find(item => item.id === view)?.label ?? "Today";
   const day = pacificDate(now);
   const { focus, everythingElse } = snapshot ? todaySections(snapshot, now) : { focus: [], everythingElse: [] };
   const focusIds = new Set(focus.map(task => task.id));
@@ -158,7 +170,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
     setPanel({ kind: "edit", task });
   }
   function save(draft: FormDraft): Promise<SaveResult> {
-    if (editor?.kind === "create") return write(() => adapter.create(draft.listId, editor.requestId, draft.fields), "Task added.");
+    if (editor?.kind === "create") return write(async () => { await adapter.create(draft.listId, editor.requestId, draft.fields); }, "Task added.");
     if (editor?.kind === "edit") return write(() => adapter.edit(editor.task, draft.fields), "Task saved.");
     return Promise.resolve("failed");
   }
@@ -167,9 +179,9 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       setNotice({ text: "The Show after time has not arrived.", error: true });
       return;
     }
-    void write(() => adapter.promote(task), "Moved to the top of your Focus.");
+    void write(() => adapter.promote(task), `Moved “${task.title}” to the top of Focus.`);
   }
-  function drop(task: Task) { void write(() => adapter.deprioritize(task), "Moved to Everything Else."); }
+  function drop(task: Task) { void write(() => adapter.deprioritize(task), `Deprioritized “${task.title}”.`); }
   function rows(tasks: Task[]) {
     return <ul className="tasks-rows">{tasks.map(task => {
       const list = lists.find(item => item.id === task.listId)!;
@@ -182,10 +194,10 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
             setPanel(datePanel ? null : { kind: "date", task, keyboard });
           }}
           onPromote={() => promote(task)} onDrop={() => drop(task)}
-          onComplete={() => { void write(() => adapter.complete(task), "Task completed."); }} />
+          onComplete={() => { void write(() => adapter.complete(task), `Completed “${task.title}”.`); }} />
         {datePanel && <TaskCalendar task={datePanel.task} today={day} inFocus={inFocus} busy={busy} focusOnOpen={datePanel.keyboard}
           onClose={close} onDrop={() => drop(task)} onChoose={(date, time) => {
-            void write(() => adapter.reschedule(datePanel.task, date, time), "Planned date saved.");
+            void write(() => adapter.reschedule(datePanel.task, date, time), `Rescheduled “${task.title}”.`);
           }} />}
       </li>;
     })}</ul>;
@@ -195,12 +207,19 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       {tasks.length ? rows(tasks) : <p className="tasks-empty">{empty}</p>}
     </section>;
   }
+  const completedLink = <button type="button" aria-current={view === "completed" ? "page" : undefined}
+    onClick={() => chooseView("completed")}><TaskIcon name="check" />Completed</button>;
   function viewContent() {
     if (!snapshot) return loading && <p className="tasks-empty" role="status">Loading tasks…</p>;
     if (!lists.length) return <p className="tasks-empty">Tasks isn’t enabled for this account.</p>;
-    if (view === "browse") return <nav aria-label="Task lists" className="tasks-navigation tasks-directory">
-      <h2>Lists</h2><ListButtons lists={lists} view={view} choose={chooseView} />
-    </nav>;
+    if (view === "completed") return !loading && <CompletedTasks adapter={adapter} lists={lists}
+      open={task => setPanel({ kind: "history", task })} />;
+    if (view === "browse") return <>
+      <nav aria-label="Task lists" className="tasks-navigation tasks-directory">
+        <h2>Lists</h2><ListButtons lists={lists} view={view} choose={chooseView} />
+      </nav>
+      <div className="tasks-navigation tasks-completed-link">{completedLink}</div>
+    </>;
     if (view === "inbox") {
       const tasks = inboxTasks(snapshot, now);
       return <><p className="tasks-empty">{tasks.length ? "Unscheduled tasks from your Private list." : "No unscheduled tasks in your Private list."}</p>
@@ -224,9 +243,12 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
     task={edited} listId={editor.kind === "create" ? editor.listId : editor.task.listId} lists={lists}
     busy={writing || (conflict && loading)} error={notice?.error ? notice.text : null} conflict={conflict}
     latest={snapshot?.tasks.find(task => task.id === edited?.id)} focusAction={focusAction}
+    history={edited && <TaskHistory adapter={adapter} taskId={edited.id} />}
     onClose={close} onSave={save} onLoadLatest={edit} />;
   const feedback = <>
-    <div role="status" className="visually-hidden">{notice && !notice.error ? notice.text : ""}</div>
+    {toast && <TaskToast key={toast.eventId ?? toast.text} toast={toast} busy={busy} dismiss={dismissToast}
+      undo={() => { const id = toast.eventId; if (id) void write(() => adapter.undo(id), "Change undone.", id); }} />}
+    <div role="status" className="visually-hidden">{notice && !notice.error ? notice.text + (toast?.eventId ? " Undo available." : "") : ""}</div>
     {notice?.error && !editor && <p role="alert" className="tasks-error">{notice.text}</p>}
   </>;
   if (renderHome) {
@@ -238,7 +260,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
   return <div className="tasks-app">
     <aside className="tasks-sidebar"><div className="tasks-brand"><TaskIcon name="tasks" size={22} />Tasks</div>
       <nav aria-label="Task views" className="tasks-navigation"><ViewButtons active={view} choose={chooseView} />
-        {lists.length > 0 && <><h3>Lists</h3><ListButtons lists={lists} view={view} choose={chooseView} /></>}
+        {lists.length > 0 && <>{completedLink}<h3>Lists</h3><ListButtons lists={lists} view={view} choose={chooseView} /></>}
       </nav></aside>
     <div className="tasks-page">
       <header className="tasks-heading">
@@ -247,7 +269,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
         <button type="button" className="tasks-icon-button tasks-refresh" aria-label="Refresh" title="Refresh" disabled={busy}
           onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
         <div className="tasks-heading-actions">
-          <nav aria-label="Task views" className="tasks-mobile-tabs"><ViewButtons active={currentList ? "browse" : view} choose={chooseView} /></nav>
+          <nav aria-label="Task views" className="tasks-mobile-tabs"><ViewButtons active={currentList || view === "completed" ? "browse" : view} choose={chooseView} /></nav>
           {lists.length > 0 && <button type="button" className="tasks-add" aria-label="Add task" title="Add task" disabled={busy} onClick={create}>
             <TaskIcon name="add" /><span>Add task</span></button>}
         </div>
@@ -255,6 +277,10 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       {feedback}
       {viewContent()}
     </div>
+    {panel?.kind === "history" && <TasksDialog title={panel.task.title} onClose={close}>
+      <section className="tasks-closed-history" aria-label="Activity"><h3>Activity</h3>
+        <TaskHistory adapter={adapter} taskId={panel.task.task_id} /></section>
+    </TasksDialog>}
     {dialog}
     {footer?.(busy || !snapshot || !!panel)}
   </div>;
