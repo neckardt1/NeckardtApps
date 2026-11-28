@@ -40,7 +40,6 @@ export default async function guidedHome(worker) {
     for (const marker of ["started", "planned", "dismissed"]) localStorage.removeItem(`home.daily.${project}.${id}.${marker}`);
   }, { project: worker.config.url, id });
   const button = name => page.getByRole("button", { name, exact: true });
-  const home = () => page.getByRole("link", { name: "Home", exact: true }).click();
   const reminder = page.getByRole("link", { name: "Habit Practice", exact: true });
   const finishCalls = [];
   const observe = request => {
@@ -55,7 +54,18 @@ export default async function guidedHome(worker) {
     await page.goto(origin);
     await button("Pick tasks").click();
     await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
-    await home();
+    await button("Browse").click();
+    await page.setViewportSize({ width: 568, height: 320 });
+    const enlarged = await page.addStyleTag({ content: ":root { font-size: 200%; }" });
+    await button("Apps").click();
+    const picker = page.getByRole("dialog", { name: "Apps" });
+    await picker.getByRole("link", { name: "All apps" }).click();
+    await page.waitForURL(url => url.pathname === "/apps/");
+    await page.goBack();
+    await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
+    await enlarged.evaluate(el => el.remove());
+    await page.setViewportSize({ width: phones[0].width, height: phones[0].height });
+    await page.getByRole("link", { name: "Home", exact: true }).click();
     await page.reload();
     await button("Continue planning").click();
     await page.reload();

@@ -36,8 +36,7 @@ export async function checkTaskActions(page) {
   try {
     for (const size of phones) {
       await page.setViewportSize(size);
-      const bar = await page.locator(".topbar").boundingBox();
-      assert.ok(bar.y >= 0 && bar.y + bar.height < size.height / 3);
+      assert.equal(await page.locator(".topbar").isVisible(), false);
       const addBox = await add.boundingBox();
       assert.ok(addBox.width >= 44 && addBox.height >= 44 && addBox.x > size.width * .75);
       let end = 0;
@@ -52,7 +51,7 @@ export async function checkTaskActions(page) {
           return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
         }));
         end = box.x + box.width;
-        await tab.click();
+        await tab.tap();
         await page.getByRole("heading", { name, exact: true }).waitFor();
         assert.equal(await tab.getAttribute("aria-current"), "page");
       }
@@ -78,8 +77,36 @@ export async function checkTaskActions(page) {
       await save.click({ trial: true });
       await page.keyboard.press("Escape");
       assert.ok(await add.evaluate(el => el === document.activeElement));
-      await page.getByRole("link", { name: "Tasks home" }).click();
+      await page.setViewportSize(size);
+      const enlarged = await page.addStyleTag({ content: ":root { font-size: 200%; }" });
+      try {
+        await views.getByRole("button", { name: "Browse" }).tap();
+        for (const tab of await views.getByRole("button").all()) {
+          assert.ok(await tab.evaluate(el => {
+            const label = document.createRange();
+            label.selectNodeContents(el.lastChild);
+            return label.getClientRects().length === 1 && el.clientWidth >= el.scrollWidth;
+          }), "Each enlarged tab label fits on one line.");
+        }
+        const suite = page.locator(".topbar");
+        for (const control of await suite.locator(".chrome-button:visible").all()) {
+          const box = await control.boundingBox();
+          assert.ok(box.width >= 44 && box.height >= 44 && box.y >= size.height / 2);
+          assert.ok(await control.evaluate(el => {
+            const r = el.getBoundingClientRect();
+            return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+          }));
+        }
+        const apps = suite.getByRole("button", { name: "Apps", exact: true });
+        await apps.tap();
+        await page.getByRole("dialog", { name: "Apps" }).waitFor();
+        await page.keyboard.press("Escape");
+        assert.ok(await apps.evaluate(el => el === document.activeElement));
+        await suite.getByRole("link", { name: "Tasks home" }).tap();
+      } finally { await enlarged.evaluate(el => el.remove()); }
       await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+      await page.goBack();
+      await page.getByRole("heading", { name: "Browse", exact: true }).waitFor();
       await page.goBack();
       await page.getByRole("heading", { name: "Household" }).waitFor();
       await views.getByRole("button", { name: "Today" }).click();

@@ -44,6 +44,21 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
   const [view, chooseView] = useAppView("today");
   const { key: entry } = useLocation();
   const previousEntry = useRef(entry);
+  const dock = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const node = dock.current;
+    if (!node) return;
+    // Enlarged labels can reflow into two rows. Keep Undo and the guide above the actual dock.
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty("--tasks-dock-height", node.getBoundingClientRect().height + "px");
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--tasks-dock-height");
+    };
+  }, [renderHome]);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -264,7 +279,7 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
       : focus.length ? rows(focus.slice(0, 3)) : null;
     return <div className="tasks-app home-focus">{renderHome(content)}{feedback}{dialog}</div>;
   }
-  return <div className="tasks-app">
+  return <div className="tasks-app" data-task-view={view}>
     <aside className="tasks-sidebar"><div className="tasks-brand"><TaskIcon name="tasks" size={22} />Tasks</div>
       <nav aria-label="Task views" className="tasks-navigation"><ViewButtons active={view} choose={chooseView} />
         {lists.length > 0 && <>{completedLink}<h3>Lists</h3><ListButtons lists={lists} view={view} choose={chooseView} /></>}
@@ -275,8 +290,10 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
         {view === "today" && <time dateTime={day}>{dateLabel(day)}<span className="tasks-heading-weekday"> · {weekday.format(now)}</span></time>}
         <button type="button" className="tasks-icon-button tasks-refresh" aria-label="Refresh" title="Refresh" disabled={busy}
           onClick={() => { setNotice(null); void read(); }}><TaskIcon name="refresh" size={17} /></button>
-        <div className="tasks-heading-actions">
-          <nav aria-label="Task views" className="tasks-mobile-tabs"><ViewButtons active={currentList || view === "completed" ? "browse" : view} choose={chooseView} /></nav>
+        <div className="tasks-heading-actions" ref={dock}>
+          <nav aria-label="Task views" aria-description="Browse opens task lists and site navigation." className="tasks-mobile-tabs">
+            <ViewButtons active={currentList || view === "completed" ? "browse" : view} choose={chooseView} />
+          </nav>
           {lists.length > 0 && <button type="button" className="tasks-add" aria-label="Add task" title="Add task" disabled={busy} onClick={create}>
             <TaskIcon name="add" /><span>Add task</span></button>}
         </div>

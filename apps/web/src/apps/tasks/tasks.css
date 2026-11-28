@@ -152,7 +152,7 @@
     border-bottom: 1px solid var(--tasks-line);
     margin-bottom: .4rem;
   }
-  .tasks-heading-actions { gap: .45rem; }
+  .tasks-heading-actions { gap: 6px; }
   .tasks-mobile-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; }
   .tasks-mobile-tabs button {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -178,29 +178,52 @@
   .tasks-add:active:not(:disabled) { filter: brightness(.88); }
   .tasks-heading time { grid-column: 1; grid-row: 2; font-size: .9rem; font-weight: 600; }
   .tasks-heading-weekday { display: inline; }
-  /* The full Tasks screen uses the suite's bottom slot. The daily plan can
-     keep its progress and Done action immediately above that same row. */
+  /* Browse brings up the shared suite controls above the local destinations. */
   :root:has(.tasks-mobile-tabs) {
-    --tasks-header-height: calc(var(--mobile-nav-row) + 1px + env(safe-area-inset-top));
-    scroll-padding-block: var(--tasks-header-height) calc(var(--mobile-nav-height) + var(--guide-height, 0px));
-    .site-page { padding-block: 0; }
-    .topbar {
-      position: sticky; inset: 0 0 auto; padding: env(safe-area-inset-top) 0 0;
-      border-top: 0; border-bottom: 1px solid var(--line);
+    --mobile-nav-height: var(--tasks-dock-height, calc(var(--mobile-nav-row) + 1px + env(safe-area-inset-bottom)));
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--guide-height, 0px) + var(--tasks-suite-height, 0px));
+    .topbar { display: none; }
+    .tasks-app { min-height: calc(100dvh - var(--mobile-nav-height) - var(--guide-height, 0px) - env(safe-area-inset-top)); }
+    .tasks-page:has(.tasks-directory) {
+      min-height: inherit;
+      display: flex; flex-direction: column; justify-content: flex-end;
     }
-    .chrome-popover.apps {
-      top: 100%; bottom: auto;
-      max-height: calc(100dvh - var(--mobile-nav-row) - var(--mobile-nav-height) - env(safe-area-inset-top) - .5rem);
-    }
-    .chrome-button .chevron { transform: none; }
-    .tasks-app { min-height: calc(100dvh - var(--tasks-header-height) - var(--guide-height, 0px)); }
-    .tasks-page { padding-bottom: calc(var(--mobile-nav-height) + 1rem); }
-    .tasks-page:has(.tasks-directory) { min-height: inherit; display: flex; flex-direction: column; justify-content: flex-end; }
     .tasks-heading-actions {
-      position: fixed; z-index: 3; inset: auto 0 0; min-height: var(--mobile-nav-height);
-      padding: 4px max(.6rem, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-left));
+      position: fixed; z-index: 3; inset: auto 0 0; container: task-dock / inline-size;
+      min-height: calc(var(--mobile-nav-row) + 1px + env(safe-area-inset-bottom));
+      padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
       border-top: 1px solid var(--tasks-line); background: var(--tasks-surface);
     }
+  }
+  :root:has([data-task-view="browse"]) {
+    --tasks-suite-height: calc(max(44px, 1.8rem) + 1px);
+    .topbar {
+      display: block; bottom: calc(var(--mobile-nav-height) + var(--guide-height, 0px));
+      padding-bottom: 0;
+    }
+    .topbar-inner:has(.app-home-link) {
+      display: flex; reading-flow: flex-visual; min-height: 0; gap: 4px; padding-inline: 4px;
+    }
+    .topbar-inner .chrome-button {
+      min-width: 44px; min-height: max(44px, 1.8rem); padding: 0; margin: 0;
+      justify-content: center;
+    }
+    .topbar-inner .account-avatar, .topbar-inner .account-icon { max-width: 44px; max-height: 44px; }
+    .topbar-inner:has(.app-home-link) .apps-toggle span { display: inline; }
+    .topbar-inner:has(.app-home-link) .apps-toggle svg { display: none; }
+    .chrome-popover.apps {
+      /* Leave space to scroll the picker even with the guide open on a short viewport. */
+      --picker-bottom: min(50dvh, calc(var(--mobile-nav-height) + var(--guide-height, 0px) + var(--tasks-suite-height) + .25rem));
+      position: fixed; bottom: var(--picker-bottom); right: max(1rem, env(safe-area-inset-right));
+      max-height: calc(100dvh - var(--picker-bottom) - env(safe-area-inset-top) - .25rem);
+    }
+    .tasks-page { padding-bottom: calc(var(--tasks-suite-height) + 1rem); }
+  }
+  @container task-dock (width < 16rem) {
+    .tasks-mobile-tabs { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+    .tasks-mobile-tabs button { display: block; overflow-wrap: anywhere; padding: 2px; }
+    .tasks-mobile-tabs svg { display: none; }
+    .tasks-mobile-tabs [aria-current="page"] { background: var(--tasks-tint); }
   }
   .tasks-section h2 { min-height: 28px; }
   .tasks-section + .tasks-section { margin-top: 1.05rem; }
@@ -238,7 +261,7 @@
   position: fixed;
   z-index: 5;
   inset-inline-start: max(1rem, env(safe-area-inset-left));
-  bottom: calc(var(--mobile-nav-height, 0px) + var(--guide-height, 0px) + .55rem);
+  bottom: calc(var(--mobile-nav-height, 0px) + var(--guide-height, 0px) + var(--tasks-suite-height, 0px) + .55rem);
   display: flex;
   align-items: center;
   gap: .8rem;
