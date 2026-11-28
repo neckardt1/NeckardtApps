@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router";
 import type { CompletedTask, Task, TaskList, TaskSnapshot, TasksAdapter } from "./contract";
 import { taskTimeZone } from "./contract";
+import { useAppHomeBusy, useAppView } from "../../shell/app-navigation";
 import { gateOpen, inboxTasks, pacificDate, todaySections, upcomingSections } from "./model";
 import { TaskCalendar, dateLabel } from "./TaskCalendar";
 import { TaskEditor, TasksDialog, listName, type FormDraft, type SaveResult } from "./TaskEditor";
@@ -39,13 +41,16 @@ export type TaskLayout = {
 
 export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout & { adapter: TasksAdapter; isCurrent: () => boolean }) {
   const [snapshot, setSnapshot] = useState<TaskSnapshot | null>(null);
-  const [view, setView] = useState("today");
+  const [view, chooseView] = useAppView("today");
+  const { key: entry } = useLocation();
+  const previousEntry = useRef(entry);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [toast, setToast] = useState<UndoToast | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
   const [writing, setWriting] = useState(false);
+  useAppHomeBusy(writing);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => new Date());
   const mounted = useRef(false);
@@ -107,11 +112,13 @@ export function TasksPage({ adapter, isCurrent, renderHome, footer }: TaskLayout
     setConflict(false);
     setNotice(null);
   }
-  function chooseView(selected: string) {
-    setView(selected);
+  useLayoutEffect(() => {
+    if (entry === previousEntry.current) return;
+    previousEntry.current = entry;
+    if (writeLock.current || panel?.kind === "create" || panel?.kind === "edit") return;
     close();
     window.scrollTo({ top: 0, behavior: "instant" });
-  }
+  }, [entry, panel]);
 
   async function write(action: () => Promise<string | null | void>, success: string, undoEvent?: string): Promise<SaveResult> {
     if (!mounted.current || !isCurrent() || writeLock.current || loading) return "failed";

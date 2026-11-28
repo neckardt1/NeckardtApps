@@ -45,6 +45,8 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
 .topbar-inner { position: relative; display: flex; align-items: center; justify-content: space-between; width: min(100%, 72rem); min-height: 4rem; margin: 0 auto; padding: .35rem clamp(1rem, 4.5vw, 2rem); }
 .chrome-button { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; min-width: 2.75rem; padding: .35rem 0; border: 0; background: transparent; color: light-dark(#293640, #e2e8e6); font-size: .9375rem; font-weight: 550; }
 .home-link { text-decoration: none; margin-right: 1rem; }
+.app-home-link { margin-inline: 0 1rem; justify-content: center; color: var(--green); text-decoration: underline; text-underline-offset: .22em; }
+.app-home-link[aria-disabled] { opacity: .6; cursor: wait; }
 .account-link { margin-left: auto; max-width: 54%; text-decoration: none; }
 .chrome-button > svg { width: 1rem; height: 1rem; }
 .chrome-button .chevron { width: .7rem; height: .7rem; margin-left: -.15rem; }
@@ -115,26 +117,16 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
     width: min(21rem, calc(100% - 2rem));
     max-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top) - 1rem);
   }
-  :root:has(.reader-back) { scroll-padding-bottom: calc(var(--mobile-nav-height) + 3.25rem); }
-  .site-main .mobile-reader {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100dvh - var(--mobile-nav-height) - env(safe-area-inset-top));
-    padding-bottom: 0;
-    reading-flow: flex-visual;
+  .topbar-inner:has(.app-home-link) {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr) auto repeat(2, 1fr);
+    grid-template-areas: "account apps current . home";
+    gap: 0;
+    reading-flow: grid-rows;
   }
-  .site-main .mobile-reader > .reader-back {
-    order: 1;
-    position: sticky;
-    bottom: var(--mobile-nav-height);
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: max(44px, 3.25rem);
-    margin: auto 0 0;
-    padding: .5rem;
-    border-top: 1px solid var(--line);
-    background: var(--paper);
-  }
+  .topbar-inner:has(.app-home-link) .account-link { grid-area: account; }
+  .topbar-inner:has(.app-home-link) .apps-toggle { grid-area: apps; justify-self: start; justify-content: center; }
+  .topbar-inner:has(.app-home-link) .apps-toggle :is(span, .chevron) { display: none; }
+  .app-home-link { grid-area: current; margin: 0; padding-inline: .3rem; }
+  .topbar-inner:has(.app-home-link) .home-link { grid-area: home; justify-self: end; }
 }

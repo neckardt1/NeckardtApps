@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import type { AccountProfile } from "./profile.ts";
+import { apps } from "./apps.ts";
+import { AppHomeBusy } from "./app-navigation";
 import { AppTileGrid } from "./AppTileGrid.tsx";
 
 type Props = {
@@ -28,18 +30,21 @@ export function AppShell({ profile, children }: Props) {
   const [open, setOpen] = useState(false);
   const appsButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const { pathname } = useLocation();
-  const previousPath = useRef(pathname);
+  const location = useLocation();
+  const appId = location.pathname.split("/")[1]?.toLowerCase();
+  const currentApp = apps.find(app => app.id === appId);
+  const [appBusy, setAppBusy] = useState(false);
+  const previousEntry = useRef(location.key);
   const main = useRef<HTMLElement>(null);
   const id = useId();
 
   useLayoutEffect(() => {
-    if (previousPath.current !== pathname) {
-      previousPath.current = pathname;
+    if (previousEntry.current !== location.key) {
+      previousEntry.current = location.key;
       setOpen(false);
       main.current?.focus();
     }
-  }, [pathname]);
+  }, [location.key]);
 
   useLayoutEffect(() => {
     if (open) (panel.current?.querySelector<HTMLElement>("a,button:not(:disabled),input:not(:disabled)") ?? panel.current)?.focus();
@@ -81,7 +86,13 @@ export function AppShell({ profile, children }: Props) {
     <header className="topbar">
       <div className="topbar-inner">
         <Link className="chrome-button home-link" to="/" onClick={() => setOpen(false)}>Home</Link>
-        <button ref={appsButton} type="button" className="chrome-button" aria-expanded={open}
+        {currentApp && <Link to={currentApp.path} className="chrome-button app-home-link"
+          aria-label={`${currentApp.name} home`} aria-disabled={appBusy || undefined}
+          replace={!location.state?.appView && location.pathname === currentApp.path && !location.search && !location.hash}
+          onClick={event => { if (appBusy) event.preventDefault(); else setOpen(false); }}>
+          {currentApp.name}
+        </Link>}
+        <button ref={appsButton} type="button" className="chrome-button apps-toggle" aria-label="Apps" title="Apps" aria-expanded={open}
           aria-controls={open ? `${id}-apps` : undefined} aria-haspopup="dialog"
           onClick={() => setOpen(!open)}><AppsIcon /><span>Apps</span><Chevron /></button>
         <NavLink to="/profile" className="chrome-button account-link" aria-label={profile?.display_name ? `Account: ${profile.display_name}` : "Account"}
@@ -102,6 +113,6 @@ export function AppShell({ profile, children }: Props) {
         </div>}
       </div>
     </header>
-    <main ref={main} className="site-main" id="main-content" tabIndex={-1}>{children}</main>
+    <main ref={main} className="site-main" id="main-content" tabIndex={-1}><AppHomeBusy.Provider value={setAppBusy}>{children}</AppHomeBusy.Provider></main>
   </div>;
 }

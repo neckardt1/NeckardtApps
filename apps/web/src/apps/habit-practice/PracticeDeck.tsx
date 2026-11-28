@@ -1,8 +1,10 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigationType } from 'react-router';
 import { useSiteSession } from '../../shell/session.tsx';
+import { useAppView } from "../../shell/app-navigation";
 import { App } from './App.tsx';
 import { CardBrowser } from './CardBrowser.tsx';
-import { unfinished, readStoredRound, verified, type Round } from './durable-session.ts';
+import { hasUnfinishedRound, unfinished, readStoredRound, verified, type Round } from './durable-session.ts';
 import { defaultReviewLimit, type RecallApi, type RoundPreview } from './recall-api.ts';
 import { restoreRound } from './server-round.ts';
 
@@ -61,11 +63,22 @@ export function PracticeDeck({ api }: { api: RecallApi | null }) {
 
 function Deck({ api, owner }: { api: RecallApi; owner: string }) {
   const { isCurrent } = useSiteSession();
-  const [screen, setScreen] = useState<'home' | 'browse' | 'review'>('home');
+  const [selected, setScreen] = useAppView('home');
+  const { key } = useLocation();
+  const navigation = useNavigationType();
+  const screen = useMemo(() => {
+    // Reopening a history entry may resume a round, but must never start the next one.
+    if (selected !== 'review' || navigation !== 'POP') return selected;
+    try { return hasUnfinishedRound(api.origin, owner) ? 'review' : 'home'; }
+    catch { return 'home'; }
+  }, [api, owner, selected, navigation, key]);
   const [status, setStatus] = useState<Status>({ kind: 'checking' });
   const [reviewLimit, setReviewLimit] = useState(defaultReviewLimit);
   const [refresh, setRefresh] = useState(0);
   const reload = () => setRefresh(value => value + 1);
+  useLayoutEffect(() => {
+    if (screen === 'home') setStatus({ kind: 'checking' });
+  }, [screen]);
   useLayoutEffect(() => {
     if (screen !== 'home') return;
     let current = true;
@@ -85,10 +98,10 @@ function Deck({ api, owner }: { api: RecallApi; owner: string }) {
     };
   }, [api, owner, screen, refresh, isCurrent]);
 
-  const home = () => { setStatus({ kind: 'checking' }); setScreen('home'); };
-  if (screen === 'review') return <App api={api} onHome={home} reviewLimit={reviewLimit}
+  const previewNext = () => setScreen('home');
+  if (screen === 'review') return <App api={api} onPreviewNext={previewNext} reviewLimit={reviewLimit}
     completedRoundId={status.kind === 'start' ? status.completedRoundId : undefined} />;
-  if (screen === 'browse') return <CardBrowser api={api} onHome={home} />;
+  if (screen === 'browse') return <CardBrowser api={api} />;
 
   const next = status.kind === 'start' ? status.preview : null;
   const empty = next && !next.due_reviews && !next.check_ins;

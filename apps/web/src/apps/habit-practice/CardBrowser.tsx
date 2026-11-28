@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CatalogCard, RecallApi } from './recall-api.ts';
 import { useSiteSession } from '../../shell/session.tsx';
+import { useAppHomeBusy } from '../../shell/app-navigation';
 import { FormattedText } from './FormattedText.tsx';
 
 const kinds: Record<string, string> = {
@@ -24,7 +25,7 @@ function timing(card: CatalogCard, cue: CatalogCard | undefined) {
   return card.check_in_available ? 'Check-in ready' : 'Outside scheduled recall';
 }
 
-export function CardBrowser({ api, onHome }: { api: RecallApi; onHome(): void }) {
+export function CardBrowser({ api }: { api: RecallApi }) {
   const { isCurrent } = useSiteSession();
   const [cards, setCards] = useState<CatalogCard[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -36,6 +37,7 @@ export function CardBrowser({ api, onHome }: { api: RecallApi; onHome(): void })
   const [selected, setSelected] = useState(new Set<string>());
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  useAppHomeBusy(busy);
   const request = useRef<AbortController | null>(null);
   useLayoutEffect(() => {
     setBusy(false);
@@ -101,8 +103,7 @@ export function CardBrowser({ api, onHome }: { api: RecallApi; onHome(): void })
     }
   }
 
-  return <section className="habit-practice catalog mobile-reader" aria-label="Card browser">
-    <button className="text-button deck-back reader-back" disabled={busy} onClick={onHome}>← Practice home</button>
+  return <section className="habit-practice catalog" aria-label="Card browser">
     <h1>Browse cards</h1>
     <div className="catalog-controls">
       <label>Search cards<input type="search" value={query} onChange={e => setQuery(e.target.value)} /></label>

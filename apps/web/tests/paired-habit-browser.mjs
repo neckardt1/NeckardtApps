@@ -214,7 +214,7 @@ async function checkDeckControls(db, browser, origin, remote) {
     await click("Select all 6 results");
     await click("Pause 6");
     await page.getByText("Paused 6 cards.").waitFor();
-    await click("← Practice home");
+    await page.getByRole("link", { name: "Habits home" }).click();
     await page.getByText("0 check-ins · 5 of 10 due recall cards").waitFor();
     await click("Browse all cards");
     await page.getByLabel("Status", { exact: true }).selectOption("paused");
@@ -222,7 +222,7 @@ async function checkDeckControls(db, browser, origin, remote) {
     await click("Select all 6 results");
     await click("Resume 6");
     await page.getByText("No matching cards.").waitFor();
-    await click("← Practice home");
+    await page.getByRole("link", { name: "Habits home" }).click();
     const size = page.getByLabel("Recall cards per round");
     await size.selectOption("1");
     await page.getByText("1 check-in · 1 of 15 due recall cards").waitFor();
@@ -231,7 +231,7 @@ async function checkDeckControls(db, browser, origin, remote) {
     assert.deepEqual(await rpc(db, owner, "recall_latest_round"), []);
     await click("Start round");
     await page.getByRole("heading", { name: "Did you do it this time?" }).waitFor();
-    await click("← Practice home");
+    await page.getByRole("link", { name: "Habits home" }).click();
     await page.getByText("1 check-in · 10 recall cards left").waitFor();
     assert.equal(await size.count(), 0);
     const manifest = await rpc(db, owner, "recall_latest_round");
@@ -288,7 +288,7 @@ export async function checkPairedHabit(origin, remote) {
           await page.getByText("Did it happen?", { exact: true }).click();
           await page.getByText("Check the occasion.", { exact: true }).waitFor();
           assert.deepEqual(await rpc(db, owner, "recall_latest_round"), []);
-          await click("← Practice home");
+          await page.getByRole("link", { name: "Habits home" }).click();
         }
         if (!checkRetry) {
           await page.getByText("1 check-in · 0 recall cards", { exact: true }).waitFor();

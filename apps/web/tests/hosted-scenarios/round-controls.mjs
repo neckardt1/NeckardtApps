@@ -25,7 +25,7 @@ export default async function roundControls(worker) {
     await button("Pause 1").click();
     await summary.getByText(/Paused/).waitFor();
     assert.equal(await summary.locator("time").getAttribute("datetime"), due);
-    await button("← Practice home").click();
+    await page.getByRole("link", { name: "Habits home" }).click();
     await page.getByText("No cards due right now.").waitFor();
     assert.equal(await button("Start round").count(), 0);
     await button("Browse all cards").click();
@@ -36,7 +36,7 @@ export default async function roundControls(worker) {
     await page.getByLabel("Status", { exact: true }).selectOption("active");
     await summary.getByText(/Due now/).waitFor();
     assert.equal(await summary.locator("time").getAttribute("datetime"), due);
-    await button("← Practice home").click();
+    await page.getByRole("link", { name: "Habits home" }).click();
     await page.getByLabel("Recall cards per round").selectOption("10");
     assert.equal(opens.length, 0);
     await button("Start round").click();

@@ -42,7 +42,6 @@ function SiteContent({ slug, path }: { slug?: string; path: string }) {
   }, [slug, path, isCurrent]);
   if (!view) return <p role="status">Loading…</p>;
   return <>
-    {slug && <Link className="reader-back" to="/sites">All private sites</Link>}
     <h1>{view.title}</h1>
     {view.message && <p>{view.message}</p>}
     {view.links.length > 0 && <nav aria-label="Site navigation"><ul>
@@ -57,7 +56,7 @@ export function Sites() {
   const session = useSiteSession();
   const { slug, "*": rest } = useParams();
   const path = (rest ?? "").replace(/\/+$/, "");
-  return <section className={slug ? "launcher mobile-reader" : "launcher"}>
+  return <section className="launcher">
     {session.status === "signed-in" && session.user
       ? <SiteContent key={JSON.stringify([session.user.id, slug, path])} slug={slug} path={path} />
       : <><h1>Private sites</h1><p>{session.status === "loading" ? "Checking your session…" :

@@ -141,6 +141,9 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(before.saves).toHaveLength(1);
   expect(before.saves[0].status).toBe('pending');
   expect(f.calls).toHaveLength(1);
+  await act(async () => host.querySelector<HTMLAnchorElement>('a[aria-label="Habits home"]')!.click());
+  expect(button('Continue round')).toBeDefined();
+  expect(stored()).toEqual(before);
   await tap('Apps'); await follow('launcher', base);
   expect(host.textContent).toContain('All apps');
   expect(host.textContent).not.toContain(firstOwner.id);
@@ -338,7 +341,10 @@ test('a queued reveal cannot advance or replace the next owner’s screen', asyn
   const callCount = f.calls.length;
   holdNextMutation = true;
   await tap('Reveal answer');
-  expect(button('← Practice home')?.disabled).toBe(true);
+  const home = host.querySelector<HTMLAnchorElement>('a[aria-label="Habits home"]')!;
+  expect(home.getAttribute('aria-disabled')).toBe('true');
+  await act(async () => home.click());
+  expect(host.textContent).toContain(firstOwner.id + ' question 1');
   const pendingReveal = locks.get(storageKey(firstOwner.id));
   expect(pendingReveal).toBeDefined();
   await act(async () => {

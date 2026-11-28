@@ -59,6 +59,9 @@ export async function checkBrowserRoutes(origin) {
       const alias = root + "recall/index.html";
       await page.goto(alias, { waitUntil: "commit" });
       await checkPractice(alias);
+      await page.goto(root + "ReCaLl/index.html", { waitUntil: "commit" });
+      await page.getByRole("link", { name: "Habits home" }).click();
+      await checkPractice(root + "recall/");
       const consent = root + "oauth/consent/?authorization_id=t6iubjdnqfkp4d4odxwleypuhprekmuh#return";
       assert.equal((await page.goto(consent)).status(), 200);
       await page.getByRole("button", { name: "Continue" }).waitFor();
