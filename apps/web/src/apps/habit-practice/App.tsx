@@ -3,7 +3,7 @@ import { grades, type Grade } from './review-session.ts';
 import { RecallApiError, type ActionEvent, type RecallApi } from './recall-api.ts';
 import { allAnswered, currentKey, makeDurableSession, type DurableSession, type Round } from './durable-session.ts';
 import { useSiteSession } from '../../shell/session.tsx';
-import { FormattedText } from './FormattedText.tsx';
+import { ReviewCard } from './ReviewCard.tsx';
 import { RatingButtons } from './RatingButtons.tsx';
 import { useAppHomeBusy } from '../../shell/app-navigation';
 import { GuideFooter } from '../../shell/daily-guide';
@@ -19,13 +19,15 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
   const round = snapshot && snapshot.owner === owner ? snapshot.round : null;
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  useAppHomeBusy(busy);
+  const [faceRequest, setFaceRequest] = useState<{ key: string; back: boolean } | null>(null);
+  useAppHomeBusy(busy || !!faceRequest);
   const [loading, setLoading] = useState(false);
   const [legacyScope, setLegacyScope] = useState<string | null>(null);
   const [storageGeneration, resetStorage] = useState(0);
   const runtime = useRef<Runtime | null>(null);
   const content = useRef<HTMLDivElement>(null);
   const focusNext = useRef(false);
+  const flipCard = useRef<() => void>(null);
 
   useLayoutEffect(() => {
     if (focusNext.current) {
@@ -82,6 +84,7 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
   // Retire the old owner's queue at commit, before passive effects or input.
   useLayoutEffect(() => {
     focusNext.current = false;
+    setFaceRequest(null);
     setSnapshot(null); setMessage(''); setBusy(false); setLoading(false);
     if (!api || !owner) return;
     const legacyKey = `recall.round.v2.${api.origin}.${owner}`;
@@ -141,13 +144,26 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
     } catch { if (isCurrent(state)) setMessage('Could not safely save this step. It has not been discarded. Try again.'); }
     finally { if (isCurrent(state)) setBusy(false); }
   }
-  function reveal() {
-    const id = round && currentKey(round);
-    if (round && id) void mutate(store => store.reveal(round.id, id));
+  function showFace(back: boolean, focus: boolean) {
+    const state = runtime.current;
+    if (!state || !isCurrent(state) || !round || !card || !cardKey || busy) return;
+    const request = { key: cardKey, back };
+    setFaceRequest(request);
+    setMessage('');
+    focusNext.current = focus;
+    // The store serializes face writes under its round lock. Input can keep
+    // turning the card while an earlier face is still being persisted.
+    void state.store.reveal(round.id, card.card_id, back).then(() => {
+      if (isCurrent(state)) flush(state);
+    }).catch(() => {
+      if (isCurrent(state)) setMessage('Could not save the card face on this device. Try again.');
+    }).finally(() => {
+      if (isCurrent(state)) setFaceRequest(latest => latest === request ? null : latest);
+    });
   }
   function rate(grade: Grade) {
     const id = round && currentKey(round);
-    if (round && id) void mutate(store => store.rate(round.id, id, grade));
+    if (round && id && !faceRequest) void mutate(store => store.rate(round.id, id, grade));
   }
   function answer(outcome: ActionEvent['outcome']) {
     const id = round && currentKey(round);
@@ -155,21 +171,21 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
   }
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (!round || round.finished || busy || document.querySelector('[data-popover-open]')) return;
+      if (!round || round.finished || busy || faceRequest || document.querySelector('[data-popover-open]')) return;
       if (round.opportunityIndex < round.opportunities.length || allAnswered(round)) return;
       const target = event.target;
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.isComposing
         || (target instanceof Element && target.closest('input,textarea,select,[contenteditable]'))) return;
       if ((event.key === ' ' || event.key === 'Enter') && !round.revealed) {
         if (target instanceof Element && target.closest('button,a')) return;
-        event.preventDefault(); reveal();
+        event.preventDefault(); flipCard.current?.();
       } else if (round.revealed && /^[1-4]$/.test(event.key)) {
         event.preventDefault(); rate(grades[Number(event.key) - 1]);
       }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [round, busy]);
+  }, [round, busy, faceRequest]);
 
   const opportunity = round?.opportunities[round.opportunityIndex];
   const card = round?.cards[round.cardIndex];
@@ -184,6 +200,14 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
   const superseded = round?.summary?.superseded ?? 0;
   const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && hasWork && !round.finished;
+  const cardKey = showReview && !opportunity && card ? `${owner}.${round.id}.${card.card_id}.${card.revision}` : null;
+  const savingFace = !!faceRequest && faceRequest.key === cardKey;
+  const revealed = savingFace ? faceRequest.back : !!round?.revealed;
+  const lastCard = useRef<{ round: string; index: number } | null>(null);
+  const entering = !!round && lastCard.current?.round === round.id && lastCard.current.index < round.cardIndex;
+  useLayoutEffect(() => {
+    lastCard.current = cardKey && round ? { round: round.id, index: round.cardIndex } : null;
+  }, [cardKey, round?.cardIndex]);
   const previewNext = onPreviewNext && round && (round.finished || (!hasWork && !loading && !message));
   useEffect(() => {
     if (onGuideExit && round && !loading && !message && sessionIsCurrent() && (round.finished || !hasWork)) onGuideExit();
@@ -208,11 +232,9 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
             {opportunity ? <div className="review-card">
               {opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}
               <h1 className="prompt">{opportunity.prompt}</h1>
-            </div> : card ? <div className="review-card">
-              <p className="eyebrow">Card {round.cardIndex + 1} of {round.cards.length}</p>
-              <h1 className="prompt">{card.front}</h1>
-              {round.revealed && <div className="answer-panel" aria-label="Answer"><FormattedText text={card.back} /></div>}
-            </div> : <div className="today-card">
+            </div> : card ? <ReviewCard key={cardKey} flipRef={flipCard} card={card}
+              index={round.cardIndex} count={round.cards.length} entering={entering}
+              revealed={revealed} disabled={busy} showFace={showFace} /> : <div className="today-card">
               <h1>Saving your round…</h1>
               <p>Your responses are kept on this device until saving completes.</p>
             </div>}
@@ -244,15 +266,15 @@ export function App({ api, onPreviewNext, onGuideExit, reviewLimit, completedRou
             <button className="secondary" disabled={busy} onClick={() => answer('no_opportunity')}>No opportunity</button>
             <button className="text-button" disabled={busy} onClick={() => answer('skip')}>Skip</button>
           </div> : card ? <RatingButtons
-            key={`${owner}.${round.id}.${card.card_id}.${card.revision}`} cardId={card.card_id} revision={card.revision}
-            preview={api.preview} revealed={round.revealed} reveal={reveal} disabled={busy} rate={rate} />
+            key={cardKey} cardId={card.card_id} revision={card.revision}
+            preview={api.preview} savingFace={savingFace} revealed={revealed} flip={() => flipCard.current?.()} disabled={busy} rate={rate} />
             : null
             : <button className="secondary" disabled={busy || loading} onClick={() => {
               if (runtime.current?.fallback) setLegacyScope(null);
               else if (runtime.current) void load(runtime.current);
             }}>Check again</button>}
         </div>
-        {onGuideExit && <GuideFooter step={2} onClick={onGuideExit} disabled={busy} />}
+        {onGuideExit && <GuideFooter step={2} onClick={onGuideExit} disabled={busy || savingFace} />}
       </>}
     </section>;
 }
