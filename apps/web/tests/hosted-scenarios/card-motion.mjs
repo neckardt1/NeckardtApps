@@ -18,6 +18,8 @@ export default async function cardMotion(worker) {
   });
   const button = name => page.getByRole("button", { name, exact: true });
   const surface = page.locator(".card-surface"), rotor = page.locator(".card-rotor");
+  const touch = await page.context().newCDPSession(page);
+  const touchEvent = (type, touchPoints) => touch.send("Input.dispatchTouchEvent", { type, touchPoints });
   const grades = [];
   const record = req => {
     if (req.method() === "POST" && req.url().endsWith("/functions/v1/recall-grade") && req.postDataJSON()?.grade) grades.push(req.postDataJSON());
@@ -97,17 +99,28 @@ export default async function cardMotion(worker) {
     await page.mouse.up();
     await button("Reveal answer").waitFor();
     assert.equal(grades.length, 0);
-    await button("Reveal answer").click();
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    const [receipt] = await Promise.all([
-      page.waitForResponse(r => r.url().endsWith("/functions/v1/recall-grade") && r.request().postDataJSON()?.grade === "medium"),
-      button("Good").click(),
-    ]);
+    await rotor.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+    await touch.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+    const x = box.x + 15, y = box.y + 30, width = page.viewportSize().width;
+    await touchEvent("touchStart", [{ x, y }]);
+    for (const fraction of [.06, .12, .18, .25]) {
+      await touchEvent("touchMove", [{ x: x + width * fraction, y }]);
+    }
+    await touchEvent("touchEnd", []);
+    const good = button("Good");
+    await good.click({ trial: true });
+    const gradeBox = await good.boundingBox();
+    const response = page.waitForResponse(r => r.url().endsWith("/functions/v1/recall-grade") && r.request().postDataJSON()?.grade === "medium");
+    await touchEvent("touchStart", [{ x: gradeBox.x + gradeBox.width / 2, y: gradeBox.y + gradeBox.height / 2 }]);
+    await touchEvent("touchEnd", []);
+    const receipt = await response;
     assert.equal((await receipt.json()).card_id, first);
     assert.equal(grades.length, 1);
     await page.getByRole("heading", { name: "Second fixture prompt" }).waitFor();
     assert.equal(await page.locator(".card-enter").count(), 1);
   } finally {
+    await touch.detach();
     page.off("request", record);
     await page.unroute(endpoint);
   }
