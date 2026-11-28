@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useMatch } from "react-router";
 import type { AccountProfile } from "./profile.ts";
-import { apps } from "./apps.ts";
+import { apps, tasksRoute } from "./apps.ts";
 
 type Popover = "apps" | "account";
 type Props = {
@@ -34,6 +34,7 @@ export function AppShell({ account: accountContent, accountIdentity, profile, ch
   const panel = useRef<HTMLDivElement>(null);
   const previousIdentity = useRef(accountIdentity);
   const { pathname } = useLocation();
+  const onTasks = useMatch(tasksRoute) !== null;
   const previousPath = useRef(pathname);
   const main = useRef<HTMLElement>(null);
   const id = useId();
@@ -86,7 +87,9 @@ export function AppShell({ account: accountContent, accountIdentity, profile, ch
     };
   }, [open]);
 
-  return <div className="site-page">
+  return <div className={onTasks ? "site-page tasks-route" : "site-page"}>
+    <meta name="theme-color" content="#f5f3eb" media={onTasks ? "(prefers-color-scheme: light)" : undefined} />
+    {onTasks && <meta name="theme-color" content="#232622" media="(prefers-color-scheme: dark)" />}
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
