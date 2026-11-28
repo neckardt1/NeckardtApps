@@ -60,7 +60,7 @@ async function startAccount(origin, user, mobile) {
   await button(page, "Sign in").click();
   const session = await (await tokenReply).json();
   assert.equal(session.user?.id, user.id, "GoTrue authenticated the expected disposable account");
-  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await button(page, "Apps").click();
   await page.getByRole("link", { name: /^Tasks\b/ }).click();
   await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
   const rpc = (name, body = {}) => fetch(new URL("/rest/v1/rpc/tasks_" + name, local), {

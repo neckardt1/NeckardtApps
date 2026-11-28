@@ -95,7 +95,7 @@ function fixture({ count = 2, send, due }: {
 }
 async function mount(page: 'launcher' | 'recall', auth: SessionApi, api: RecallApi, base = '/') {
   if (root) await act(async () => root!.unmount());
-  window.history.replaceState(null, '', `${base}${page === 'recall' ? 'recall/' : ''}`);
+  window.history.replaceState(null, '', `${base}${page === 'recall' ? 'recall/' : 'apps/'}`);
   root = createRoot(host);
   await act(async () => root!.render(<StrictMode>
     <BrowserRouter basename={base}><SiteRoot api={auth} practice={<PracticeDeck api={api} />} /></BrowserRouter>
@@ -107,7 +107,7 @@ async function follow(page: 'launcher' | 'recall', base = '/') {
     : host.querySelector<HTMLAnchorElement>('a.app-card');
   expect(link).toBeDefined();
   expect(link).not.toBeNull();
-  expect(new URL(link!.href).pathname).toBe(`${base}${page === 'recall' ? 'recall/' : ''}`);
+  expect(new URL(link!.href).pathname).toBe(`${base}${page === 'recall' ? 'recall/' : 'apps/'}`);
   await act(async () => link!.click());
   expect(window.location.pathname).toBe(new URL(link!.href).pathname);
 }
@@ -141,7 +141,7 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(before.saves[0].status).toBe('pending');
   expect(f.calls).toHaveLength(1);
   await tap('Apps'); await follow('launcher', base);
-  expect(host.textContent).toContain('Your apps');
+  expect(host.textContent).toContain('All apps');
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(before);
   await follow('recall', base);

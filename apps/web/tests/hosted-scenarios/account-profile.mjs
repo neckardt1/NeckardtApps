@@ -19,7 +19,7 @@ export default async function accountProfile({ page, origin }) {
   const account = page.getByRole("link", { name: "Account: Profile fixture", exact: true });
   await account.waitFor();
   await page.getByRole("link", { name: "Home", exact: true }).click();
-  await page.getByRole("heading", { name: "Your apps" }).waitFor();
+  await page.getByRole("heading", { name: "Home" }).waitFor();
   assert.equal(page.url(), origin + "/");
   await page.reload();
   await account.waitFor();
@@ -45,7 +45,7 @@ export default async function accountProfile({ page, origin }) {
       await page.getByRole("button", { name: "Cancel" }).click();
       assert.ok(await page.getByRole("link", { name: "Manage connections" }).isVisible());
       await page.goBack();
-      await page.getByRole("heading", { name: "Your apps" }).waitFor();
+      await page.getByRole("heading", { name: "Home" }).waitFor();
     }
   }
   await account.click();

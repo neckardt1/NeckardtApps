@@ -55,7 +55,7 @@ async function escape() {
   expect(event.defaultPrevented).toBe(true);
 }
 function assertPublicLauncher() {
-  expect(target.querySelector("h1")?.textContent).toBe("Your apps");
+  expect(target.querySelector("h1")?.textContent).toBe("All apps");
   expect(target.querySelector(".app-name")?.textContent).toBe("Habit Practice");
   expect(target.querySelector(".app-status")?.textContent).toBe("Open");
   expect(target.querySelector(".app-card")?.getAttribute("href")).toBe("/recall/");
@@ -64,6 +64,7 @@ function assertPublicLauncher() {
 test("the launcher remains public while account loading, signed out, failed, or unavailable", async () => {
   const controller = session();
   await mount(controller.api);
+  await navigate("All apps");
   assertPublicLauncher();
   expect(target.querySelector("form")).toBeNull();
   await navigate("Account");
@@ -72,6 +73,7 @@ test("the launcher remains public while account loading, signed out, failed, or 
   await act(async () => controller.emit(null));
   expect(target.querySelector("form")).not.toBeNull();
   await navigate("Home");
+  await navigate("All apps");
   assertPublicLauncher();
   await act(async () => controller.fail(new Error("Synthetic session failure")));
   assertPublicLauncher();
@@ -81,6 +83,7 @@ test("the launcher remains public while account loading, signed out, failed, or 
   expect(controller.api.signOut).not.toHaveBeenCalled();
   await mount(null);
   await navigate("Home");
+  await navigate("All apps");
   assertPublicLauncher();
 });
 
@@ -91,7 +94,7 @@ test("Apps manages focus and dismissal when navigating to Profile or interacting
   expect(header.querySelector("h1")).toBeNull();
   await tap("Apps");
   expect(button("Apps").getAttribute("aria-expanded")).toBe("true");
-  expect(document.activeElement?.textContent).toBe("All apps");
+  expect(document.activeElement?.textContent).toBe("Habit Practice");
   expect(target.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   await escape();
   expect(document.activeElement).toBe(button("Apps"));
@@ -136,6 +139,7 @@ test("Profile updates sign-in and sign-out controls only after authoritative ses
   expect(target.textContent).not.toContain("Manage connections");
   expect(target.querySelector("form")).not.toBeNull();
   await navigate("Home");
+  await navigate("All apps");
   assertPublicLauncher();
 });
 
@@ -153,14 +157,18 @@ test("sign-in failure stays inside Account and never blocks the launcher", async
   expect(target.textContent).not.toContain("Synthetic credentials rejected");
   expect(target.textContent).not.toMatch(/sign up|create account/i);
   await navigate("Home");
+  await navigate("All apps");
   assertPublicLauncher();
 });
 
 test.each(["/", "/NeckardtApps/"])("the Apps menu links stay inside the site at %s", async base => {
   await mount(null, base);
   await tap("Apps");
-  expect(target.querySelector(".popover-link")?.getAttribute("href")).toBe(base);
-  expect(target.querySelector(".app-menu-link")?.getAttribute("href")).toBe(base + "recall/");
+  const links = target.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Apps"] a');
+  expect([...links].map(link => [link.textContent, link.getAttribute("href")])).toEqual([
+    ["Habit Practice", base + "recall/"], ["Private sites", base + "sites"],
+    ["Tasks", base + "tasks/"], ["All apps", base + "apps/"]
+  ]);
 });
 
 test("profile reads finishing after an account switch cannot replace the current header", async () => {
