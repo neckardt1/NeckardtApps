@@ -56,3 +56,22 @@
 .habit-practice .formatted > :first-child { margin-top: 0; }
 .habit-practice .formatted > :last-child { margin-bottom: 0; }
 .habit-practice .save-messages { margin-top: 1rem; }
+
+.habit-practice .deck-back { align-self: flex-start; margin-bottom: .5rem; }
+.practice-deck .deck-row, .practice-deck .browse-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 0; border-top: 1px solid var(--line); }
+.practice-deck .deck-row { margin-top: 2rem; }
+.practice-deck .deck-row .primary { width: auto; padding-inline: 1rem; }
+.practice-deck .deck-row p { margin: .35rem 0 0; color: var(--muted); }
+.practice-deck .browse-link { border-inline: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--green); font: inherit; text-align: left; }
+.catalog { padding-bottom: 2rem; }
+.catalog-controls { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 .5rem; }
+.catalog-controls label { flex: 1 1 8rem; color: var(--muted); font-size: .875rem; }
+.catalog-controls label:first-child { flex-grow: 2; }
+.catalog-controls input, .catalog-controls select { display: block; width: 100%; min-height: 2.75rem; margin: .35rem 0; padding: .5rem; color: var(--ink); background: var(--card); border: 1px solid var(--control-border); border-radius: .45rem; font: inherit; }
+.catalog-card { border-top: 1px solid var(--line); }
+.catalog-card summary { cursor: pointer; padding: .85rem 0; overflow-wrap: anywhere; }
+.catalog-card summary small { display: block; color: var(--muted); margin-top: .25rem; }
+.catalog-card .answer-panel { margin-top: 0; }
+.habit-practice .review-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; }
+.habit-practice .review-heading .eyebrow, .habit-practice .review-heading .deck-back { margin: 0; }
+.habit-practice .review-heading .deck-back { margin-left: auto; flex-shrink: 0; }

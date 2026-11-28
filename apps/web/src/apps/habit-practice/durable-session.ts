@@ -42,19 +42,21 @@ function valid(value: unknown): value is Round {
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const saveId = (save: Save) => save.kind === 'review' ? save.event.review_id : save.event.action_id;
 
+export function readStoredRound(storage: StoragePort, key: string): Round | null {
+  const raw = storage.getItem(key);
+  if (!raw) return null;
+  const parsed: unknown = JSON.parse(raw);
+  if (!valid(parsed)) throw new Error('Stored review cannot be safely restored. Keep this browser data for recovery.');
+  return parsed;
+}
+
 // One atomic record contains progress, queued writes, and verified acknowledgements.
 // Separate Web Locks serialize local mutations and network draining across tabs.
 export function makeDurableSession({ storage, key, api, lock = browserLock, onChange = () => {}, active = () => true }: {
   storage: StoragePort; key: string; api: RecallApi; lock?: Lock;
   onChange?: (round: Round | null) => void; active?: () => boolean;
 }) {
-  function read(): Round | null {
-    const raw = storage.getItem(key);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!valid(parsed)) throw new Error('Stored review cannot be safely restored. Keep this browser data for recovery.');
-    return parsed;
-  }
+  const read = () => readStoredRound(storage, key);
   async function update(change: (round: Round | null) => Round | null) {
     return lock(key, async () => {
       if (!active()) return null;

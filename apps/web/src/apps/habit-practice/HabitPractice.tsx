@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { readPublicSupabaseConfig } from "../../shell/browser-auth.mts";
-import { App } from "./App.tsx";
+import { PracticeDeck } from "./PracticeDeck.tsx";
 import { makeRecallApi, type RecallApi } from "./recall-api.ts";
 import "./styles.css";
 
@@ -14,5 +14,5 @@ export default function HabitPractice() {
     document.title = "Habit Practice";
     return () => { document.title = "Apps"; };
   }, []);
-  return <App api={api} />;
+  return <PracticeDeck api={api} />;
 }

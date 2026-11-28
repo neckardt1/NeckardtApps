@@ -79,6 +79,7 @@ export async function resetRound(worker) {
 export async function prepareRound(worker) {
   const card = await resetRound(worker);
   await worker.page.goto(worker.origin + "/recall/");
+  await worker.page.getByRole("button", { name: "Start round", exact: true }).click();
   await worker.page.getByRole("heading", { name: "Worker card " + worker.id, exact: true }).waitFor();
   return card;
 }

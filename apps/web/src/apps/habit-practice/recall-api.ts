@@ -20,7 +20,11 @@ export interface ActionEvent {
   answered_at: string;
 }
 export type ReviewIntervals = Record<Grade, number>;
+export interface CatalogCard {
+  card_id: string; front: string; back: string; kind: string; active: boolean; due_at: string;
+}
 export interface RecallApi {
+  browse?(signal: AbortSignal, isCurrent: () => boolean): Promise<CatalogCard[]>;
   readonly origin: string;
   due(): Promise<DueCard[]>;
   preview?(cardId: string, revision: number): Promise<ReviewIntervals>;
@@ -146,6 +150,19 @@ export function makeRecallApi(config: PublicSupabaseConfig): RecallApi {
 
   return {
     origin: config.url,
+    async browse(signal, isCurrent) {
+      const cards: CatalogCard[] = [];
+      let after: string | undefined;
+      for (;;) {
+        if (!isCurrent() || signal.aborted) throw new Error("Card browsing was interrupted.");
+        const { data, error } = await client.rpc("recall_browse_cards", { p_after: after }).abortSignal(signal);
+        if (error || !data) throw new Error("Could not load your cards.");
+        if (!data.length) break;
+        cards.push(...data);
+        after = data[data.length - 1].card_id;
+      }
+      return cards.sort((a, b) => a.front.localeCompare(b.front));
+    },
     async preview(cardId, revision) {
       const { data, error } = await client.functions.invoke("recall-grade", {
         body: { preview: true, card_id: cardId, revision }

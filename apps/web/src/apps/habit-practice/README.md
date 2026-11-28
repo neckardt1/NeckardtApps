@@ -40,10 +40,9 @@ on conflict (opportunity_id) do nothing;
 
 ## Saved rounds and recovery
 
-Opening the app starts or resumes the current round at its next prompt. After the final
+The practice home offers Start round or Continue round. Browse all cards searches the owner’s entire deck, including inactive cards and actions without an available check-in. After the final
 response is acknowledged, the browser records the round’s completion and shows its summary.
-If the tab closes during a save, reopening it resumes the outstanding work. A later visit
-checks for newly due cards. An active automatic Dot subscription receives new completed rounds
+If the tab closes during a save, Continue round restores the outstanding work. Starting a new round checks for newly due cards. An active automatic Dot subscription receives new completed rounds
 through the existing notification service.
 
 The browser holds queued responses until the server acknowledges them. Reopen the original

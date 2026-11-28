@@ -7,7 +7,7 @@ import { FormattedText } from './FormattedText.tsx';
 import { RatingButtons } from './RatingButtons.tsx';
 
 type Runtime = { fallback: boolean; server: boolean; active: boolean; owner: string; store: DurableSession; request: number; sessionIsCurrent: () => boolean };
-export function App({ api }: { api: RecallApi | null }) {
+export function App({ api, onHome }: { api: RecallApi | null; onHome?: () => void }) {
   const session = useSiteSession();
   const sessionIsCurrent = session.isCurrent;
   const owner = session.status === 'signed-in' ? session.user?.id ?? null : null;
@@ -180,6 +180,8 @@ export function App({ api }: { api: RecallApi | null }) {
   const otherDevice = round?.saves.some(save => save.status === 'superseded');
   const showReview = !!round && hasWork && !round.finished;
 
+  const homeButton = onHome && <button className="text-button deck-back" disabled={busy} onClick={onHome}>← Practice home</button>;
+
   return <section className="habit-practice" aria-label="Review session">
       {!api && <div className="today-card"><h1>Unavailable</h1><p>This app is not configured.</p></div>}
       {api && session.status === 'loading' && <p className="status" role="status">Checking your session…</p>}
@@ -190,6 +192,7 @@ export function App({ api }: { api: RecallApi | null }) {
         <h1>Welcome back.</h1><p>Open Account to sign in and review your cards.</p>
       </div>}
       {api && owner && <>
+        {(!showReview || (!opportunity && !card)) && homeButton}
         <div ref={content} tabIndex={-1} className="screen-content">
           {round?.finished ? <div className="saved-screen">
             <h1>Saved.</h1>
@@ -197,10 +200,10 @@ export function App({ api }: { api: RecallApi | null }) {
             <p className="muted">{superseded ? `${superseded} ${superseded === 1 ? 'item was' : 'items were'} superseded before completion.` : 'Every response has been saved.'}</p>
           </div> : showReview ? <>
             {opportunity ? <div className="review-card">
-              {opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}
+              <div className="review-heading">{opportunity.cue && <p className="eyebrow">{opportunity.cue}</p>}{homeButton}</div>
               <h1 className="prompt">{opportunity.prompt}</h1>
             </div> : card ? <div className="review-card">
-              <p className="eyebrow">Card {round.cardIndex + 1} of {round.cards.length}</p>
+              <div className="review-heading"><p className="eyebrow">Card {round.cardIndex + 1} of {round.cards.length}</p>{homeButton}</div>
               <h1 className="prompt">{card.front}</h1>
               {round.revealed && <div className="answer-panel" aria-label="Answer"><FormattedText text={card.back} /></div>}
             </div> : <div className="today-card">

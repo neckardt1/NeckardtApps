@@ -5,7 +5,7 @@ import { SiteRoot } from '../src/shell/SiteRoot.tsx';
 import type { SessionApi, SessionUser } from '../src/shell/session.tsx';
 import { BrowserRouter } from 'react-router';
 import { AppRoutes } from '../src/AppRoutes.tsx';
-import { App } from '../src/apps/habit-practice/App.tsx';
+import { PracticeDeck } from '../src/apps/habit-practice/PracticeDeck.tsx';
 import type { RecallApi } from '../src/apps/habit-practice/recall-api.ts';
 import type { DueCard, ReviewEvent } from '../src/apps/habit-practice/review-session.ts';
 import type { Lock, Round } from '../src/apps/habit-practice/durable-session.ts';
@@ -97,7 +97,7 @@ async function mount(page: 'launcher' | 'recall', auth: SessionApi, api: RecallA
   root = createRoot(host);
   await act(async () => root!.render(<StrictMode>
     <BrowserRouter basename={base}><SiteRoot api={auth}>
-      <AppRoutes practice={<App api={api} />} />
+      <AppRoutes practice={<PracticeDeck api={api} />} />
     </SiteRoot></BrowserRouter>
   </StrictMode>));
 }
@@ -131,6 +131,8 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api, base);
+  expect(f.api.due).not.toHaveBeenCalled();
+  await tap('Start round');
   expect(f.auth.listeners.size).toBe(1);
   await tap('Reveal answer'); await tap('Good'); await tap('Reveal answer');
   const before = stored()!;
@@ -143,6 +145,8 @@ test.each(['/', '/NeckardtApps/'])('launcher navigation preserves exact revealed
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(before);
   await follow('recall', base);
+  expect(stored()).toEqual(before);
+  await tap('Continue round');
   expect(f.auth.listeners.size).toBe(1);
   expect(button('Resume review')).toBeUndefined();
 
@@ -162,6 +166,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   await tap('Reveal answer'); await tap('Hard'); await tap('Reveal answer');
   const original = stored()!;
   await tap('Apps'); await follow('launcher');
@@ -178,7 +183,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
 
   await signIn(otherOwner);
   await follow('recall');
-  expect(button('Start review')).toBeUndefined();
+  await tap('Start round');
   expect(button('Resume review')).toBeUndefined();
   await tap('Reveal answer');
   expect(host.textContent).toContain(`${otherOwner.id} answer 1`);
@@ -195,6 +200,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
   expect(host.textContent).not.toContain(firstOwner.id);
   expect(stored()).toEqual(original);
   await signIn(firstOwner);
+  await tap('Continue round');
 
   expect(host.textContent).toContain(`${firstOwner.id} answer 2`);
   expect(host.textContent).not.toContain(otherOwner.id);
@@ -206,6 +212,7 @@ test('Account sign-out on launcher preserves pending review, isolates another ow
 test('shared Apps and Account popovers suppress all grade shortcuts and Escape returns focus to each trigger', async () => {
   const f = fixture();
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   expect(host.querySelectorAll('header')).toHaveLength(1);
   await tap('Reveal answer');
   const before = stored();
@@ -238,6 +245,7 @@ test('unverified final save survives navigation, retries one original event, and
     if (attempt === 1) { await hold.promise; throw Error('Synthetic response lost after save'); }
   } });
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   await tap('Reveal answer'); await tap('Again');
   expect(button('Finish')).toBeUndefined();
   expect(stored()?.finished).toBe(false);
@@ -246,6 +254,7 @@ test('unverified final save survives navigation, retries one original event, and
   expect(button('Finish')).toBeUndefined();
   await tap('Apps'); await follow('launcher');
   await follow('recall');
+  await tap('Continue round');
   expect(stored()?.finished).toBe(false);
   expect(button('Finish')).toBeUndefined();
   await tap('Retry save');
@@ -256,6 +265,7 @@ test('unverified final save survives navigation, retries one original event, and
   expect(stored()?.finished).toBe(true);
   await tap('Apps'); await follow('launcher');
   await follow('recall');
+  await tap('Start round');
   expect(host.textContent).toContain(firstOwner.id + ' question 1');
   expect(button('Resume review')).toBeUndefined();
   expect(f.calls).toHaveLength(2);
@@ -265,8 +275,10 @@ test('a late due response after account replacement cannot seed or display the p
   const oldCards = deferred<DueCard[]>(cards(firstOwner.id));
   const f = fixture({ due: owner => owner === firstOwner.id ? oldCards.promise : Promise.resolve(cards(owner)) });
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   await tap('Account'); await tap('Sign out');
   await signIn(otherOwner);
+  await tap('Start round');
   await act(async () => oldCards.resolve(cards(firstOwner.id)));
   await tap('Reveal answer');
   expect(host.textContent).toContain(`${otherOwner.id} answer 1`);
@@ -280,6 +292,7 @@ test.each([null, otherOwner])('a synchronous auth change to %s stops a pending d
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   await tap('Reveal answer'); await tap('Good');
   await tap('Reveal answer'); await tap('Hard');
   const original = stored()!;
@@ -300,8 +313,8 @@ test.each([null, otherOwner])('a synchronous auth change to %s stops a pending d
   expect(stored()?.finished).toBe(false);
   expect(stored()?.saves[1]).toEqual(original.saves[1]);
   if (nextOwner) {
-    expect(button('Start review')).toBeUndefined();
-    expect(stored(otherOwner.id)?.saves).toHaveLength(0);
+    expect(button('Start round')).toBeDefined();
+    expect(stored(otherOwner.id)).toBeNull();
   } else expect(stored(otherOwner.id)).toBeNull();
 });
 
@@ -318,10 +331,12 @@ test('a queued reveal cannot advance or replace the next owner’s screen', asyn
   Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: controlledLock } });
   const f = fixture();
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   const before = stored();
   const callCount = f.calls.length;
   holdNextMutation = true;
   await tap('Reveal answer');
+  expect(button('← Practice home')?.disabled).toBe(true);
   const pendingReveal = locks.get(storageKey(firstOwner.id));
   expect(pendingReveal).toBeDefined();
   await act(async () => {
@@ -332,6 +347,8 @@ test('a queued reveal cannot advance or replace the next owner’s screen', asyn
   });
   expect(button('Start review')).toBeUndefined();
   expect(host.textContent).not.toContain(firstOwner.id);
+  expect(button('Start round')).toBeDefined();
+  await tap('Start round');
   expect(host.textContent).toContain(`${otherOwner.id} question 1`);
   expect(stored()).toEqual(before);
   expect(stored(otherOwner.id)).toMatchObject({ started: false, cardIndex: 0, revealed: false });
@@ -342,6 +359,7 @@ test('an A to B to A auth change invalidates the old drain and replays original 
   const hold = deferred<void>(undefined);
   const f = fixture({ send: async (_request, attempt) => { if (attempt === 1) await hold.promise; } });
   await mount('recall', f.auth.api, f.api);
+  await tap('Start round');
   await tap('Reveal answer'); await tap('Good');
   await tap('Reveal answer'); await tap('Easy');
   const before = stored()!;
@@ -365,4 +383,27 @@ test('an A to B to A auth change invalidates the old drain and replays original 
   expect(stored()?.saves.every(save => save.status === 'saved')).toBe(true);
   expect(stored()?.finished).toBe(true);
   expect(host.textContent).toContain('Saved.');
+});
+
+test('the card browser drops a late catalog when the identity changes away and back', async () => {
+  const f = fixture();
+  const card = { card_id: 'sample', front: 'Old catalog', back: 'answer', active: true, kind: 'fact', due_at: '2026-11-28' };
+  const pending = deferred([card]);
+  const browse = vi.fn<NonNullable<RecallApi['browse']>>()
+    .mockReturnValue(pending.promise);
+  await mount('recall', f.auth.api, { ...f.api, browse });
+  await tap('Browse all cards →');
+  const firstLoad = browse.mock.calls.at(-1)!;
+  const initialLoads = browse.mock.calls.length;
+  browse.mockResolvedValue([{ ...card, front: 'Current catalog' }]);
+  await act(async () => {
+    f.auth.emit(otherOwner);
+    f.auth.emit(firstOwner);
+    expect(firstLoad[1]()).toBe(false);
+    pending.resolve([card]);
+  });
+  expect(browse).toHaveBeenCalledTimes(initialLoads + 1);
+  expect(firstLoad[0].aborted).toBe(true);
+  expect(host.textContent).toContain('Current catalog');
+  expect(host.textContent).not.toContain('Old catalog');
 });

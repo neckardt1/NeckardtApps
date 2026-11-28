@@ -10,7 +10,7 @@ import { checkNewCardIntervals } from "./hosted-scenarios/review-intervals.mjs";
 
 const migrations = new URL("../../backend/supabase/migrations/", import.meta.url);
 const userRpcs = new Set(["recall_latest_round", "recall_open_round", "recall_finish_round",
-  "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
+  "recall_browse_cards", "recall_record_action", "recall_check_in", "recall_due", "recall_opportunities"]);
 
 export async function bootstrap(db) {
   await db.exec(`
@@ -197,6 +197,15 @@ export async function checkPairedHabit(origin, remote) {
       const { page, context } = await openBrowser(browser, origin, remote, db, owner, fault);
       const click = label => page.getByRole("button", { name: label, exact: true }).click();
       try {
+        if (checkRetry) {
+          await click("Browse all cards");
+          await page.getByLabel("Card type").selectOption("habit-action");
+          await page.getByText("Did it happen?", { exact: true }).click();
+          await page.getByText("Check the occasion.", { exact: true }).waitFor();
+          assert.deepEqual(await rpc(db, owner, "recall_latest_round"), []);
+          await click("← Practice home");
+        }
+        await click("Start round");
         await click(outcome);
         if (checkRetry) {
           await click("Retry save");
@@ -257,6 +266,7 @@ export async function checkPairedHabit(origin, remote) {
         assert.equal(claim.review_count, 1);
         assert.equal(claim.action_count, 1);
         const second = await openBrowser(browser, origin, remote, db, owner);
+        await second.page.getByRole("button", { name: "Start round" }).click();
         await second.page.getByText("No cards due right now.").waitFor();
         await second.context.close();
         const other = await seed(db, false);
